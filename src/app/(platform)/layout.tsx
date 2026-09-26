@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
 
-import { getAuthenticatedUser, getCurrentProfile } from '@/lib/auth';
+import { UserHydrator } from '@/components/hydrators/UserHydrator';
+import { AppShell } from '@/components/layout/AppShell';
+import {
+  getAuthenticatedUser,
+  getCurrentProfile,
+} from '@/lib/auth';
 
 interface PlatformLayoutProps {
   children: ReactNode;
@@ -13,8 +18,13 @@ export default async function PlatformLayout({
   const profile = await getCurrentProfile(user.id);
 
   return (
-    <div>
-      {children}
-    </div>
+    <UserHydrator
+      user={user}
+      profile={profile}
+    >
+      <AppShell profile={profile}>
+        {children}
+      </AppShell>
+    </UserHydrator>
   );
 }
