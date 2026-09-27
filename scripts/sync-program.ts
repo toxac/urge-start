@@ -11,7 +11,7 @@ if (!supabaseUrl) {
 }
 
 if (!supabaseSecretKey) {
-  throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
+  throw new Error('Missing SUPABASE_SECRET_KEY');
 }
 
 const supabase = createClient<Database>(
