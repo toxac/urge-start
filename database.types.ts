@@ -627,7 +627,7 @@ export type Database = {
     Functions: {
       complete_program_node: {
         Args: {
-          p_next_node_key?: string
+          p_next_node_key: string
           p_node_key: string
           p_payload?: Json
           p_program_version: number

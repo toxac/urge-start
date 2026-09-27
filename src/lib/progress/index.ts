@@ -1,10 +1,26 @@
-export type { ProgressState } from './types.js';
+export {
+  getProgressData,
+} from './data';
 
 export {
-  getMissionNodes,
-  getMissionProgress,
-  getNextNode,
-  isAvailable,
+  completeNode,
+} from './actions';
+
+export {
   isComplete,
+  isAvailable,
+  getMissionNodes,
+  getNextNode,
+  getNextProgramNode,
+  getFirstAvailableProgramNode,
   isMissionComplete,
-} from './engine.js';
+  getMissionProgress,
+} from './engine';
+
+export type {
+  ProgressState,
+  ProgramState,
+  ProgressRecord,
+  ProgressData,
+  ProgressSnapshot,
+} from './types';

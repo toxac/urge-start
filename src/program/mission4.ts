@@ -2,7 +2,7 @@
 import type { ProgramMission } from './types';
 
 export const mission4: ProgramMission = {
-  key: 'm4',
+  key: 'mission-4',
   version: 2,
   title: 'Make the Business Work',
   sequence: 4,

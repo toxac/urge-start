@@ -1,5 +1,10 @@
-import type { ProgramMission, ProgramNode } from '../../program/types.js';
-import type { ProgressState } from './types.js';
+import type { ProgramMission, ProgramNode } from '../../program/types';
+import type { ProgressState } from './types';
+import {
+  getAllProgramNodes,
+  getMissionForNode,
+  programMissions,
+} from '@/program';
 
 export function isComplete(
   progress: ProgressState,
@@ -69,4 +74,66 @@ export function getMissionProgress(
     completed,
     total: nodes.length,
   };
+}
+
+
+export function getNextProgramNode(
+  currentNodeKey: string | null,
+  progress: ProgressState,
+): ProgramNode | undefined {
+  const currentNode = currentNodeKey
+    ? getAllProgramNodes().find(
+        (node) => node.key === currentNodeKey,
+      )
+    : undefined;
+
+  const currentMission = currentNode
+    ? getMissionForNode(currentNode.key)
+    : undefined;
+
+  if (!currentMission) {
+    return getFirstAvailableProgramNode(progress);
+  }
+
+  const missionNodes = getMissionNodes(currentMission);
+
+  const currentIndex = missionNodes.findIndex(
+    (node) => node.key === currentNodeKey,
+  );
+
+  const nextWithinMission = missionNodes
+    .slice(currentIndex + 1)
+    .find((node) => isAvailable(node, progress));
+
+  if (nextWithinMission) {
+    return nextWithinMission;
+  }
+
+  const nextMission = programMissions
+    .filter(
+      (mission) =>
+        mission.sequence > currentMission.sequence,
+    )
+    .sort((a, b) => a.sequence - b.sequence)
+    .find((mission) =>
+      getMissionNodes(mission).some((node) =>
+        isAvailable(node, progress),
+      ),
+    );
+
+  if (!nextMission) {
+    return undefined;
+  }
+
+  return getMissionNodes(nextMission).find((node) =>
+    isAvailable(node, progress),
+  );
+}
+
+export function getFirstAvailableProgramNode(
+  progress: ProgressState,
+): ProgramNode | undefined {
+  return getAllProgramNodes().find((node) =>
+    isAvailable(node, progress),
+  );
 }
