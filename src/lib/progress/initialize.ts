@@ -44,12 +44,18 @@ export async function initializeProgram(
   }
 
   const { error: insertError } = await supabase
-    .from('user_program_state')
-    .insert({
+  .from('user_program_state')
+  .upsert(
+    {
       user_id: userId,
       program_version: PROGRAM_VERSION,
       current_node_key: firstNode.key,
-    });
+    },
+    {
+      onConflict: 'user_id',
+      ignoreDuplicates: true,
+    },
+  );
 
   if (insertError) {
     throw new Error(
