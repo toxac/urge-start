@@ -10,7 +10,7 @@ import {
   programMissions,
   PROGRAM_VERSION,
 } from './index.js';
-import { validateProgram } from './validation.js';
+import { validateProgram } from './validation';
 
 const missions = programMissions;
 

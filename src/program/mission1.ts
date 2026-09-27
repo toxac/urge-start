@@ -1,5 +1,5 @@
 // src/program/mission1.ts
-import type { ProgramMission } from './types.js';
+import type { ProgramMission } from './types';
 
 export const mission1: ProgramMission = {
   key: 'mission-1',

@@ -1,4 +1,4 @@
-import type { ProgramMission, ProgramNode } from './types.js';
+import type { ProgramMission, ProgramNode } from './types';
 
 export const EXPECTED_PROGRAM_VERSION = 2;
 
