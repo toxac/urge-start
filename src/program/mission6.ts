@@ -1,3 +1,4 @@
+// src/program/mission6.ts
 import type { ProgramMission } from './types.js';
 
 export const mission6: ProgramMission = {
