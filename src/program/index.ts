@@ -18,25 +18,15 @@ export const programMissions: ProgramMission[] = [
   mission6,
 ];
 
-export function getMission(
-  missionKey: string,
-): ProgramMission | undefined {
-  return programMissions.find(
-    (mission) => mission.key === missionKey,
-  );
+export function getMission(missionKey: string): ProgramMission | undefined {
+  return programMissions.find((mission) => mission.key === missionKey);
 }
 
-export function getMissionBySequence(
-  sequence: number,
-): ProgramMission | undefined {
-  return programMissions.find(
-    (mission) => mission.sequence === sequence,
-  );
+export function getMissionBySequence(sequence: number): ProgramMission | undefined {
+  return programMissions.find((mission) => mission.sequence === sequence);
 }
 
-export function getMissionNodes(
-  mission: ProgramMission,
-): ProgramNode[] {
+export function getMissionNodes(mission: ProgramMission): ProgramNode[] {
   return [
     mission.setup,
     ...mission.quests.flatMap((quest) => quest.nodes),
@@ -49,20 +39,12 @@ export function getAllProgramNodes(): ProgramNode[] {
   return programMissions.flatMap(getMissionNodes);
 }
 
-export function getNode(
-  nodeKey: string,
-): ProgramNode | undefined {
-  return getAllProgramNodes().find(
-    (node) => node.key === nodeKey,
-  );
+export function getNode(nodeKey: string): ProgramNode | undefined {
+  return getAllProgramNodes().find((node) => node.key === nodeKey);
 }
 
-export function getMissionForNode(
-  nodeKey: string,
-): ProgramMission | undefined {
+export function getMissionForNode(nodeKey: string): ProgramMission | undefined {
   return programMissions.find((mission) =>
-    getMissionNodes(mission).some(
-      (node) => node.key === nodeKey,
-    ),
+    getMissionNodes(mission).some((node) => node.key === nodeKey),
   );
 }
