@@ -49,15 +49,35 @@ export async function getProgressData(
   };
 }
 
+export async function getProgramState(
+  userId: string,
+  programVersion: number,
+): Promise<ProgramState | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('user_program_state')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('program_version', programVersion)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load program state: ${error.message}`);
+  }
+
+  return data as ProgramState | null;
+}
+
 
 export async function initializeProgramState(
   userId: string,
   programVersion: number,
   firstNodeKey: string,
-): Promise<ProgramState> {
+): Promise<void> {
   const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('user_program_state')
     .upsert(
       {
@@ -67,16 +87,13 @@ export async function initializeProgramState(
       },
       {
         onConflict: 'user_id,program_version',
+        ignoreDuplicates: true,
       },
-    )
-    .select()
-    .single();
+    );
 
   if (error) {
     throw new Error(
       `Failed to initialize program state: ${error.message}`,
     );
   }
-
-  return data as ProgramState;
 }
