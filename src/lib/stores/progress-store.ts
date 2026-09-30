@@ -10,17 +10,19 @@ export type ProgressStoreState = {
   isSaving: boolean;
 };
 
-export const $progressStore = atom<ProgressStoreState>({
+const initialState: ProgressStoreState = {
   programVersion: null,
   currentNodeKey: null,
   completed: [],
   isHydrated: false,
   isSaving: false,
+};
+
+export const $progressStore = atom<ProgressStoreState>({
+  ...initialState,
 });
 
-export function hydrateProgress(
-  snapshot: ProgressSnapshot,
-) {
+export function hydrateProgress(snapshot: ProgressSnapshot) {
   $progressStore.set({
     programVersion: snapshot.programVersion,
     currentNodeKey: snapshot.currentNodeKey,
@@ -30,9 +32,21 @@ export function hydrateProgress(
   });
 }
 
-export function setProgressSaving(
-  isSaving: boolean,
+export function updateProgressAfterCompletion(
+  snapshot: ProgressSnapshot,
 ) {
+  const current = $progressStore.get();
+
+  $progressStore.set({
+    ...current,
+    programVersion: snapshot.programVersion,
+    currentNodeKey: snapshot.currentNodeKey,
+    completed: snapshot.completed,
+    isHydrated: true,
+  });
+}
+
+export function setProgressSaving(isSaving: boolean) {
   $progressStore.set({
     ...$progressStore.get(),
     isSaving,
