@@ -1,40 +1,21 @@
-import { getAuthenticatedUser } from '@/lib/auth';
-import { initializeProgram } from '@/lib/progress/initialize';
-import type { ProgressSnapshot } from '@/lib/progress/types';
+// src/app/(platform)/program/mission/[missionKey]/layout.tsx
+import { getProgramHydrationData } from '@/actions/progress';
+import { ProgramHydrator } from '@/components/hydrators/ProgramHydrator';
+import { PageShell } from '@/components/layout/PageShell'; // Adjust path if needed
 
-import { ProgressHydrator } from '@/components/hydrators/ProgressHydrator';
-
-export default async function ProgramLayout({
+export default async function MissionLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
-  const user = await getAuthenticatedUser();
-
-  const progressData = await initializeProgram(user.id);
-
-  if (!progressData.programState) {
-    throw new Error(
-      'Program state could not be initialized',
-    );
-  }
-
-  const snapshot: ProgressSnapshot = {
-    programVersion:
-      progressData.programState.program_version,
-
-    currentNodeKey:
-      progressData.programState.current_node_key,
-
-    completed:
-      progressData.progress.map(
-        (record) => record.node_key,
-      ),
-  };
+}) {
+  const { programState, progress } = await getProgramHydrationData();
 
   return (
     <>
-      <ProgressHydrator snapshot={snapshot} />
+      <ProgramHydrator 
+        serverState={programState} 
+        serverProgress={progress} 
+      />
       {children}
     </>
   );
