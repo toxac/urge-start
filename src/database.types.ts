@@ -70,6 +70,59 @@ export type Database = {
           },
         ]
       }
+      discounts: {
+        Row: {
+          code: string
+          created_at: string
+          discount_type: string
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          offering_id: string | null
+          usage_limit: number | null
+          used_count: number | null
+          valid_from: string | null
+          valid_until: string | null
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          discount_type: string
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          offering_id?: string | null
+          usage_limit?: number | null
+          used_count?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          discount_type?: string
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          offering_id?: string | null
+          usage_limit?: number | null
+          used_count?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discounts_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       observation_links: {
         Row: {
           created_at: string
@@ -104,6 +157,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      offerings: {
+        Row: {
+          created_at: string
+          currency: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          name: string
+          price: number
+          slug: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name: string
+          price: number
+          slug: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name?: string
+          price?: number
+          slug?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       program_nodes: {
         Row: {
@@ -616,6 +711,116 @@ export type Database = {
             columns: ["selected_offer_id"]
             isOneToOne: false
             referencedRelation: "user_project_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          metadata: Json | null
+          offering_id: string
+          provider: string | null
+          provider_subscription_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json | null
+          offering_id: string
+          provider?: string | null
+          provider_subscription_id?: string | null
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json | null
+          offering_id?: string
+          provider?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          discount_id: string | null
+          id: string
+          metadata: Json | null
+          offering_id: string
+          provider: string
+          provider_transaction_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency: string
+          discount_id?: string | null
+          id?: string
+          metadata?: Json | null
+          offering_id: string
+          provider: string
+          provider_transaction_id?: string | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          discount_id?: string | null
+          id?: string
+          metadata?: Json | null
+          offering_id?: string
+          provider?: string
+          provider_transaction_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_transactions_discount_id_fkey"
+            columns: ["discount_id"]
+            isOneToOne: false
+            referencedRelation: "discounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_transactions_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "offerings"
             referencedColumns: ["id"]
           },
         ]
