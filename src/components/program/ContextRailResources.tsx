@@ -9,7 +9,7 @@ interface Resource {
   url: string;
   role: string;
   format: string;
-  is_internal: boolean;
+  is_internal: boolean | null;
 }
 
 interface ContextRailResourcesProps {

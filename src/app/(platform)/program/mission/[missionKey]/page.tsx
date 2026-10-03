@@ -4,16 +4,19 @@ import { useStore } from '@nanostores/react';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 import { $programState } from '@/lib/stores/program-state';
+import { $nodeResources } from '@/lib/stores/resources';
 import { getNode, getMissionForNode } from '@/program/index';
 
 import { PageShell } from '@/components/layout/PageShell';
 import { ContextRail } from '@/components/layout/ContextRail';
 import { NodeRenderer } from '@/components/program/NodeRenderer';
+import { NodeResourceGuide } from '@/components/program/NodeResourceGuide';
+import { ContextRailResources } from '@/components/program/ContextRailResources';
 
 export default function MissionPage() {
   const { isHydrated, currentNodeKey } = useStore($programState);
+  const resources = useStore($nodeResources);
 
-  // 1. Wait for hydration from the layout
   if (!isHydrated || !currentNodeKey) {
     return (
       <PageShell>
@@ -24,7 +27,6 @@ export default function MissionPage() {
     );
   }
 
-  // 2. Fetch static node and mission configuration
   const activeNode = getNode(currentNodeKey);
   const mission = getMissionForNode(currentNodeKey);
 
@@ -39,7 +41,13 @@ export default function MissionPage() {
     );
   }
 
-  // 3. Determine Context Rail Content
+  // Filter resources for the currently active node
+  const currentNodeResources = resources.filter((r) => r.node_key === currentNodeKey);
+  const keyGuide = currentNodeResources.find((r) => r.role === 'key_guide');
+  const railResources = currentNodeResources.filter(
+    (r) => r.role === 'supplementary' || r.role === 'ambient'
+  );
+
   const isMissionLevel = activeNode.role === 'setup' || activeNode.role === 'reveal';
   const parentQuest = mission.quests.find((q) => 
     q.nodes.some((n) => n.key === currentNodeKey)
@@ -47,35 +55,41 @@ export default function MissionPage() {
 
   const contextContent = (
     <ContextRail>
-      {isMissionLevel ? (
-        <div className="space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Mission {mission.sequence}
-          </div>
-          <h3 className="font-heading text-lg font-semibold">{mission.title}</h3>
-          <p className="font-medium text-foreground">{mission.question}</p>
-          <p className="text-muted-foreground">{mission.description}</p>
-        </div>
-      ) : parentQuest ? (
-        <div className="space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {mission.title}
-          </div>
-          <h3 className="font-heading text-lg font-semibold">{parentQuest.title}</h3>
-          <p className="text-muted-foreground">{parentQuest.description}</p>
-        </div>
-      ) : null}
+      <div className="space-y-4">
+        {isMissionLevel ? (
+          <>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Mission {mission.sequence}
+            </div>
+            <h3 className="font-heading text-lg font-semibold">{mission.title}</h3>
+            <p className="font-medium text-foreground">{mission.question}</p>
+            <p className="text-sm leading-6 text-muted-foreground">{mission.description}</p>
+          </>
+        ) : parentQuest ? (
+          <>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              {mission.title}
+            </div>
+            <h3 className="font-heading text-lg font-semibold">{parentQuest.title}</h3>
+            <p className="text-sm leading-6 text-muted-foreground">{parentQuest.description}</p>
+          </>
+        ) : null}
+      </div>
+
+      {/* Render supplementary links and ambient tracks in the rail */}
+      {railResources.length > 0 && <ContextRailResources resources={railResources} />}
     </ContextRail>
   );
 
-  // 4. Render the Page Shell with the dynamic context and the active node
   return (
     <PageShell context={contextContent}>
-      <div className="mb-8">
+      <div className="mb-8 space-y-6">
         <h1 className="font-heading text-3xl font-bold tracking-tight">{activeNode.title}</h1>
+        
+        {/* Render critical guides immediately below the title, above the form */}
+        {keyGuide && <NodeResourceGuide resource={keyGuide} />}
       </div>
 
-      {/* The NodeRenderer will look up the dummy component and handle completion */}
       <NodeRenderer nodeKey={currentNodeKey} />
     </PageShell>
   );

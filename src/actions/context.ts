@@ -2,6 +2,7 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { ContextResource } from '@/lib/context/requirements';
+import { getMission, getMissionNodes } from '@/program/index';
 
 // TODO: Move these to their own domain action files later (e.g., src/actions/contacts.ts)
 async function fetchContacts(userId: string) { return []; }
@@ -9,7 +10,7 @@ async function fetchObservations(userId: string) { return []; }
 async function fetchProjects(userId: string) { return []; }
 async function fetchOffers(userId: string) { return []; }
 
-export async function fetchMissionContext(resources: ContextResource[]) {
+export async function fetchMissionContext(resources: ContextResource[], missionKey: string) {
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   
@@ -17,25 +18,17 @@ export async function fetchMissionContext(resources: ContextResource[]) {
 
   const contextData: Partial<Record<ContextResource, any>> = {};
 
-  // Execute only the fetchers declared in the mission's requirements
   await Promise.all(
     resources.map(async (resource) => {
       switch (resource) {
-        case 'contacts':
-          contextData.contacts = await fetchContacts(user.id);
-          break;
-        case 'observations':
-          contextData.observations = await fetchObservations(user.id);
-          break;
-        case 'projects':
-          contextData.projects = await fetchProjects(user.id);
-          break;
-        case 'offers':
-          contextData.offers = await fetchOffers(user.id);
-          break;
+        // ... existing cases ...
         case 'resources':
-          // Special case: might need missionKey instead of userId later
-          contextData.resources = [];
+          const { data } = await supabase
+            .from('program_node_resources')
+            .select('*')
+            .eq('mission_key', missionKey);
+            
+          contextData.resources = data || [];
           break;
       }
     })

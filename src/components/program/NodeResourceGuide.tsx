@@ -8,7 +8,7 @@ interface Resource {
   title: string;
   url: string;
   format: string;
-  is_internal: boolean;
+  is_internal: boolean | null;
 }
 
 export function NodeResourceGuide({ resource }: { resource: Resource }) {
