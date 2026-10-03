@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { countries } from 'countries-list';
+
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { setupUserOnboarding } from '@/actions/auth';
 import { $profileStore } from '@/lib/stores/profile-store';
@@ -13,11 +16,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// Transform countries object into a sortable array, using ISO codes as values
+const countryOptions = Object.entries(countries)
+  .map(([code, data]) => ({ code, name: data.name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
 const onboardingSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters.').regex(/^[a-zA-Z0-9_]+$/, 'Only letters, numbers, and underscores.'),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters.')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Only letters, numbers, and underscores.'),
   display_name: z.string().min(1, 'Display name is required.'),
+  mobile_number: z
+    .string()
+    .optional()
+    .refine((val) => {
+      if (!val) return true; // Optional field
+      const phoneNumber = parsePhoneNumberFromString(val);
+      return phoneNumber?.isValid() ?? false;
+    }, 'Enter a valid phone number with country code (e.g., +91...).'),
   city: z.string().optional(),
-  country: z.string().optional(),
+  country: z.string().optional(), // Now stores the ISO code (e.g., 'IN')
 });
 
 type OnboardingValues = z.infer<typeof onboardingSchema>;
@@ -27,16 +46,24 @@ export function OnboardingForm() {
   const [error, setError] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [intent, setIntent] = useState<'try' | 'join'>('try');
+  
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Read the intent set on the homepage
     const storedIntent = localStorage.getItem('urge_intent') as 'try' | 'join';
     if (storedIntent) setIntent(storedIntent);
   }, []);
 
   const form = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
-    defaultValues: { username: '', display_name: '', city: '', country: '' },
+    defaultValues: { 
+      username: '', 
+      display_name: '', 
+      mobile_number: '', 
+      city: '', 
+      country: 'IN' // Default to India ISO code
+    },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +78,32 @@ export function OnboardingForm() {
     }
   };
 
+  const handleUsernameBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const username = e.target.value;
+    if (username.length < 3 || form.formState.errors.username) {
+      setIsUsernameAvailable(null);
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    const supabase = createSupabaseBrowserClient();
+    
+    const { data } = await supabase
+      .from('user_profile')
+      .select('id')
+      .eq('username_key', username.toLowerCase())
+      .maybeSingle();
+
+    setIsUsernameAvailable(!data); 
+    setIsCheckingUsername(false);
+  };
+
   async function onSubmit(values: OnboardingValues) {
+    if (isUsernameAvailable === false) {
+      setError('Please choose an available username.');
+      return;
+    }
+
     setError(null);
     let avatar_url = null;
     const supabase = createSupabaseBrowserClient();
@@ -60,7 +112,6 @@ export function OnboardingForm() {
     if (!user) return;
 
     try {
-      // 1. Upload Avatar if selected
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
         const filePath = `${user.id}-${Math.random()}.${fileExt}`;
@@ -75,26 +126,45 @@ export function OnboardingForm() {
         avatar_url = publicUrl;
       }
 
-      // 2. Execute Onboarding Transaction
+      let formattedPhone = null;
+      if (values.mobile_number) {
+        const parsed = parsePhoneNumberFromString(values.mobile_number);
+        formattedPhone = parsed?.format('E.164') || values.mobile_number;
+      }
+
+      // Automatically determine currency and full country name from the ISO code
+      let countryName = null;
+      let currencyCode = null;
+      
+      if (values.country) {
+        const countryData = countries[values.country as keyof typeof countries];
+        if (countryData) {
+          countryName = countryData.name;
+          // currency is an array, so we just take the first one
+          currencyCode = countryData.currency[0];
+        }
+      }
+
+      // Execute Onboarding Transaction
+      // Note: Make sure `currency` is added to your `user_profile` table
       const result = await setupUserOnboarding({
         username: values.username,
         username_key: values.username.toLowerCase(),
         display_name: values.display_name,
+        mobile_number: formattedPhone,
         city: values.city || null,
-        country: values.country || null,
+        country: countryName, // Send the full string name to the DB
+        currency: currencyCode, // Send the inferred currency
         avatar_url,
         bio: null,
-        mobile_number: null,
         shipping_address: null,
         social_links: {},
         website_url: null,
-      }, intent);
+      } as any, intent); // 'as any' bypass temporarily until types are re-generated
 
-      // 3. Hydrate Profile Store
       if (result.success && result.profile) {
         $profileStore.set({ profile: result.profile, isHydrated: true });
         
-        // 4. Route based on intent
         if (intent === 'join') {
           router.push('/checkout');
         } else {
@@ -122,13 +192,37 @@ export function OnboardingForm() {
       <div className="space-y-2">
         <Label htmlFor="display_name">Display Name</Label>
         <Input id="display_name" {...form.register('display_name')} />
-        {form.formState.errors.display_name && <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>}
+        {form.formState.errors.display_name && (
+          <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
+        )}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
-        <Input id="username" {...form.register('username')} />
-        {form.formState.errors.username && <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>}
+        <div className="relative">
+          <Input 
+            id="username" 
+            {...form.register('username')} 
+            onBlur={handleUsernameBlur}
+          />
+        </div>
+        {form.formState.errors.username ? (
+          <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>
+        ) : isCheckingUsername ? (
+          <p className="text-sm text-muted-foreground">Checking availability...</p>
+        ) : isUsernameAvailable === true ? (
+          <p className="text-sm text-green-600 dark:text-green-400">Username is available!</p>
+        ) : isUsernameAvailable === false ? (
+          <p className="text-sm text-destructive">This username is already taken.</p>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="mobile_number">Mobile Number (with country code)</Label>
+        <Input id="mobile_number" placeholder="+91..." {...form.register('mobile_number')} />
+        {form.formState.errors.mobile_number && (
+          <p className="text-sm text-destructive">{form.formState.errors.mobile_number.message}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -136,13 +230,26 @@ export function OnboardingForm() {
           <Label htmlFor="city">City</Label>
           <Input id="city" {...form.register('city')} />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 flex flex-col">
           <Label htmlFor="country">Country</Label>
-          <Input id="country" {...form.register('country')} />
+          <select 
+            id="country" 
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            {...form.register('country')}
+          >
+            <option value="">Select country...</option>
+            {countryOptions.map(({ code, name }) => (
+              <option key={code} value={code}>{name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+      <Button 
+        type="submit" 
+        className="w-full" 
+        disabled={form.formState.isSubmitting || isCheckingUsername || isUsernameAvailable === false}
+      >
         {form.formState.isSubmitting ? 'Saving...' : 'Complete Setup'}
       </Button>
     </form>

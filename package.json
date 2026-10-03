@@ -22,6 +22,8 @@
     "@tailwindcss/typography": "^0.5.20",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
+    "countries-list": "^3.4.1",
+    "libphonenumber-js": "^1.13.14",
     "lucide-react": "^1.48.0",
     "nanostores": "^1.5.4",
     "next": "16.3.6",
