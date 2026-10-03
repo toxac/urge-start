@@ -200,6 +200,39 @@ export type Database = {
         }
         Relationships: []
       }
+      program_node_resources: {
+        Row: {
+          created_at: string
+          format: string
+          id: string
+          is_internal: boolean | null
+          node_key: string
+          role: string
+          title: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          format: string
+          id?: string
+          is_internal?: boolean | null
+          node_key: string
+          role: string
+          title: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          format?: string
+          id?: string
+          is_internal?: boolean | null
+          node_key?: string
+          role?: string
+          title?: string
+          url?: string
+        }
+        Relationships: []
+      }
       program_nodes: {
         Row: {
           component: string
