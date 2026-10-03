@@ -5,7 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import {
   getAuthenticatedUser,
   getCurrentProfile,
-} from '@/lib/auth';
+} from '@/actions/auth';
 
 interface PlatformLayoutProps {
   children: ReactNode;
