@@ -206,6 +206,7 @@ export type Database = {
           format: string
           id: string
           is_internal: boolean | null
+          mission_key: string | null
           node_key: string
           role: string
           title: string
@@ -216,6 +217,7 @@ export type Database = {
           format: string
           id?: string
           is_internal?: boolean | null
+          mission_key?: string | null
           node_key: string
           role: string
           title: string
@@ -226,6 +228,7 @@ export type Database = {
           format?: string
           id?: string
           is_internal?: boolean | null
+          mission_key?: string | null
           node_key?: string
           role?: string
           title?: string
