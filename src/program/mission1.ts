@@ -51,19 +51,6 @@ export const mission1: ProgramMission = {
     },
 
     {
-      key: 'q3', sequence: 3, title: 'Make the Ask',
-      description: 'Stop trying to figure everything out alone. Start involving people and notice what happens when you put yourself out there.',
-      nodes: [
-        { key: 'm1-q3-setup', sequence: 1, role: 'setup', title: 'How comfortable are you asking?', intent: 'Establish a personal baseline for asking outside the close circle.', component: 'asking_baseline', dependencies: ['m1-q2-action'] },
-        { key: 'm1-q3-squad', sequence: 2, role: 'investigation', title: 'Build your squad.', intent: 'Identify people who can play useful roles during the journey.', component: 'squad_builder', dependencies: ['m1-q3-setup'] },
-        { key: 'm1-q3-visible', sequence: 3, role: 'investigation', title: 'Make yourself visible.', intent: 'Take a small real-world step that makes the user’s intention visible before everything feels ready.', component: 'visibility_action', dependencies: ['m1-q3-squad'], },
-        { key: 'm1-q3-ask', sequence: 4, role: 'investigation', title: 'Ask someone who owes you nothing.', intent: 'Give direct experience of making a real ask and comparing prediction with reality.', component: 'real_world_ask', dependencies: ['m1-q3-visible'] },
-        { key: 'm1-q3-reveal', sequence: 5, role: 'reveal', title: 'How did reality compare with your prediction?', intent: 'Make the gap between anticipated and actual experience visible without telling the user what it means.', component: 'prediction_reality_reveal', dependencies: ['m1-q3-ask'] },
-        { key: 'm1-q3-action', sequence: 6, role: 'action', title: 'What do you want to do with that?', intent: 'Let the user turn what they learned into a useful next step, commitment, or recorded insight.', component: 'learning_action', dependencies: ['m1-q3-reveal'] },
-      ],
-    },
-
-    {
       key: 'q4', sequence: 4, title: 'Test Your Fear',
       description: 'Get closer to the thing you actually want to avoid and see what happens when you act anyway.',
       nodes: [
