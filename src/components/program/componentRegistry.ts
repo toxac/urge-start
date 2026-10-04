@@ -7,7 +7,9 @@ import {
   FutureStateExplorer, 
   MotivationExplorer, 
   WhyHaventYouStarted, 
-  QuitConditionExplorer 
+  QuitConditionExplorer,
+  CommitmentSynthesis,
+  CommitmentBuilder
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -29,8 +31,8 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'motivation_explorer': MotivationExplorer,
   'future_reflection': FutureStateExplorer,
   'quit_condition_explorer': QuitConditionExplorer,
-  'commitment_synthesis': DummyNode,
-  'commitment_builder': DummyNode,
+  'commitment_synthesis': CommitmentSynthesis,
+  'commitment_builder': CommitmentBuilder,
 
   // ... (keep the rest mapped to DummyNode for now)
 };
