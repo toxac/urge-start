@@ -506,6 +506,7 @@ export type Database = {
       }
       user_profile: {
         Row: {
+          age_group: string | null
           avatar_url: string | null
           bio: string | null
           city: string | null
@@ -513,6 +514,7 @@ export type Database = {
           created_at: string
           currency: string | null
           display_name: string | null
+          gender: string | null
           id: string
           mobile_number: string | null
           shipping_address: Json | null
@@ -524,6 +526,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          age_group?: string | null
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
@@ -531,6 +534,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           display_name?: string | null
+          gender?: string | null
           id?: string
           mobile_number?: string | null
           shipping_address?: Json | null
@@ -542,6 +546,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          age_group?: string | null
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
@@ -549,6 +554,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           display_name?: string | null
+          gender?: string | null
           id?: string
           mobile_number?: string | null
           shipping_address?: Json | null
@@ -563,57 +569,51 @@ export type Database = {
       }
       user_program_context: {
         Row: {
-          age_group: string | null
           capabilities: Json
           constraints: Json
           created_at: string
-          currency: string | null
           desired_future: Json
           experience: Json
           fears: Json
-          gender: string | null
           id: string
           motivations: Json
           network_context: Json
           perceived_barriers: Json
+          program_currency: string | null
           quit_conditions: Json
           resources: Json
           updated_at: string
           user_id: string
         }
         Insert: {
-          age_group?: string | null
           capabilities?: Json
           constraints?: Json
           created_at?: string
-          currency?: string | null
           desired_future?: Json
           experience?: Json
           fears?: Json
-          gender?: string | null
           id?: string
           motivations?: Json
           network_context?: Json
           perceived_barriers?: Json
+          program_currency?: string | null
           quit_conditions?: Json
           resources?: Json
           updated_at?: string
           user_id: string
         }
         Update: {
-          age_group?: string | null
           capabilities?: Json
           constraints?: Json
           created_at?: string
-          currency?: string | null
           desired_future?: Json
           experience?: Json
           fears?: Json
-          gender?: string | null
           id?: string
           motivations?: Json
           network_context?: Json
           perceived_barriers?: Json
+          program_currency?: string | null
           quit_conditions?: Json
           resources?: Json
           updated_at?: string
