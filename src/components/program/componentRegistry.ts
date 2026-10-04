@@ -20,7 +20,9 @@ import {
   PredictionRealityReveal,
   LearningAction,
   LowThresholdAsk,
-  FearChallenge
+  FearChallenge,
+  FearAudit,
+  FearEvidenceReveal
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -64,8 +66,8 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'fear_explorer': StandardSetupFrame,
   'low_threshold_ask': LowThresholdAsk,
   'fear_challenge': FearChallenge,
-  'fear_evidence_reveal': DummyNode,
-  'behavior_commitment': DummyNode,
+  'fear_evidence_reveal': FearEvidenceReveal,
+  'behavior_commitment': FearAudit ,
 
   // ... (keep the rest mapped to DummyNode for now)
 };
