@@ -9,7 +9,13 @@ import {
   WhyHaventYouStarted, 
   QuitConditionExplorer,
   CommitmentSynthesis,
-  CommitmentBuilder
+  CommitmentBuilder,
+  ResourceInventory,
+  NetworkMapper,
+  CapabilityInventory,
+  ExperienceMiner,
+  AssetReveal,
+  GapAction
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -33,6 +39,13 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'quit_condition_explorer': QuitConditionExplorer,
   'commitment_synthesis': CommitmentSynthesis,
   'commitment_builder': CommitmentBuilder,
+  'asset_inventory_intro': StandardSetupFrame,
+  'resource_inventory': ResourceInventory, 
+  'contact_inventory': NetworkMapper,
+  'capability_inventory': CapabilityInventory,
+  'experience_inventory': ExperienceMiner,
+  'asset_reveal': AssetReveal,
+  'gap_action': GapAction
 
   // ... (keep the rest mapped to DummyNode for now)
 };

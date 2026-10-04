@@ -23,3 +23,16 @@ this is also same as above two where we want to see if users have had any experi
 We should anaylse and put together a comprehensive account of user resources, what they have, what they lack, hidden strenghts etc
 ## m1-q2-action
 this is where we can create very focused tasks for them to fill the gaps, We can use AI to generate tasks in the user_task schema and show it users, User can select ones they want to work on. 
+
+```ts
+ nodes: [
+         component: 'asset_inventory_intro',
+         component: 'resource_inventory', 
+         component: 'contact_inventory', 
+         component: 'capability_inventory', 
+         component: 'experience_inventory', 
+         component: 'asset_reveal', 
+         component: 'gap_action'
+      ],
+
+```

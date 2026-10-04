@@ -103,3 +103,89 @@ export async function generateQuadrantSynthesis(
 
   return content;
 }
+
+export async function generateAssetReveal(
+  assets: {
+    resources: any;
+    networks: any;
+    capabilities: any;
+    experience: any;
+  },
+  sourceNodeKey: string
+) {
+  const systemPrompt = `
+    You are Urge, a thoughtful friend acting as a mirror.
+    The user has just mapped out what they currently have available to start a business.
+
+    Here is their raw asset inventory:
+    1. Resources (1-5 scale): ${JSON.stringify(assets.resources)}
+    2. Networks (Distribution): ${JSON.stringify(assets.networks)}
+    3. Behavioral Traits: ${JSON.stringify(assets.capabilities)}
+    4. Adjacent Experience: ${JSON.stringify(assets.experience)}
+
+    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out their "unfair advantage" or unique leverage based ONLY on what they have. 
+    
+    RULES:
+    - IGNORE their weaknesses or what they lack. Do not mention what is missing.
+    - Start directly with an observation about their leverage (e.g., "Looking at this, your actual leverage is...", "Your unfair advantage here isn't capital, it's...").
+    - DO NOT praise, cheerlead, or use words like "amazing", "incredible", or "unstoppable".
+    - DO NOT use Silicon Valley jargon (e.g., synergy, paradigm shift, 10x).
+    - Be grounded, direct, and pragmatic. Show them that they already possess the raw materials to start.
+  `;
+
+  const { success, content, error } = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: "Synthesize these assets into a single paragraph defining my unfair advantage.",
+    componentKey: 'asset_reveal',
+    sourceNodeKey,
+    purpose: 'asset_advantage_synthesis',
+    requireJson: false,
+  });
+
+  if (!success || !content) {
+    throw new Error(error || 'Failed to generate asset synthesis');
+  }
+
+  return content;
+}
+
+export async function generateGapTasks(
+  assets: {
+    resources: any;
+    networks: any;
+    capabilities: any;
+    experience: any;
+  },
+  sourceNodeKey: string
+) {
+  const systemPrompt = `
+    You are Urge. The user has mapped out their resources, networks, traits, and past experiences.
+    Your job is to generate exactly 3 small, highly specific, behavioral tasks they can do this week to leverage their assets and fill their gaps.
+
+    RULES FOR TASKS:
+    - Make them unglamorous and immediate (e.g., "Text one person from your alumni network", "Spend 30 minutes researching X", "Write down 5 things that frustrate you about Y").
+    - DO NOT suggest building an MVP, writing a business plan, or spending money.
+    - Tailor them to the specific assets they provided.
+    - Return ONLY a valid JSON object matching this schema:
+      {
+        "tasks": [
+          { "title": "string (The concrete action)", "description": "string (Why this leverages their specific assets)" }
+        ]
+      }
+  `;
+
+  const { success, content, error } = await invokeAILight({
+    systemPrompt,
+    userPrompt: `Generate 3 tasks based on this inventory: ${JSON.stringify(assets)}`,
+    componentKey: 'gap_action',
+    sourceNodeKey,
+    purpose: 'generate_gap_tasks',
+    requireJson: true,
+  });
+
+  if (!success || !content) {
+    throw new Error(error || 'Failed to generate tasks');
+  }
+
+  return JSON.parse(content).tasks;
+}
