@@ -1,13 +1,16 @@
 import { AuthShell } from '@/components/auth/AuthShell';
 import { SignupForm } from '@/components/auth/SignupForm';
 
-export default function SignupPage({
+export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: { intent?: string };
+  searchParams: Promise<{ intent?: string }>;
 }) {
+  // Await the searchParams promise (Next.js 15+)
+  const resolvedParams = await searchParams;
+  
   // Default to 'try' if no valid intent is provided
-  const intent = searchParams.intent === 'join' ? 'join' : 'try';
+  const intent = resolvedParams.intent === 'join' ? 'join' : 'try';
 
   return (
     <AuthShell
