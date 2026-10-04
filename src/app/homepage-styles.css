@@ -1,0 +1,128 @@
+
+/* -------------------------------------------------------------------------- */
+/* Urge homepage                                                             */
+/* -------------------------------------------------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.urge-display {
+  font-size: clamp(3.75rem, 8.6vw, 8.5rem);
+  line-height: 0.91;
+  letter-spacing: -0.07em;
+  font-weight: 500;
+}
+
+.urge-section-title {
+  font-size: clamp(2.75rem, 5.8vw, 6.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.065em;
+  font-weight: 500;
+}
+
+.urge-eyebrow {
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.urge-hero-grid {
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+.urge-assumption-window {
+  position: relative;
+  min-height: clamp(4.5rem, 8vw, 8rem);
+  overflow: hidden;
+}
+
+.urge-assumption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  font-size: clamp(2.2rem, 4.2vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+  font-weight: 500;
+  color: #111;
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 500ms ease,
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.urge-assumption.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.urge-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 700ms ease,
+    transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.urge-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .urge-reveal,
+  .urge-assumption {
+    transition: none;
+    transform: none;
+  }
+
+  .urge-reveal {
+    opacity: 1;
+  }
+
+  .urge-assumption {
+    opacity: 0;
+  }
+
+  .urge-assumption.is-active {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 767px) {
+  .urge-display {
+    letter-spacing: -0.065em;
+  }
+
+  .urge-section-title {
+    letter-spacing: -0.055em;
+  }
+
+  .urge-assumption-window {
+    min-height: 5.5rem;
+  }
+
+  .urge-assumption {
+    font-size: clamp(2rem, 10vw, 3rem);
+  }
+}
