@@ -2,6 +2,7 @@
 
 import { invokeAILight, invokeAIStandard } from '@/actions/ai';
 import { saveObservation } from '@/actions/observations'; // Assuming you created this based on our domain plan
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export async function analyzeSituation(situation: string, sourceNodeKey: string) {
   const systemPrompt = `
@@ -188,4 +189,50 @@ export async function generateGapTasks(
   }
 
   return JSON.parse(content).tasks;
+}
+
+export async function getQuest3Reflections() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return [];
+
+  const { data } = await supabase
+    .from('user_observations')
+    .select('title, content, source_node_key')
+    .in('source_node_key', ['m1-q3-visible', 'm1-q3-ask'])
+    .eq('user_id', user.id);
+
+  return data || [];
+}
+
+export async function generateFrictionSynthesis(
+  reflections: { title: string; content: string }[],
+  sourceNodeKey: string
+) {
+  const systemPrompt = `
+    You are Urge, a thoughtful friend acting as a mirror.
+    The user just completed two uncomfortable social tasks: making themselves visible on social media, and asking a stranger for a micro-commitment.
+    
+    Here are their raw reflections on how it felt:
+    ${reflections.map(r => `${r.title}:${r.content}`).join('\n')}
+
+    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out the gap between the anxiety they predicted and the reality they experienced.
+
+    RULES:
+    - Start directly with an observation about their relationship to social friction.
+    - DO NOT praise them or say "Great job putting yourself out there."
+    - Be grounded and direct. Highlight the illusion of fear if they realized it wasn't that bad, or acknowledge the sting if it was uncomfortable but survivable.
+  `;
+
+  const { success, content, error } = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: "Synthesize these reflections on social friction.",
+    componentKey: 'prediction_reality_reveal',
+    sourceNodeKey,
+    purpose: 'friction_reality_synthesis',
+    requireJson: false,
+  });
+
+  if (!success || !content) throw new Error(error || 'Failed to generate synthesis');
+  return content;
 }
