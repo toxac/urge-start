@@ -236,3 +236,44 @@ export async function generateFrictionSynthesis(
   if (!success || !content) throw new Error(error || 'Failed to generate synthesis');
   return content;
 }
+
+export async function getQuest4Reflections() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from('user_observations')
+    .select('title, content, source_node_key')
+    .in('source_node_key', ['m1-q4-warmup', 'm1-q4-stretch'])
+    .eq('user_id', user.id);
+
+  return data || [];
+}
+
+export async function generateRejectionSynthesis(
+  reflections: { title: string; content: string }[],
+  sourceNodeKey: string
+) {
+  const systemPrompt = `
+    You are Urge. The user just completed 'Rejection Therapy'—intentionally getting rejected in both low and high-stakes scenarios.
+    
+    Here is their raw data on how getting rejected felt:
+    ${reflections.map(r => `${r.title}:${r.content}`).join('\n')}
+
+    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out that rejection is survivable and just a data point.
+
+    RULES:
+    - Point out that the "no" didn't kill them.
+    - DO NOT praise them. Keep it pragmatic.
+    - Emphasize that 'no' is just a mechanical boundary, not a reflection of their worth.
+  `;
+
+  const { success, content, error } = await invokeAIStandard({
+    systemPrompt, userPrompt: "Synthesize these rejection reflections.",
+    componentKey: 'fear_evidence_reveal', sourceNodeKey, purpose: 'rejection_synthesis', requireJson: false,
+  });
+
+  if (!success || !content) throw new Error(error || 'Failed synthesis');
+  return content;
+}
