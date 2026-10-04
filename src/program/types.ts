@@ -20,6 +20,7 @@ export type ProgramNode = {
   component: string;
   dependencies?: string[];
   resources?: NodeResource[];
+  description?: string;
 };
 
 export type ProgramQuest = {
