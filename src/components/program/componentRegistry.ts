@@ -15,10 +15,12 @@ import {
   CapabilityInventory,
   ExperienceMiner,
   AssetReveal,
-  GapAction
+  GapAction,
+  SquadBuilder
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
+import { ExternalRealWorldTask } from './common/ExternalRealWorldTask';
 
 export type NodeComponentProps = {
   node: ProgramNode;
@@ -48,10 +50,10 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'asset_reveal': AssetReveal,
   'gap_action': GapAction,
   // M1Q3: Make the Ask
-  'asking_baseline': DummyNode,
-  'squad_builder': DummyNode,
-  'visibility_action': DummyNode,
-  'real_world_ask': DummyNode,
+  'asking_baseline': StandardSetupFrame,
+  'squad_builder': SquadBuilder,
+  'visibility_action': ExternalRealWorldTask,
+  'real_world_ask': ExternalRealWorldTask,
   'prediction_reality_reveal': DummyNode,
   'learning_action': DummyNode,
   // M1Q4: Fear

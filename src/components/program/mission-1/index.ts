@@ -12,3 +12,4 @@ export { CapabilityInventory } from './CapabilityInventory';
 export { ExperienceMiner } from './ExperienceMiner';
 export { AssetReveal } from './AssetReveal';
 export { GapAction } from './GapAction';
+export { SquadBuilder } from './SquadBuilder';
