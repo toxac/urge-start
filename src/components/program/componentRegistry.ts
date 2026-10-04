@@ -18,7 +18,9 @@ import {
   GapAction,
   SquadBuilder,
   PredictionRealityReveal,
-  LearningAction
+  LearningAction,
+  LowThresholdAsk,
+  FearChallenge
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -59,9 +61,9 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'prediction_reality_reveal': PredictionRealityReveal,
   'learning_action': LearningAction,
   // M1Q4: Fear
-  'fear_explorer': DummyNode,
-  'low_threshold_ask': DummyNode,
-  'fear_challenge': DummyNode,
+  'fear_explorer': StandardSetupFrame,
+  'low_threshold_ask': LowThresholdAsk,
+  'fear_challenge': FearChallenge,
   'fear_evidence_reveal': DummyNode,
   'behavior_commitment': DummyNode,
 

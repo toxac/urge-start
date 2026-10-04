@@ -51,16 +51,37 @@ export const mission1: ProgramMission = {
     },
 
     {
-      key: 'q4', sequence: 4, title: 'Test Your Fear',
-      description: 'Get closer to the thing you actually want to avoid and see what happens when you act anyway.',
-      nodes: [
-        { key: 'm1-q4-setup', sequence: 1, role: 'setup', title: 'What are you actually afraid will happen?', intent: 'Move beyond the label of fear and uncover the specific feared outcome and meaning.', component: 'fear_explorer', dependencies: ['m1-q3-action'] },
-        { key: 'm1-q4-warmup', sequence: 2, role: 'investigation', title: 'Let’s make one small ask.', intent: 'Give the user a low-threshold opportunity to practice asking while knowing that a no is possible.', component: 'low_threshold_ask', dependencies: ['m1-q4-setup'] },
-        { key: 'm1-q4-stretch', sequence: 3, role: 'investigation', title: 'Now make the ask you actually want to avoid.', intent: 'Help the user choose and perform a personally meaningful action that directly challenges the identified fear.', component: 'fear_challenge', dependencies: ['m1-q4-warmup'], },
-        { key: 'm1-q4-reveal', sequence: 4, role: 'reveal', title: 'Fear vs. reality.', intent: 'Compare the feared outcome with what actually happened and let the user decide what they notice.', component: 'fear_evidence_reveal', dependencies: ['m1-q4-stretch'] },
-        { key: 'm1-q4-action', sequence: 5, role: 'action', title: 'What will you do even when you are afraid?', intent: 'Turn the experience into a repeatable behavioral response.', component: 'behavior_commitment', dependencies: ['m1-q4-reveal'] },
-      ],
+  key: 'q4', sequence: 4, title: 'Seek the No',
+  description: 'Rejection is just data disguised as danger. Let’s recalibrate your fear by getting rejected on purpose.',
+  nodes: [
+    { 
+      key: 'm1-q4-setup', sequence: 1, role: 'setup', title: 'Rejection is just data.', intent: 'Reframe rejection from a personal failure to a necessary input.', 
+      component: 'standard_setup_frame', 
+      description: 'Your brain treats social rejection like a physical threat. It is lying to you. The only way to stop fearing the word "no" is to hear it on purpose and realize you didn\'t die. This quest is about intentionally getting rejected.',
+      dependencies: ['m1-q3-action'] 
     },
+    { 
+      key: 'm1-q4-warmup', sequence: 2, role: 'investigation', title: 'The Warmup Ask', intent: 'Experience a low-stakes rejection.', 
+      component: 'low_threshold_ask', 
+      dependencies: ['m1-q4-setup'] 
+    },
+    { 
+      key: 'm1-q4-stretch', sequence: 3, role: 'investigation', title: 'The Stretch Ask', intent: 'Experience a slightly more uncomfortable rejection.', 
+      component: 'fear_challenge', 
+      dependencies: ['m1-q4-warmup'] 
+    },
+    { 
+      key: 'm1-q4-reveal', sequence: 4, role: 'reveal', title: 'The Autopsy of a No', intent: 'Examine the reality of the rejection versus the anticipation.', 
+      component: 'fear_evidence_reveal', 
+      dependencies: ['m1-q4-stretch'] 
+    },
+    { 
+      key: 'm1-q4-action', sequence: 5, role: 'action', title: 'Your Rejection Protocol', intent: 'Establish a systematic response to hearing no.', 
+      component: 'fear_audit', 
+      dependencies: ['m1-q4-reveal'] 
+    },
+  ],
+}
   ],
 
   reveal: {

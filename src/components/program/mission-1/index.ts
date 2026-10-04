@@ -15,3 +15,5 @@ export { GapAction } from './GapAction';
 export { SquadBuilder } from './SquadBuilder';
 export {PredictionRealityReveal} from './PredictionRealityReveal';
 export { LearningAction } from './LearningAction';
+export { LowThresholdAsk } from './LowThresholdAsk';
+export { FearChallenge } from './FearChallenge';
