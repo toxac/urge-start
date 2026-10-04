@@ -6,9 +6,9 @@ import { ArrowRight, Loader2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeSituation } from '@/actions/responses/mission1';
-import type { ProgramComponentProps } from '@/lib/program/componentRegistry';
+import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
-export function SituationExplorer({ progress, onComplete, nodeKey }: ProgramComponentProps) {
+export function SituationExplorer({ progress, onComplete, nodeKey }: NodeComponentProps) {
   const saved = progress.payload ?? {};
   
   // Phase 1: Input

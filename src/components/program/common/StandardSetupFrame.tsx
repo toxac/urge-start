@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { NodeComponentProps } from '@/components/program/registry';
+import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 export function StandardSetupFrame({ node, onComplete }: NodeComponentProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);

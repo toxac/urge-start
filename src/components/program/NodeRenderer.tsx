@@ -1,7 +1,7 @@
 'use client';
 
 import { getNode } from '@/program/index'; // Adjust path if index is elsewhere
-import { programComponentRegistry } from './registry';
+import { programComponentRegistry } from './componentRegistry';
 import { AlertCircle } from 'lucide-react';
 
 type NodeRendererProps = {

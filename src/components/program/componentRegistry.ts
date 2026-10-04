@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import type { ProgramNode } from '@/program/types';
 
 import { DummyNode } from './DummyNode';
-import { SituationExplorer } from './mission1/SituationExplorer';
+import { SituationExplorer } from '@/components/program/mission-1/SituationExplorer';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 
