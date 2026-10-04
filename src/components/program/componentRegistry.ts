@@ -17,7 +17,8 @@ import {
   AssetReveal,
   GapAction,
   SquadBuilder,
-  PredictionRealityReveal
+  PredictionRealityReveal,
+  LearningAction
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -56,7 +57,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'visibility_action': ExternalRealWorldTask,
   'real_world_ask': ExternalRealWorldTask,
   'prediction_reality_reveal': PredictionRealityReveal,
-  'learning_action': DummyNode,
+  'learning_action': LearningAction,
   // M1Q4: Fear
   'fear_explorer': DummyNode,
   'low_threshold_ask': DummyNode,

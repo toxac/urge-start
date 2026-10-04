@@ -14,3 +14,4 @@ export { AssetReveal } from './AssetReveal';
 export { GapAction } from './GapAction';
 export { SquadBuilder } from './SquadBuilder';
 export {PredictionRealityReveal} from './PredictionRealityReveal';
+export { LearningAction } from './LearningAction';
