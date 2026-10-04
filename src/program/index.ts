@@ -1,11 +1,11 @@
-import { mission1 } from './mission1.js';
-import { mission2 } from './mission2.js';
-import { mission3 } from './mission3.js';
-import { mission4 } from './mission4.js';
-import { mission5 } from './mission5.js';
-import { mission6 } from './mission6.js';
+import { mission1 } from './mission1';
+import { mission2 } from './mission2';
+import { mission3 } from './mission3';
+import { mission4 } from './mission4';
+import { mission5 } from './mission5';
+import { mission6 } from './mission6';
 
-import type { ProgramMission, ProgramNode } from './types.js';
+import type { ProgramMission, ProgramNode } from './types';
 
 export const PROGRAM_VERSION = 2;
 

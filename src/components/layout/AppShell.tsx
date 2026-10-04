@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 
-import type { UserProfile } from '@/lib/stores/profile-store';
+// Use the new ProfileRow type from user-context
+import type { ProfileRow } from '@/lib/stores/user-context';
 
 import { MobileNav } from './MobileNav';
 import { Sidebar } from './Sidebar';
 
 interface AppShellProps {
   children: ReactNode;
-  profile: UserProfile | null;
+  profile: ProfileRow | null;
 }
 
 export function AppShell({

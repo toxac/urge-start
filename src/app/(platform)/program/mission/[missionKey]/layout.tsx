@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { getMissionRequirements } from '@/lib/context/requirements';
 import { fetchMissionContext } from '@/actions/context';
 import { getProgramSubscriptionStatus } from '@/actions/subscription';
@@ -9,24 +10,28 @@ export default async function MissionLayout({
   children,
   params,
 }: {
-  children: React.ReactNode;
-  params: { missionKey: string };
-}) {
+  children: ReactNode;
+  params: Promise<{ missionKey: string }>; // 1. Type params as a Promise
+}){
+  // Await the params to unwrap them
+  const resolvedParams = await params;
+  const missionKey = resolvedParams.missionKey;
+
   // 1. Check Subscription Status
   const status = await getProgramSubscriptionStatus();
   
   // 2. The Trial Gate
-  if (params.missionKey !== 'mission-1' && status === 'trialing') {
+  if (missionKey !== 'mission-1' && status === 'trialing') {
     return (
       <PageShell>
-        <TrialPaywall missionKey={params.missionKey} />
+        <TrialPaywall missionKey={missionKey} />
       </PageShell>
     );
   }
 
   // 3. Normal Flow: Fetch Context & Render
-  const requiredResources = getMissionRequirements(params.missionKey);
-  const contextData = await fetchMissionContext(requiredResources);
+  const requiredResources = getMissionRequirements(missionKey);
+  const contextData = await fetchMissionContext(requiredResources, missionKey);
 
   return (
     <>
