@@ -203,6 +203,7 @@ export type Database = {
       program_node_resources: {
         Row: {
           created_at: string
+          description: string | null
           format: string
           id: string
           is_internal: boolean | null
@@ -214,6 +215,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           format: string
           id?: string
           is_internal?: boolean | null
@@ -225,6 +227,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           format?: string
           id?: string
           is_internal?: boolean | null
@@ -283,6 +286,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_commitments: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          source_node_key: string | null
+          statement: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          source_node_key?: string | null
+          statement: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          source_node_key?: string | null
+          statement?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_commitments_source_node_key_fkey"
+            columns: ["source_node_key"]
+            isOneToOne: false
+            referencedRelation: "program_nodes"
+            referencedColumns: ["node_key"]
+          },
+        ]
       }
       user_contacts: {
         Row: {
@@ -804,6 +845,76 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "offerings"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_tasks: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json
+          observation_id: string | null
+          project_id: string | null
+          source_node_key: string | null
+          status: string
+          task_type: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          observation_id?: string | null
+          project_id?: string | null
+          source_node_key?: string | null
+          status?: string
+          task_type?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          observation_id?: string | null
+          project_id?: string | null
+          source_node_key?: string | null
+          status?: string
+          task_type?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tasks_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "user_observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tasks_source_node_key_fkey"
+            columns: ["source_node_key"]
+            isOneToOne: false
+            referencedRelation: "program_nodes"
+            referencedColumns: ["node_key"]
           },
         ]
       }
