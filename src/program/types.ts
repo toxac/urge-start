@@ -21,6 +21,7 @@ export type ProgramNode = {
   dependencies?: string[];
   resources?: NodeResource[];
   description?: string;
+  prompt?: string;
 };
 
 export type ProgramQuest = {
