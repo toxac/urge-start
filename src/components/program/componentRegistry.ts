@@ -67,7 +67,10 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'low_threshold_ask': LowThresholdAsk,
   'fear_challenge': FearChallenge,
   'fear_evidence_reveal': FearEvidenceReveal,
-  'behavior_commitment': FearAudit ,
+  'behavior_commitment': FearAudit,
+  // M1 Action
+  'm1-reveal': StandardSetupFrame,
+  'm1-action': StandardSetupFrame,
 
   // ... (keep the rest mapped to DummyNode for now)
 };

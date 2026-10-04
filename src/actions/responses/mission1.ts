@@ -277,3 +277,66 @@ export async function generateRejectionSynthesis(
   if (!success || !content) throw new Error(error || 'Failed synthesis');
   return content;
 }
+
+
+export async function getMission1Artifacts() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: commitments } = await supabase
+    .from('user_commitments')
+    .select('statement, source_node_key')
+    .in('source_node_key', ['m1-q1-action', 'm1-q3-action', 'm1-q4-action'])
+    .eq('user_id', user.id);
+
+  const { data: observations } = await supabase
+    .from('user_observations')
+    .select('content, source_node_key')
+    .eq('source_node_key', 'm1-q2-reveal')
+    .eq('user_id', user.id);
+
+  return {
+    lineDrawn: commitments?.find(c => c.source_node_key === 'm1-q1-action')?.statement || 'Not recorded.',
+    leverage: observations?.find(o => o.source_node_key === 'm1-q2-reveal')?.content || 'Not recorded.',
+    socialRule: commitments?.find(c => c.source_node_key === 'm1-q3-action')?.statement || 'Not recorded.',
+    rejectionProtocol: commitments?.find(c => c.source_node_key === 'm1-q4-action')?.statement || 'Not recorded.',
+  };
+}
+
+export async function generateMission1Synthesis(
+  artifacts: any,
+  sourceNodeKey: string
+) {
+  const systemPrompt = `
+    You are Urge. The user has just completed the entire first mission (Preparation Phase).
+    They have established their "Founder Operating System".
+
+    Here are their raw artifacts:
+    1. Their Commitment: ${artifacts.lineDrawn}
+    2. Their Leverage: ${artifacts.leverage}
+    3. Their Social Rule: ${artifacts.socialRule}
+    4. Their Rejection Protocol: ${artifacts.rejectionProtocol}
+
+    Your exact task: Write TWO short paragraphs.
+    Paragraph 1: Identify their ultimate, unglamorous strength based strictly on how they answered these prompts.
+    Paragraph 2: Point out the specific psychological trap or bad habit most likely to sabotage them in Mission 2 (when they actually have to find a market problem).
+
+    RULES:
+    - DO NOT use bullet points or formatting. Just two paragraphs.
+    - DO NOT praise them for finishing the mission.
+    - Keep it stark, pragmatic, and grounded. Point out the exact armor they built, and the exact crack in it.
+  `;
+
+  const { success, content, error } = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: "Synthesize my operating system into my ultimate strength and my biggest trap.",
+    componentKey: 'mission_reveal',
+    sourceNodeKey,
+    purpose: 'mission1_final_synthesis',
+    requireJson: false,
+  });
+
+  if (!success || !content) throw new Error(error || 'Failed to generate mission synthesis');
+  return content;
+}
