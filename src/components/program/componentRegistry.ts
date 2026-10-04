@@ -2,7 +2,13 @@ import type { ComponentType } from 'react';
 import type { ProgramNode } from '@/program/types';
 
 import { DummyNode } from './DummyNode';
-import { SituationExplorer } from '@/components/program/mission-1/SituationExplorer';
+import { 
+  SituationExplorer, 
+  FutureStateExplorer, 
+  MotivationExplorer, 
+  WhyHaventYouStarted, 
+  QuitConditionExplorer 
+} from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 
@@ -19,10 +25,10 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   
   // Q1: Draw the Line
   'barrier_reflection': StandardSetupFrame, // Reusing a common component!
-  'why_havent_you_started': DummyNode,
-  'motivation_explorer': DummyNode,
-  'future_reflection': DummyNode,
-  'quit_condition_explorer': DummyNode,
+  'why_havent_you_started': WhyHaventYouStarted,
+  'motivation_explorer': MotivationExplorer,
+  'future_reflection': FutureStateExplorer,
+  'quit_condition_explorer': QuitConditionExplorer,
   'commitment_synthesis': DummyNode,
   'commitment_builder': DummyNode,
 
