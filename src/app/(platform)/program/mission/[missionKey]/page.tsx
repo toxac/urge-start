@@ -41,52 +41,26 @@ export default function MissionPage() {
     );
   }
 
-  // Filter resources for the currently active node
+  // Filter resources strictly for the active node
   const currentNodeResources = resources.filter((r) => r.node_key === currentNodeKey);
   const keyGuide = currentNodeResources.find((r) => r.role === 'key_guide');
   const railResources = currentNodeResources.filter(
     (r) => r.role === 'supplementary' || r.role === 'ambient'
   );
 
-  const isMissionLevel = activeNode.role === 'setup' || activeNode.role === 'reveal';
-  const parentQuest = mission.quests.find((q) => 
-    q.nodes.some((n) => n.key === currentNodeKey)
-  );
-
-  const contextContent = (
+  // We have removed the mission description block from the ContextRail.
+  // It now strictly renders the contextual resources and ambient tracks for the active node.
+  const contextContent = railResources.length > 0 ? (
     <ContextRail>
-      <div className="space-y-4">
-        {isMissionLevel ? (
-          <>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Mission {mission.sequence}
-            </div>
-            <h3 className="font-heading text-lg font-semibold">{mission.title}</h3>
-            <p className="font-medium text-foreground">{mission.question}</p>
-            <p className="text-sm leading-6 text-muted-foreground">{mission.description}</p>
-          </>
-        ) : parentQuest ? (
-          <>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              {mission.title}
-            </div>
-            <h3 className="font-heading text-lg font-semibold">{parentQuest.title}</h3>
-            <p className="text-sm leading-6 text-muted-foreground">{parentQuest.description}</p>
-          </>
-        ) : null}
-      </div>
-
-      {/* Render supplementary links and ambient tracks in the rail */}
-      {railResources.length > 0 && <ContextRailResources resources={railResources} />}
+      <ContextRailResources resources={railResources} />
     </ContextRail>
-  );
+  ) : undefined; // Pass undefined if empty to collapse the right column in PageShell
 
   return (
     <PageShell context={contextContent}>
       <div className="mb-8 space-y-6">
         <h1 className="font-heading text-3xl font-bold tracking-tight">{activeNode.title}</h1>
         
-        {/* Render critical guides immediately below the title, above the form */}
         {keyGuide && <NodeResourceGuide resource={keyGuide} />}
       </div>
 

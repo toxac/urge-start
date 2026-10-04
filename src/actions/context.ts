@@ -10,29 +10,24 @@ async function fetchObservations(userId: string) { return []; }
 async function fetchProjects(userId: string) { return []; }
 async function fetchOffers(userId: string) { return []; }
 
-export async function fetchMissionContext(resources: ContextResource[], missionKey: string) {
+export async function fetchMissionContext(
+  requirements: ContextResource[],
+  missionKey: string
+) {
   const supabase = await createSupabaseServerClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  
-  if (error || !user) throw new Error('Unauthorized');
-
   const contextData: Partial<Record<ContextResource, any>> = {};
 
-  await Promise.all(
-    resources.map(async (resource) => {
-      switch (resource) {
-        // ... existing cases ...
-        case 'resources':
-          const { data } = await supabase
-            .from('program_node_resources')
-            .select('*')
-            .eq('mission_key', missionKey);
-            
-          contextData.resources = data || [];
-          break;
-      }
-    })
-  );
+  // Fetch Node Resources (always fetch if 'resources' is in requirements)
+  if (requirements.includes('resources')) {
+    const { data: resources } = await supabase
+      .from('program_node_resources')
+      .select('*')
+      .eq('mission_key', missionKey);
+      
+    contextData.resources = resources || [];
+  }
+
+  // Add other fetchers (contacts, observations) here later based on requirements array
 
   return contextData;
 }
