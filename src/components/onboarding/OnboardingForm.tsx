@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,7 +10,7 @@ import { countries } from 'countries-list';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { setupUserOnboarding } from '@/actions/auth';
-import { $profileStore } from '@/lib/stores/profile-store';
+import { $userContext } from '@/lib/stores/user-context';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,27 +41,21 @@ const onboardingSchema = z.object({
 
 type OnboardingValues = z.infer<typeof onboardingSchema>;
 
-export function OnboardingForm() {
+export function OnboardingForm({ intent = 'try' }: { intent?: 'try' | 'join' }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [intent, setIntent] = useState<'try' | 'join'>('try');
-  
+
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const storedIntent = localStorage.getItem('urge_intent') as 'try' | 'join';
-    if (storedIntent) setIntent(storedIntent);
-  }, []);
-
   const form = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
-    defaultValues: { 
-      username: '', 
-      display_name: '', 
-      mobile_number: '', 
-      city: '', 
+    defaultValues: {
+      username: '',
+      display_name: '',
+      mobile_number: '',
+      city: '',
       country: 'IN' // Default to India ISO code
     },
   });
@@ -87,14 +81,14 @@ export function OnboardingForm() {
 
     setIsCheckingUsername(true);
     const supabase = createSupabaseBrowserClient();
-    
+
     const { data } = await supabase
       .from('user_profile')
       .select('id')
       .eq('username_key', username.toLowerCase())
       .maybeSingle();
 
-    setIsUsernameAvailable(!data); 
+    setIsUsernameAvailable(!data);
     setIsCheckingUsername(false);
   };
 
@@ -115,13 +109,13 @@ export function OnboardingForm() {
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
         const filePath = `${user.id}-${Math.random()}.${fileExt}`;
-        
+
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(filePath, avatarFile);
-          
+
         if (uploadError) throw new Error('Avatar upload failed.');
-        
+
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
         avatar_url = publicUrl;
       }
@@ -135,7 +129,7 @@ export function OnboardingForm() {
       // Automatically determine currency and full country name from the ISO code
       let countryName = null;
       let currencyCode = null;
-      
+
       if (values.country) {
         const countryData = countries[values.country as keyof typeof countries];
         if (countryData) {
@@ -146,25 +140,30 @@ export function OnboardingForm() {
       }
 
       // Execute Onboarding Transaction
-      // Note: Make sure `currency` is added to your `user_profile` table
       const result = await setupUserOnboarding({
         username: values.username,
         username_key: values.username.toLowerCase(),
         display_name: values.display_name,
         mobile_number: formattedPhone,
         city: values.city || null,
-        country: countryName, // Send the full string name to the DB
-        currency: currencyCode, // Send the inferred currency
+        country: countryName,
+        currency: currencyCode,
         avatar_url,
         bio: null,
         shipping_address: null,
         social_links: {},
         website_url: null,
-      } as any, intent); // 'as any' bypass temporarily until types are re-generated
+      } as any, intent);
 
       if (result.success && result.profile) {
-        $profileStore.set({ profile: result.profile, isHydrated: true });
-        
+        // Merge the new profile into the existing universal context state
+        const currentState = $userContext.get();
+        $userContext.set({
+          ...currentState,
+          profile: result.profile,
+          isHydrated: true
+        });
+
         if (intent === 'join') {
           router.push('/checkout');
         } else {
@@ -200,9 +199,9 @@ export function OnboardingForm() {
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <div className="relative">
-          <Input 
-            id="username" 
-            {...form.register('username')} 
+          <Input
+            id="username"
+            {...form.register('username')}
             onBlur={handleUsernameBlur}
           />
         </div>
@@ -232,8 +231,8 @@ export function OnboardingForm() {
         </div>
         <div className="space-y-2 flex flex-col">
           <Label htmlFor="country">Country</Label>
-          <select 
-            id="country" 
+          <select
+            id="country"
             className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             {...form.register('country')}
           >
@@ -245,9 +244,9 @@ export function OnboardingForm() {
         </div>
       </div>
 
-      <Button 
-        type="submit" 
-        className="w-full" 
+      <Button
+        type="submit"
+        className="w-full"
         disabled={form.formState.isSubmitting || isCheckingUsername || isUsernameAvailable === false}
       >
         {form.formState.isSubmitting ? 'Saving...' : 'Complete Setup'}
