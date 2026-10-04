@@ -11,9 +11,7 @@ export function StandardSetupFrame({ node, onComplete }: NodeComponentProps) {
   async function handleComplete() {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    
     try {
-      // Setup nodes usually don't have a payload, they just mark completion
       await onComplete({ completed: true });
     } catch (error) {
       console.error('[SETUP FRAME]', error);
@@ -27,19 +25,19 @@ export function StandardSetupFrame({ node, onComplete }: NodeComponentProps) {
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {node.title}
         </h2>
-
-        {/* We use node.intent here, but you could easily add a 'description' field to ProgramNode types later */}
-        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          {node.intent}
-        </p>
-
+        {node.intent && (
+          <p className="max-w-3xl text-xl leading-8 text-foreground font-medium">
+            {node.intent}
+          </p>
+        )}
+        {node.description && (
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground whitespace-pre-wrap">
+            {node.description}
+          </p>
+        )}
         <div className="flex max-w-3xl justify-start pt-4">
-          <Button
-            onClick={handleComplete}
-            disabled={isSubmitting}
-            className="h-12 gap-2 rounded-full px-8 text-base"
-          >
-            {isSubmitting ? 'Saving...' : "Let's find out"}
+          <Button onClick={handleComplete} disabled={isSubmitting} className="h-12 gap-2 rounded-full px-8 text-base">
+            {isSubmitting ? 'Saving...' : "Continue"}
             {!isSubmitting && <ArrowRight className="h-5 w-5" />}
           </Button>
         </div>
