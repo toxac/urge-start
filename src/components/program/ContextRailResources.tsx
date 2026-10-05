@@ -8,8 +8,7 @@ type Resource = Tables<'program_node_resources'>;
 export function ContextRailResources({ resources }: { resources: Resource[] }) {
   const ambientTracks = resources.filter(r => r.role === 'ambient');
   const supplementaryLinks = resources.filter(r => r.role === 'supplementary');
-  console.log('ambientTracks', ambientTracks);
-  console.log('supplementaryLinks', supplementaryLinks);
+
   return (
     <div className="space-y-8">
       {ambientTracks.length > 0 && (
@@ -20,13 +19,12 @@ export function ContextRailResources({ resources }: { resources: Resource[] }) {
           </h4>
           <div className="grid gap-3">
             {ambientTracks.map(track => {
-              // If it's a Spotify link, we can attempt to render an iframe embed
               if (track.url.includes('spotify.com')) {
-                const embedUrl = track.url.replace('/track/', '/embed/track/').replace('/playlist/', '/embed/playlist/');
+                // FIXED: Just pass the track.url directly since DB has the embed format
                 return (
                   <iframe 
                     key={track.id}
-                    src={embedUrl}
+                    src={track.url}
                     width="100%" 
                     height="80" 
                     frameBorder="0" 
@@ -37,7 +35,6 @@ export function ContextRailResources({ resources }: { resources: Resource[] }) {
                   />
                 );
               }
-              // Fallback for non-spotify ambient links
               return (
                 <a key={track.id} href={track.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50">
                   <div className="min-w-0 flex-1">

@@ -26,7 +26,16 @@ export const mission1: ProgramMission = {
       key: 'q1', sequence: 1, title: 'Draw the Line',
       description: 'Get honest about what has been stopping you, what keeps pulling you back, and what you are willing to do about it.',
       nodes: [
-        { key: 'm1-q1-setup', sequence: 1, role: 'setup', title: 'Why have you not started?', intent: 'Frame the gap between wanting to start and actually starting in a personal way.', component: 'barrier_reflection', dependencies: ['m1-setup'] },
+        {
+          key: 'm1-q1-setup',
+          sequence: 1,
+          role: 'setup',
+          title: 'Are you actually stuck, or are you just afraid to take the next step?',
+          description: 'The biggest hurdle is rarely an external wall—it is usually our own internal resistance. In this investigation, we are going to strip away the logistical excuses and look honestly at the overthinking, fear, and hidden assumptions that have been keeping you parked at the starting line.',
+          intent: 'Frame the gap between wanting to start and actually starting in a personal way.',
+          component: 'barrier_reflection',
+          dependencies: ['m1-setup']
+        },
         { key: 'm1-q1-barriers', sequence: 2, role: 'investigation', title: 'What has been stopping you?', intent: 'Put words to the real barriers, fears, and reasons behind not starting.', component: 'why_havent_you_started', dependencies: ['m1-q1-setup'] },
         { key: 'm1-q1-motivation', sequence: 3, role: 'investigation', title: 'What keeps bringing you back?', intent: 'Understand the pull that keeps bringing the user back despite the barriers.', component: 'motivation_explorer', dependencies: ['m1-q1-barriers'] },
         { key: 'm1-q1-future', sequence: 4, role: 'investigation', title: 'What would be different?', intent: 'Describe what the user actually wants to change if they make this happen.', component: 'future_reflection', dependencies: ['m1-q1-motivation'] },
@@ -51,37 +60,37 @@ export const mission1: ProgramMission = {
     },
 
     {
-  key: 'q4', sequence: 4, title: 'Seek the No',
-  description: 'Rejection is just data disguised as danger. Let’s recalibrate your fear by getting rejected on purpose.',
-  nodes: [
-    { 
-      key: 'm1-q4-setup', sequence: 1, role: 'setup', title: 'Rejection is just data.', intent: 'Reframe rejection from a personal failure to a necessary input.', 
-      component: 'standard_setup_frame', 
-      description: 'Your brain treats social rejection like a physical threat. It is lying to you. The only way to stop fearing the word "no" is to hear it on purpose and realize you didn\'t die. This quest is about intentionally getting rejected.',
-      dependencies: ['m1-q3-action'] 
-    },
-    { 
-      key: 'm1-q4-warmup', sequence: 2, role: 'investigation', title: 'The Warmup Ask', intent: 'Experience a low-stakes rejection.', 
-      component: 'low_threshold_ask', 
-      dependencies: ['m1-q4-setup'] 
-    },
-    { 
-      key: 'm1-q4-stretch', sequence: 3, role: 'investigation', title: 'The Stretch Ask', intent: 'Experience a slightly more uncomfortable rejection.', 
-      component: 'fear_challenge', 
-      dependencies: ['m1-q4-warmup'] 
-    },
-    { 
-      key: 'm1-q4-reveal', sequence: 4, role: 'reveal', title: 'The Autopsy of a No', intent: 'Examine the reality of the rejection versus the anticipation.', 
-      component: 'fear_evidence_reveal', 
-      dependencies: ['m1-q4-stretch'] 
-    },
-    { 
-      key: 'm1-q4-action', sequence: 5, role: 'action', title: 'Your Rejection Protocol', intent: 'Establish a systematic response to hearing no.', 
-      component: 'fear_audit', 
-      dependencies: ['m1-q4-reveal'] 
-    },
-  ],
-}
+      key: 'q4', sequence: 4, title: 'Seek the No',
+      description: 'Rejection is just data disguised as danger. Let’s recalibrate your fear by getting rejected on purpose.',
+      nodes: [
+        {
+          key: 'm1-q4-setup', sequence: 1, role: 'setup', title: 'Rejection is just data.', intent: 'Reframe rejection from a personal failure to a necessary input.',
+          component: 'standard_setup_frame',
+          description: 'Your brain treats social rejection like a physical threat. It is lying to you. The only way to stop fearing the word "no" is to hear it on purpose and realize you didn\'t die. This quest is about intentionally getting rejected.',
+          dependencies: ['m1-q3-action']
+        },
+        {
+          key: 'm1-q4-warmup', sequence: 2, role: 'investigation', title: 'The Warmup Ask', intent: 'Experience a low-stakes rejection.',
+          component: 'low_threshold_ask',
+          dependencies: ['m1-q4-setup']
+        },
+        {
+          key: 'm1-q4-stretch', sequence: 3, role: 'investigation', title: 'The Stretch Ask', intent: 'Experience a slightly more uncomfortable rejection.',
+          component: 'fear_challenge',
+          dependencies: ['m1-q4-warmup']
+        },
+        {
+          key: 'm1-q4-reveal', sequence: 4, role: 'reveal', title: 'The Autopsy of a No', intent: 'Examine the reality of the rejection versus the anticipation.',
+          component: 'fear_evidence_reveal',
+          dependencies: ['m1-q4-stretch']
+        },
+        {
+          key: 'm1-q4-action', sequence: 5, role: 'action', title: 'Your Rejection Protocol', intent: 'Establish a systematic response to hearing no.',
+          component: 'fear_audit',
+          dependencies: ['m1-q4-reveal']
+        },
+      ],
+    }
   ],
 
   reveal: {

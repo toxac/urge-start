@@ -22,7 +22,7 @@ export async function submitNodeCompletion(nodeKey: string, payload: Record<stri
       program_version: PROGRAM_VERSION,
       payload,
       completed_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,node_key,program_version' });
+    }, { onConflict: 'user_id,node_key' });
 
   if (progressError) {
     throw new Error(`Failed to save progress: ${progressError.message}`);
