@@ -4,10 +4,10 @@ import {
   Compass,
 } from 'lucide-react';
 
-import type { UserProfile } from '@/lib/stores/profile-store';
+import type { ProfileRow } from '@/lib/stores/user-context';
 
 interface DashboardProps {
-  profile: UserProfile | null;
+  profile: ProfileRow | null;
 }
 
 const missions = [

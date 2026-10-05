@@ -8,7 +8,8 @@ type Resource = Tables<'program_node_resources'>;
 export function ContextRailResources({ resources }: { resources: Resource[] }) {
   const ambientTracks = resources.filter(r => r.role === 'ambient');
   const supplementaryLinks = resources.filter(r => r.role === 'supplementary');
-
+  console.log('ambientTracks', ambientTracks);
+  console.log('supplementaryLinks', supplementaryLinks);
   return (
     <div className="space-y-8">
       {ambientTracks.length > 0 && (
