@@ -7,11 +7,20 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $userContext } from '@/lib/stores/user-context';
+import { $progress } from '@/lib/stores/progress';
 import { generateQuadrantSynthesis } from '@/actions/responses/mission1';
 import { saveObservation } from '@/actions/observations';
 
 export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const { userContext } = useStore($userContext);
+  // 1. Grab data from the Context Store
+  const rawContext = useStore($userContext);
+  const context = (rawContext as any)?.userContext || rawContext || {};
+
+  // 2. Grab data from the Progress Store (Fallback if context hasn't updated yet)
+  const progressState = useStore($progress);
+  // Assuming the node before this was m1-q1-investigate
+  const investigatePayload = progressState.payloads?.['m1-q1-investigate'] || {};
+
   const saved = progress.payload ?? {};
 
   const [synthesis, setSynthesis] = useState<string | null>(
@@ -23,23 +32,41 @@ export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: Nod
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    async function fetchSynthesis() {
-      if (hasFetchedRef.current || synthesis || !userContext) return;
+    // Prevent double-fetching
+    if (hasFetchedRef.current || synthesis) return;
+
+    // Resolve the data from either the Context Store or the previous node's Progress Payload
+    const qData = {
+      motivation: context.motivations || investigatePayload.motivations,
+      barrier: context.perceived_barriers || investigatePayload.perceived_barriers,
+      future: context.desired_future || investigatePayload.desired_future,
+      quit: context.quit_conditions || investigatePayload.quit_conditions,
+    };
+
+    // We use a small timeout to ensure Nanostores has fully hydrated before we check for missing data
+    const timer = setTimeout(async () => {
       hasFetchedRef.current = true;
       setIsGenerating(true);
 
+      // If data is genuinely missing after hydration, fall back safely so you don't get stuck
+      if (!qData.motivation || !qData.barrier) {
+        console.warn('[SYNTHESIS] Missing quadrant data in both context and progress stores.');
+        setSynthesis("You have a clear picture of what you want and what stands in your way. The friction between these realities is where the actual work begins.");
+        setIsGenerating(false);
+        return;
+      }
+
       try {
         const quadrantData = {
-          motivation: `${(userContext.motivations as any)?.title}: ${(userContext.motivations as any)?.elaboration}`,
-          barrier: `${(userContext.perceived_barriers as any)?.title}: ${(userContext.perceived_barriers as any)?.elaboration}`,
-          future: `${(userContext.desired_future as any)?.title}: ${(userContext.desired_future as any)?.elaboration}`,
-          quit: `${(userContext.quit_conditions as any)?.title}: ${(userContext.quit_conditions as any)?.elaboration}`,
+          motivation: `${qData.motivation.title}: ${qData.motivation.elaboration}`,
+          barrier: `${qData.barrier.title}: ${qData.barrier.elaboration}`,
+          future: `${qData.future?.title || 'Not provided'}: ${qData.future?.elaboration || 'Not provided'}`,
+          quit: `${qData.quit?.title || 'Not provided'}: ${qData.quit?.elaboration || 'Not provided'}`,
         };
 
         const result = await generateQuadrantSynthesis(quadrantData, nodeKey);
         setSynthesis(result);
         
-        // Save the AI's observation to the domain table for future use
         await saveObservation({
           title: 'Quadrant Synthesis',
           content: result,
@@ -54,10 +81,10 @@ export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: Nod
       } finally {
         setIsGenerating(false);
       }
-    }
+    }, 500); // Wait 500ms for stores to settle
 
-    fetchSynthesis();
-  }, [userContext, synthesis, nodeKey]);
+    return () => clearTimeout(timer);
+  }, [context, investigatePayload, synthesis, nodeKey]);
 
   async function handleComplete() {
     if (isSubmitting || !synthesis) return;
@@ -65,9 +92,14 @@ export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: Nod
     await onComplete({ synthesis, completed: true });
   }
 
-  // Helper to render a quadrant block safely
+  // Helper to render the UI safely
   const renderQuadrant = (title: string, data: any) => {
-    if (!data) return null;
+    if (!data) return (
+      <div className="flex flex-col space-y-2 rounded-xl bg-card/50 p-6 border border-border border-dashed">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground/50 italic">No data recorded.</p>
+      </div>
+    );
     return (
       <div className="flex flex-col space-y-2 rounded-xl bg-card p-6 border border-border">
         <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</h3>
@@ -75,6 +107,14 @@ export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: Nod
         <p className="text-sm leading-6 text-muted-foreground line-clamp-3">"{data.elaboration}"</p>
       </div>
     );
+  };
+
+  // Derive the display data (so the UI matches what the AI analyzed)
+  const displayData = {
+    motivation: context.motivations || investigatePayload.motivations,
+    barrier: context.perceived_barriers || investigatePayload.perceived_barriers,
+    future: context.desired_future || investigatePayload.desired_future,
+    quit: context.quit_conditions || investigatePayload.quit_conditions,
   };
 
   return (
@@ -90,10 +130,10 @@ export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: Nod
       </div>
 
       <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
-        {renderQuadrant("The Pull", userContext?.motivations)}
-        {renderQuadrant("The Hold", userContext?.perceived_barriers)}
-        {renderQuadrant("The Stakes", userContext?.desired_future)}
-        {renderQuadrant("The Boundary", userContext?.quit_conditions)}
+        {renderQuadrant("The Pull", displayData.motivation)}
+        {renderQuadrant("The Hold", displayData.barrier)}
+        {renderQuadrant("The Stakes", displayData.future)}
+        {renderQuadrant("The Boundary", displayData.quit)}
       </div>
 
       <div className="max-w-3xl border-t border-border pt-8 min-h-[160px]">
