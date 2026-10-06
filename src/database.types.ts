@@ -412,6 +412,7 @@ export type Database = {
       user_observations: {
         Row: {
           content: string
+          context: string | null
           created_at: string
           domain: string | null
           focus: string | null
@@ -426,6 +427,7 @@ export type Database = {
         }
         Insert: {
           content: string
+          context?: string | null
           created_at?: string
           domain?: string | null
           focus?: string | null
@@ -440,6 +442,7 @@ export type Database = {
         }
         Update: {
           content?: string
+          context?: string | null
           created_at?: string
           domain?: string | null
           focus?: string | null
