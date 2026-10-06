@@ -6,6 +6,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 import { getNode } from '@/program/index';
 import { programComponentRegistry } from './componentRegistry';
+import { NodeFrame } from '@/components/layout/program/NodeFrame';
 import { $progress } from '@/lib/stores/progress';
 import { completeProgramNode } from '@/lib/progress/manager';
 
@@ -56,10 +57,10 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
       if (!result.success) {
         throw new Error(result.error || 'Failed to complete step.');
       }
-      
+
       // We don't need to manually update state here because manager.ts just did it,
       // which will instantly trigger a re-render to the next node.
-      
+
     } catch (err: any) {
       console.error('[NODE RENDERER]', err);
       setError('Something went wrong saving your progress. Please try again.');
@@ -83,12 +84,16 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
       )}
 
       <div className={isSubmitting ? 'pointer-events-none opacity-50' : ''}>
-        <Component 
-          node={node} 
-          nodeKey={nodeKey} 
-          progress={nodeProgress} 
-          onComplete={handleComplete} 
-        />
+        <NodeFrame node={node}>
+          <div className={isSubmitting ? 'pointer-events-none opacity-50' : ''}>
+            <Component
+              node={node}
+              nodeKey={nodeKey}
+              progress={nodeProgress}
+              onComplete={handleComplete}
+            />
+          </div>
+        </NodeFrame>
       </div>
     </div>
   );
