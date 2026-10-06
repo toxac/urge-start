@@ -8,7 +8,7 @@ type NodeFrameProps = {
 
 const roleLabels: Record<ProgramNode['role'], string> = {
   setup: 'Get oriented',
-  investigation: 'Look closer',
+  investigation: 'Investigate',
   reveal: 'See what happened',
   action: 'Take action',
 };
@@ -21,37 +21,27 @@ export function NodeFrame({
 
   return (
     <section
-      aria-labelledby={`${node.key}-title`}
-      className="w-full"
+      aria-label={roleLabel}
+      className="rounded-2xl border border-border/70 bg-card p-6 sm:p-8 lg:p-10"
     >
-      {/* Node orientation */}
-      <div className="w-full space-y-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            {roleLabel}
-          </span>
-        </div>
+      <div className="mb-8 flex items-center gap-3">
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          Current activity
+        </span>
 
-        <div className="space-y-3">
-          <h2
-            id={`${node.key}-title`}
-            className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
-          >
-            {node.title}
-          </h2>
+        <span
+          aria-hidden="true"
+          className="text-border"
+        >
+          ·
+        </span>
 
-          {node.description && (
-            <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-              {node.description}
-            </p>
-          )}
-        </div>
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+          {roleLabel}
+        </span>
       </div>
 
-      {/* Node-specific interaction */}
-      <div className="mt-10 w-full">
-        {children}
-      </div>
+      {children}
     </section>
   );
 }
