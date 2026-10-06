@@ -5,22 +5,22 @@ import type { Database } from '@/database.types';
 // -----------------------------------------------------------------------------
 
 export type UserObservation =
-  Database['public']['Tables']['user_observations']['Row'];
+    Database['public']['Tables']['user_observations']['Row'];
 
 export type UserObservationInsert =
-  Database['public']['Tables']['user_observations']['Insert'];
+    Database['public']['Tables']['user_observations']['Insert'];
 
 export type UserObservationUpdate =
-  Database['public']['Tables']['user_observations']['Update'];
+    Database['public']['Tables']['user_observations']['Update'];
 
 export type ObservationLink =
-  Database['public']['Tables']['observation_links']['Row'];
+    Database['public']['Tables']['observation_links']['Row'];
 
 export type ObservationLinkInsert =
-  Database['public']['Tables']['observation_links']['Insert'];
+    Database['public']['Tables']['observation_links']['Insert'];
 
 export type ObservationLinkUpdate =
-  Database['public']['Tables']['observation_links']['Update'];
+    Database['public']['Tables']['observation_links']['Update'];
 
 // -----------------------------------------------------------------------------
 // Observation vocabulary
@@ -32,42 +32,43 @@ export type ObservationLinkUpdate =
 // -----------------------------------------------------------------------------
 
 export const OBSERVATION_TYPES = [
-  'personal',
-  'conversation',
-  'research',
-  'behavior',
-  'experiment',
-  'event',
+    'observation',
+    'personal',
+    'conversation',
+    'research',
+    'behavior',
+    'experiment',
+    'event',
 ] as const;
 
 export type ObservationType =
-  (typeof OBSERVATION_TYPES)[number];
+    (typeof OBSERVATION_TYPES)[number];
 
 export const OBSERVATION_DOMAINS = [
-  'problem',
-  'customer',
-  'product',
-  'marketing',
-  'sales',
-  'finance',
-  'operations',
-  'competition',
-  'market',
-  'personal',
-  'other',
+    'problem',
+    'customer',
+    'product',
+    'marketing',
+    'sales',
+    'finance',
+    'operations',
+    'competition',
+    'market',
+    'personal',
+    'other',
 ] as const;
 
 export type ObservationDomain =
-  (typeof OBSERVATION_DOMAINS)[number];
+    (typeof OBSERVATION_DOMAINS)[number];
 
 export const OBSERVATION_FOCUS_OPTIONS = {
-  problem: [
-    'personal',
-    'people',
-    'zone_of_influence',
-    'changes',
-    'markets',
-  ],
+    problem: [
+        'personal',
+        'people',
+        'zone_of_influence',
+        'changes',
+        'markets',
+    ],
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -75,9 +76,9 @@ export const OBSERVATION_FOCUS_OPTIONS = {
 // -----------------------------------------------------------------------------
 
 export const OBSERVATION_LINK_ENTITY_TYPES = [
-  'opportunity',
-  'project',
+    'opportunity',
+    'project',
 ] as const;
 
 export type ObservationLinkEntityType =
-  (typeof OBSERVATION_LINK_ENTITY_TYPES)[number];
+    (typeof OBSERVATION_LINK_ENTITY_TYPES)[number];
