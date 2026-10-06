@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   observationSchema,
   type ObservationFormValues,
-} from '@/lib/schemas/observations';
+} from '@/lib/schemas/observation';
 
 export async function saveObservation(data: ObservationFormValues) {
   const supabase = await createSupabaseServerClient();

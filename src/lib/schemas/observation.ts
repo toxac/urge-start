@@ -5,7 +5,7 @@ import {
   OBSERVATION_TYPES,
   OBSERVATION_DOMAINS,
   OBSERVATION_FOCUS_OPTIONS,
-} from '@/lib/types/observation';
+} from '@/lib/types/observations';
 
 const observationTypeSchema = z.enum(OBSERVATION_TYPES);
 
