@@ -627,6 +627,189 @@ export async function generateRejectionSynthesis(
 }
 
 
+export async function generateFearActions(
+  input: {
+    fear?: string;
+    customFear?: string;
+    synthesis: {
+      headline: string;
+      interpretation: string;
+    };
+    reflection?: string;
+  },
+  sourceNodeKey: string
+): Promise<LearningActionResult> {
+  const systemPrompt = `
+You are Urge, helping a first-time founder turn a real rejection
+experience into a specific behavioural response.
+
+The founder has just:
+1. identified what they imagined might happen after being told no,
+2. deliberately made an ask,
+3. experienced what actually happened,
+4. reflected on that experience,
+5. received a synthesis of what the experience may reveal.
+
+Your job is to generate THREE specific behavioural responses the founder
+could carry into a similar situation in the future.
+
+This is NOT a task generator.
+This is NOT general advice about overcoming fear.
+This is NOT a list of motivational habits.
+This is NOT about eliminating fear.
+
+The responses must be directly connected to THIS rejection experience.
+
+A useful response answers:
+
+"What will I do differently the next time I am in a similar situation?"
+
+Look especially at the relationship between:
+- what the founder feared,
+- what they actually did,
+- what actually happened,
+- what they noticed or reflected on,
+- and what the reveal identified.
+
+A response might involve:
+- making the ask before predicting the other person's response,
+- waiting for evidence before deciding what another person thinks,
+- asking what is behind a no instead of interpreting it,
+- separating another person's constraint from a judgment about oneself,
+- following up instead of treating a delayed response as rejection,
+- making another ask when the first no does not actually close the door,
+- continuing to test an idea rather than letting one rejection determine what happens next.
+
+These are examples only. Generate responses from the founder's actual
+experience rather than forcing one of these patterns.
+
+IMPORTANT:
+
+- Each option must be traceable to something in the founder's actual experience.
+- Do not invent a fear, motivation, reaction, or outcome.
+- Do not assume that the rejection was harmless.
+- Do not assume that the founder needs to become more confident.
+- Do not assume that the founder is afraid of rejection if they explicitly said
+  the situation does not scare them.
+- If they were not scared, generate behaviours appropriate to what they actually
+  learned from the experience.
+- Do not turn the experience into generic "rejection therapy" advice.
+- Do not simply repeat the reveal.
+- Do not praise or congratulate the founder.
+- Do not tell the founder which option is correct.
+- Do not rank the options.
+- Do not prescribe what they should do.
+- Do not use vague behaviours such as:
+  "be more confident"
+  "don't overthink"
+  "keep taking action"
+  "believe in yourself"
+  "stay positive"
+  "keep putting yourself out there"
+  "don't be afraid of rejection"
+
+Each option should describe an observable behaviour that the founder could
+recognize themselves doing the next time a similar situation occurs.
+
+The three options should be meaningfully different from each other.
+
+Keep the language short, direct, and natural for a first-time founder.
+
+Return ONLY valid JSON:
+
+{
+  "options": [
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural response",
+      "description": "One sentence explaining what this means in practice."
+    },
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural response",
+      "description": "One sentence explaining what this means in practice."
+    },
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural response",
+      "description": "One sentence explaining what this means in practice."
+    }
+  ]
+}
+`;
+
+  const userPrompt = `
+WHAT THE FOUNDER FEARED:
+${input.fear || 'Not specified'}
+
+CUSTOM FEAR:
+${input.customFear || 'None'}
+
+WHAT THE EXPERIENCE REVEALED:
+HEADLINE:
+${input.synthesis.headline}
+
+INTERPRETATION:
+${input.synthesis.interpretation}
+
+WHAT THE FOUNDER TOOK FROM THE EXPERIENCE:
+${input.reflection || 'Not provided'}
+
+Generate three specific behavioural responses that are grounded in
+this particular experience.
+`;
+
+  const { success, content, error } = await invokeAILight({
+    systemPrompt,
+    userPrompt,
+    componentKey: 'fear_audit',
+    sourceNodeKey,
+    purpose: 'generate_rejection_learning_actions',
+    requireJson: true,
+    temperature: 0.3,
+  });
+
+  if (!success || !content) {
+    throw new Error(
+      error || 'Failed to generate rejection learning actions'
+    );
+  }
+
+  try {
+    const result = JSON.parse(content) as LearningActionResult;
+
+    if (
+      !Array.isArray(result.options) ||
+      result.options.length !== 3
+    ) {
+      throw new Error(
+        'AI returned an invalid rejection action set'
+      );
+    }
+
+    for (const option of result.options) {
+      if (
+        typeof option.id !== 'string' ||
+        typeof option.title !== 'string' ||
+        typeof option.description !== 'string'
+      ) {
+        throw new Error(
+          'AI returned an invalid rejection action option'
+        );
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[FEAR ACTION GENERATION]', error);
+
+    throw new Error(
+      'AI returned an invalid rejection action response'
+    );
+  }
+}
+
+
 export async function getMission1Artifacts() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();

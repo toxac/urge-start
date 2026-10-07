@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 
@@ -9,12 +9,27 @@ import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $progress } from '@/lib/stores/progress';
 import { saveCommitment } from '@/actions/commitments';
+import { generateFearActions } from '@/actions/responses/mission1';
+import type { LearningActionOption } from '@/lib/types/ai';
+
+type FearPayload = {
+  fear?: string;
+  customFear?: string;
+  completed?: boolean;
+};
+
+type RevealPayload = {
+  synthesis?: {
+    headline?: string;
+    interpretation?: string;
+  };
+  reflection?: string;
+  completed?: boolean;
+};
 
 type ActionPayload = {
-  when?: string;
-  will?: string;
-  insteadOf?: string;
-  statement?: string;
+  selectedOption?: LearningActionOption;
+  customResponse?: string;
   completed?: boolean;
 };
 
@@ -25,36 +40,147 @@ export function FearAudit({
   onComplete,
 }: NodeComponentProps) {
   const progressState = useStore($progress);
+
+  const fear = (progressState.payloads['m1-q4-setup'] ??
+    {}) as FearPayload;
+
+  const reveal = (progressState.payloads['m1-q4-reveal'] ??
+    {}) as RevealPayload;
+
   const saved = (progress.payload ?? {}) as ActionPayload;
 
-  const reveal = progressState.payloads['m1-q4-reveal'] ?? {};
+  /*
+   * The reveal is the immediate source of learning for this action.
+   *
+   * The persisted payload uses optional fields because it comes from
+   * JSONB. We validate them into concrete strings before passing them
+   * to the AI function.
+   */
+  const headline =
+    typeof reveal.synthesis?.headline === 'string'
+      ? reveal.synthesis.headline
+      : '';
 
-  const [when, setWhen] = useState(
-    typeof saved.when === 'string' ? saved.when : ''
+  const interpretation =
+    typeof reveal.synthesis?.interpretation === 'string'
+      ? reveal.synthesis.interpretation
+      : '';
+
+  const [options, setOptions] = useState<LearningActionOption[]>([]);
+
+  const [selectedId, setSelectedId] = useState<string | null>(
+    saved.selectedOption?.id ?? null
   );
 
-  const [will, setWill] = useState(
-    typeof saved.will === 'string' ? saved.will : ''
-  );
-
-  const [insteadOf, setInsteadOf] = useState(
-    typeof saved.insteadOf === 'string'
-      ? saved.insteadOf
+  const [customResponse, setCustomResponse] = useState(
+    typeof saved.customResponse === 'string'
+      ? saved.customResponse
       : ''
+  );
+
+  const [isWritingOwn, setIsWritingOwn] = useState(
+    Boolean(saved.customResponse)
+  );
+
+  const [isGenerating, setIsGenerating] = useState(
+    !saved.completed
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const statement =
-    when.trim() && will.trim() && insteadOf.trim()
-      ? `When ${when.trim()}, I will ${will.trim()} instead of ${insteadOf.trim()}.`
-      : '';
+  const hasGeneratedRef = useRef(false);
+
+  /*
+   * Generate specific behavioural responses from the Q4
+   * rejection experience.
+   *
+   * Reveal = understand what the experience showed.
+   * Action = decide what to do differently next time.
+   */
+  useEffect(() => {
+    if (saved.completed) {
+      setIsGenerating(false);
+      return;
+    }
+
+    if (hasGeneratedRef.current) return;
+
+    if (!headline || !interpretation) {
+      setIsGenerating(false);
+      setError(
+        'We could not find the learning from the previous step. Please go back and complete it first.'
+      );
+      return;
+    }
+
+    hasGeneratedRef.current = true;
+    setIsGenerating(true);
+    setError(null);
+
+    async function generate() {
+      try {
+        const result = await generateFearActions(
+          {
+            fear: getFearLabel(fear),
+            customFear: fear.customFear,
+            synthesis: {
+              headline,
+              interpretation,
+            },
+            reflection: reveal.reflection,
+          },
+          nodeKey
+        );
+
+        setOptions(result.options);
+      } catch (err) {
+        console.error(
+          '[FEAR ACTION GENERATION ERROR]',
+          err
+        );
+
+        hasGeneratedRef.current = false;
+
+        setError(
+          'We could not generate the next choices. Please try again.'
+        );
+      } finally {
+        setIsGenerating(false);
+      }
+    }
+
+    generate();
+  }, [
+    headline,
+    interpretation,
+    fear.fear,
+    fear.customFear,
+    reveal.reflection,
+    nodeKey,
+    saved.completed,
+  ]);
+
+  const selectedOption = options.find(
+    (option) => option.id === selectedId
+  );
 
   const canContinue =
-    when.trim().length > 0 &&
-    will.trim().length > 0 &&
-    insteadOf.trim().length > 0;
+    Boolean(selectedOption) ||
+    (isWritingOwn && customResponse.trim().length > 0);
+
+  function handleSelect(option: LearningActionOption) {
+    setSelectedId(option.id);
+    setIsWritingOwn(false);
+    setCustomResponse('');
+    setError(null);
+  }
+
+  function handleWriteOwn() {
+    setSelectedId(null);
+    setIsWritingOwn(true);
+    setError(null);
+  }
 
   async function handleComplete() {
     if (!canContinue || isSubmitting) return;
@@ -63,60 +189,107 @@ export function FearAudit({
     setError(null);
 
     try {
+      const response = selectedOption
+        ? selectedOption.title
+        : customResponse.trim();
+
       await saveCommitment({
-        statement,
+        statement: response,
         source_node_key: nodeKey,
       });
 
       await onComplete({
-        when: when.trim(),
-        will: will.trim(),
-        insteadOf: insteadOf.trim(),
-        statement,
+        ...(selectedOption
+          ? { selectedOption }
+          : { customResponse: customResponse.trim() }),
         completed: true,
       });
     } catch (err) {
-      console.error('[FEAR ACTION]', err);
+      console.error('[FEAR AUDIT ERROR]', err);
+
       setError(
-        'Something went wrong while saving your commitment. Please try again.'
+        'Something went wrong while saving this. Please try again.'
       );
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  /*
+   * Revisit state.
+   *
+   * We show the founder's chosen response rather than regenerating
+   * the AI options.
+   */
   if (progress.completed || saved.completed === true) {
+    const savedResponse =
+      saved.selectedOption?.title ||
+      saved.customResponse ||
+      '';
+
+    const savedDescription =
+      saved.selectedOption?.description || '';
+
     return (
       <div className="w-full max-w-4xl space-y-10">
         <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Carry the learning forward
+          </p>
+
           <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
             {node.title}
           </h2>
-
-          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You have decided how you want to respond the next time
-            fear shows up.
-          </p>
         </div>
 
-        {saved.statement && (
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-8">
-            <Check className="mb-5 h-6 w-6 text-primary" />
-
-            <p className="font-heading text-2xl font-medium leading-relaxed">
-              {saved.statement}
+        {headline && (
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What this experience showed you
             </p>
+
+            <p className="text-xl font-semibold leading-8">
+              {headline}
+            </p>
+
+            {interpretation && (
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+                {interpretation}
+              </p>
+            )}
           </div>
         )}
 
-        {typeof reveal.notice === 'string' && reveal.notice && (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              What you noticed
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What you will carry forward
+          </p>
+
+          <div className="flex items-start gap-3">
+            <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+
+            <div>
+              <p className="text-lg font-semibold">
+                {savedResponse}
+              </p>
+
+              {savedDescription && (
+                <p className="mt-2 max-w-3xl text-lg leading-8 text-muted-foreground">
+                  {savedDescription}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {reveal.reflection && (
+          <div className="space-y-3 border-t border-border pt-8">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What you took from the experience
             </p>
 
-            <p className="text-lg leading-8">
-              {reveal.notice}
+            <p className="max-w-3xl text-lg leading-8">
+              {reveal.reflection}
             </p>
           </div>
         )}
@@ -124,7 +297,7 @@ export function FearAudit({
         <div className="flex justify-end">
           <Button
             onClick={() => onComplete(saved)}
-            className="h-12 gap-2 rounded-full px-8"
+            className="h-12 gap-2 rounded-full px-8 text-base"
           >
             Continue
             <ArrowRight className="h-4 w-4" />
@@ -134,87 +307,250 @@ export function FearAudit({
     );
   }
 
+  /*
+   * Loading state.
+   */
+  if (isGenerating) {
+    return (
+      <div className="w-full max-w-4xl space-y-12">
+        <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Carry the learning forward
+          </p>
+
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {node.title}
+          </h2>
+
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+            You have seen what this experience revealed. Now we are
+            turning that learning into a few specific ways you could
+            respond differently next time.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 border-t border-border pt-8">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+
+          <p className="text-lg text-muted-foreground">
+            Looking for the behaviours that fit this experience...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Error state.
+   */
+  if (error && options.length === 0) {
+    return (
+      <div className="w-full max-w-4xl space-y-10">
+        <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Carry the learning forward
+          </p>
+
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {node.title}
+          </h2>
+
+          <p className="max-w-3xl text-lg leading-8 text-destructive">
+            {error}
+          </p>
+        </div>
+
+        <Button
+          onClick={() => {
+            hasGeneratedRef.current = false;
+            setError(null);
+            setIsGenerating(true);
+
+            void (async () => {
+              try {
+                if (!headline || !interpretation) {
+                  throw new Error(
+                    'Missing reveal synthesis.'
+                  );
+                }
+
+                const result = await generateFearActions(
+                  {
+                    fear: getFearLabel(fear),
+                    customFear: fear.customFear,
+                    synthesis: {
+                      headline,
+                      interpretation,
+                    },
+                    reflection: reveal.reflection,
+                  },
+                  nodeKey
+                );
+
+                setOptions(result.options);
+              } catch (err) {
+                console.error(
+                  '[FEAR ACTION RETRY ERROR]',
+                  err
+                );
+
+                setError(
+                  'We could not generate the choices. Please try again.'
+                );
+              } finally {
+                setIsGenerating(false);
+              }
+            })();
+          }}
+          className="h-12 rounded-full px-8 text-base"
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-4xl space-y-12">
       <div className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Carry the learning forward
+        </p>
+
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {node.title}
         </h2>
 
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You probably won't stop feeling fear just because you did
-          this once. The useful question is what you want to do the
-          next time it shows up.
+          {fear.fear === 'not_scared'
+            ? 'You were not worried about the no. That is useful information too. Now decide what you want to carry into the next situation where the stakes are higher.'
+            : 'Fear may still show up the next time you have to ask. The goal is not to get rid of it. You now have evidence of what actually happens when you make the ask. Decide what you want to do differently when the old reaction shows up again.'}
         </p>
       </div>
 
-      {typeof reveal.notice === 'string' && reveal.notice && (
+      {headline && (
         <div className="rounded-2xl border border-border bg-card p-6">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            What you noticed
+            What this experience showed you
           </p>
 
-          <p className="text-lg leading-8">
-            {reveal.notice}
+          <p className="text-xl font-semibold leading-8">
+            {headline}
           </p>
+
+          {interpretation && (
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+              {interpretation}
+            </p>
+          )}
         </div>
       )}
 
-      <div className="max-w-3xl space-y-8">
-        <div className="space-y-3">
-          <label className="text-xl font-semibold">
-            When...
-          </label>
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-xl font-semibold">
+            What will you do differently next time?
+          </h3>
 
-          <Textarea
-            value={when}
-            onChange={(event) => setWhen(event.target.value)}
-            placeholder="When I feel myself avoiding an ask..."
-            className="min-h-[100px] resize-none text-lg leading-8"
-            disabled={isSubmitting}
-          />
+          <p className="mt-2 text-muted-foreground">
+            Choose the behaviour you want to carry into a similar
+            situation.
+          </p>
         </div>
 
         <div className="space-y-3">
-          <label className="text-xl font-semibold">
-            I will...
-          </label>
+          {options.map((option) => {
+            const selected = selectedId === option.id;
 
-          <Textarea
-            value={will}
-            onChange={(event) => setWill(event.target.value)}
-            placeholder="I will make the ask anyway..."
-            className="min-h-[100px] resize-none text-lg leading-8"
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => handleSelect(option)}
+                disabled={isSubmitting}
+                className={[
+                  'w-full rounded-2xl border p-6 text-left transition-colors',
+                  'hover:border-foreground/40',
+                  selected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-card',
+                ].join(' ')}
+              >
+                <div className="flex items-start justify-between gap-5">
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold">
+                      {option.title}
+                    </p>
+
+                    <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+                      {option.description}
+                    </p>
+                  </div>
+
+                  {selected && (
+                    <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={handleWriteOwn}
             disabled={isSubmitting}
-          />
+            className={[
+              'w-full rounded-2xl border p-6 text-left transition-colors',
+              'hover:border-foreground/40',
+              isWritingOwn
+                ? 'border-primary bg-primary/5'
+                : 'border-border bg-card',
+            ].join(' ')}
+          >
+            <div className="flex items-start justify-between gap-5">
+              <div className="space-y-2">
+                <p className="text-lg font-semibold">
+                  I want to write my own
+                </p>
+
+                <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+                  There is something specific from this experience
+                  that I want to carry forward.
+                </p>
+              </div>
+
+              {isWritingOwn && (
+                <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+              )}
+            </div>
+          </button>
         </div>
+      </div>
 
-        <div className="space-y-3">
-          <label className="text-xl font-semibold">
-            Instead of...
-          </label>
+      {isWritingOwn && (
+        <div className="max-w-3xl space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold">
+              What will you do differently?
+            </h3>
 
-          <Textarea
-            value={insteadOf}
-            onChange={(event) => setInsteadOf(event.target.value)}
-            placeholder="Instead of putting it off or talking myself out of it..."
-            className="min-h-[100px] resize-none text-lg leading-8"
-            disabled={isSubmitting}
-          />
-        </div>
-
-        {statement && (
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
-            <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Your rule
-            </p>
-
-            <p className="mt-3 text-xl leading-9">
-              {statement}
+            <p className="text-muted-foreground">
+              Make it specific enough that you would recognize
+              yourself doing it.
             </p>
           </div>
-        )}
-      </div>
+
+          <Textarea
+            value={customResponse}
+            onChange={(event) =>
+              setCustomResponse(event.target.value)
+            }
+            placeholder="Next time, I will..."
+            className="min-h-[150px] resize-none text-lg leading-8"
+            disabled={isSubmitting}
+          />
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive">
@@ -226,7 +562,7 @@ export function FearAudit({
         <Button
           onClick={handleComplete}
           disabled={!canContinue || isSubmitting}
-          className="h-12 gap-2 rounded-full px-8"
+          className="h-12 gap-2 rounded-full px-8 text-base"
         >
           {isSubmitting ? (
             <>
@@ -235,7 +571,7 @@ export function FearAudit({
             </>
           ) : (
             <>
-              Lock it in
+              Carry this forward
               <ArrowRight className="h-4 w-4" />
             </>
           )}
@@ -243,4 +579,23 @@ export function FearAudit({
       </div>
     </div>
   );
+}
+
+function getFearLabel(fear?: FearPayload) {
+  if (!fear?.fear) {
+    return undefined;
+  }
+
+  const labels: Record<string, string> = {
+    judgment: 'They might think less of me.',
+    self_doubt: 'I might start doubting myself.',
+    embarrassment: 'I might feel embarrassed.',
+    relationship: 'It might affect the relationship.',
+    inexperienced: 'I might look inexperienced or incapable.',
+    not_know: 'I might have to face what I do not know.',
+    next_step: 'I might not know what to do next.',
+    not_scared: 'This situation does not scare me at all.',
+  };
+
+  return labels[fear.fear] ?? fear.fear;
 }

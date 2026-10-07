@@ -74,8 +74,8 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'fear_evidence_reveal': FearEvidenceReveal,
   'behavior_commitment': FearAudit,
   // M1 Action
-  'm1-reveal': Mission1Reveal,
-  'm1-action': Mission1Action,
+  'mission_transformation': Mission1Reveal,
+  'mission_transfer_action': Mission1Action,
 
   // ... (keep the rest mapped to DummyNode for now)
 };
