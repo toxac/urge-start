@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { saveObservation } from '@/actions/observations';
-import { useStore } from '@nanostores/react';
-import { $progress } from '@/lib/stores/progress';
 
 type ExperimentStage =
   | 'prepare'
@@ -29,26 +27,16 @@ type ExperimentPayload = {
   completed: boolean;
 };
 
-const WARMUP_OPTIONS = [
-  {
-    id: 'small_discount',
-    title: 'Ask for a small discount',
-    description:
-      'Ask for a small discount on something you are buying, simply because you can ask.',
-  },
-  {
-    id: 'small_favor',
-    title: 'Ask for a small favor',
-    description:
-      'Ask someone for a small favor that they could easily say no to.',
-  },
-  {
-    id: 'small_request',
-    title: 'Make a harmless request',
-    description:
-      'Ask for something unusual but harmless where “no” is a perfectly acceptable answer.',
-  },
-];
+type ExperimentMetadata = {
+  experiment?: {
+    type?: string;
+    difficulty?: 'low' | 'meaningful' | 'stretch';
+    purpose?: string;
+    prompt?: string;
+    framing?: string;
+    scenarioHints?: string[];
+  };
+};
 
 export function RealWorldExperiment({
   node,
@@ -56,49 +44,59 @@ export function RealWorldExperiment({
   progress,
   onComplete,
 }: NodeComponentProps) {
-  const progressState = useStore($progress);
-
   const saved = (progress.payload ?? {}) as Partial<ExperimentPayload>;
 
-  const isWarmup = nodeKey === 'm1-q4-warmup';
-  const isStretch = nodeKey === 'm1-q4-stretch';
+  const metadata = (node.metadata ?? {}) as ExperimentMetadata;
+  const experiment = metadata.experiment ?? {};
 
-  const fear = progressState.payloads['m1-q4-setup'] ?? {};
+  const prompt =
+    experiment.prompt ??
+    'What is one real-world experiment you could try?';
+
+  const framing =
+    experiment.framing ??
+    'Choose something real, take the step, and come back to notice what happened.';
+
+  const scenarioHints = Array.isArray(experiment.scenarioHints)
+    ? experiment.scenarioHints.filter(
+        (hint): hint is string => typeof hint === 'string' && hint.trim().length > 0,
+      )
+    : [];
 
   const [stage, setStage] = useState<ExperimentStage>(
-    saved.completed === true ? 'complete' : 'prepare'
+    saved.completed === true ? 'complete' : 'prepare',
   );
 
   const [target, setTarget] = useState(
-    typeof saved.target === 'string' ? saved.target : ''
+    typeof saved.target === 'string' ? saved.target : '',
   );
 
   const [intention, setIntention] = useState(
-    typeof saved.intention === 'string' ? saved.intention : ''
+    typeof saved.intention === 'string' ? saved.intention : '',
   );
 
   const [why, setWhy] = useState(
-    typeof saved.why === 'string' ? saved.why : ''
+    typeof saved.why === 'string' ? saved.why : '',
   );
 
   const [prediction, setPrediction] = useState(
-    typeof saved.prediction === 'string' ? saved.prediction : ''
+    typeof saved.prediction === 'string' ? saved.prediction : '',
   );
 
   const [actionTaken, setActionTaken] = useState(
-    typeof saved.actionTaken === 'string' ? saved.actionTaken : ''
+    typeof saved.actionTaken === 'string' ? saved.actionTaken : '',
   );
 
   const [outcome, setOutcome] = useState(
-    typeof saved.outcome === 'string' ? saved.outcome : ''
+    typeof saved.outcome === 'string' ? saved.outcome : '',
   );
 
   const [reaction, setReaction] = useState(
-    typeof saved.reaction === 'string' ? saved.reaction : ''
+    typeof saved.reaction === 'string' ? saved.reaction : '',
   );
 
   const [reflection, setReflection] = useState(
-    typeof saved.reflection === 'string' ? saved.reflection : ''
+    typeof saved.reflection === 'string' ? saved.reflection : '',
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,14 +115,8 @@ export function RealWorldExperiment({
     reaction.trim().length > 0 &&
     reflection.trim().length > 0;
 
-  function selectWarmup(id: string) {
-    const option = WARMUP_OPTIONS.find((item) => item.id === id);
-
-    if (!option) return;
-
-    setTarget('A person I can approach safely');
-    setIntention(option.title);
-    setWhy(option.description);
+  function useScenarioHint(hint: string) {
+    setIntention(hint);
   }
 
   async function handleComplete() {
@@ -147,11 +139,7 @@ export function RealWorldExperiment({
 
     try {
       await saveObservation({
-        title: isWarmup
-          ? 'Q4 warmup asking experiment'
-          : isStretch
-            ? 'Q4 stretch asking experiment'
-            : 'Real-world asking experiment',
+        title: 'Real-world asking experiment',
         content: payload.reflection,
         context: [
           `Who I approached: ${payload.target}`,
@@ -178,10 +166,14 @@ export function RealWorldExperiment({
     }
   }
 
-  if (saved.completed === true || progress.completed) {
+  if (saved.completed === true || progress.completed || stage === 'complete') {
     return (
       <div className="w-full max-w-4xl space-y-10">
         <div className="space-y-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Check className="h-6 w-6 text-primary" />
+          </div>
+
           <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
             {node.title}
           </h2>
@@ -197,9 +189,7 @@ export function RealWorldExperiment({
               What you expected
             </p>
 
-            <p className="text-lg leading-8">
-              {prediction}
-            </p>
+            <p className="text-lg leading-8">{prediction}</p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6">
@@ -207,9 +197,7 @@ export function RealWorldExperiment({
               What happened
             </p>
 
-            <p className="text-lg leading-8">
-              {outcome}
-            </p>
+            <p className="text-lg leading-8">{outcome}</p>
           </div>
         </div>
 
@@ -218,9 +206,7 @@ export function RealWorldExperiment({
             What you noticed
           </p>
 
-          <p className="text-lg leading-8">
-            {reflection}
-          </p>
+          <p className="text-lg leading-8">{reflection}</p>
         </div>
 
         <div className="flex justify-end">
@@ -244,57 +230,45 @@ export function RealWorldExperiment({
         </h2>
 
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          {isWarmup
-            ? 'Before we go after the scary one, make a small ask. The goal is not getting a yes. The goal is experiencing that a no is possible and survivable.'
-            : isStretch
-              ? 'Now make the ask you actually want to avoid. Pick something that matters to you, but that you can safely try.'
-              : 'Choose something real, make the ask, and come back to tell us what happened.'}
+          {framing}
         </p>
       </div>
 
-      {isWarmup && stage === 'prepare' && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {WARMUP_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => selectWarmup(option.id)}
-              className="rounded-2xl border border-border bg-card p-6 text-left transition-colors hover:border-foreground/40"
-            >
-              <h3 className="text-lg font-semibold">
-                {option.title}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {option.description}
-              </p>
-            </button>
-          ))}
-        </div>
-      )}
-
       {stage === 'prepare' && (
-        <div className="max-w-3xl space-y-6">
-          {!isWarmup && isStretch && (
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                What you told us
-              </p>
+        <div className="max-w-3xl space-y-8">
+          <div className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Your experiment
+            </p>
 
-              <p className="text-lg leading-8">
-                You are afraid that{' '}
-                <strong>
-                  {fear.fearedOutcome || 'something will go wrong'}
-                </strong>
-                .
-              </p>
+            <p className="text-2xl leading-10">{prompt}</p>
+          </div>
 
-              {fear.meaning && (
-                <p className="mt-4 text-lg leading-8">
-                  If that happened, it would mean{' '}
-                  <strong>{fear.meaning}</strong>.
+          {scenarioHints.length > 0 && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-semibold">
+                  Not sure what to try?
                 </p>
-              )}
+
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  These are possibilities, not things you have to choose.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {scenarioHints.map((hint) => (
+                  <button
+                    key={hint}
+                    type="button"
+                    onClick={() => useScenarioHint(hint)}
+                    disabled={isSubmitting}
+                    className="w-full rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <p className="leading-7">{hint}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -354,24 +328,23 @@ export function RealWorldExperiment({
       )}
 
       {stage === 'predict' && (
-        <div className="max-w-3xl space-y-6">
+        <div className="max-w-3xl space-y-8">
           <div className="rounded-2xl border border-border bg-card p-6">
             <p className="text-sm text-muted-foreground">
               You are asking:
             </p>
 
-            <p className="mt-2 text-xl leading-8">
-              {intention}
-            </p>
+            <p className="mt-2 text-xl leading-8">{intention}</p>
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-xl font-semibold">
-              What do you think will happen?
+            <h3 className="text-2xl font-semibold">
+              Before you go, what do you think will happen?
             </h3>
 
             <p className="text-muted-foreground">
-              Make a prediction before reality gets a vote.
+              Write down your prediction. You can come back and compare it
+              with what actually happened.
             </p>
 
             <Textarea
@@ -389,7 +362,7 @@ export function RealWorldExperiment({
               disabled={!canPredict || isSubmitting}
               className="h-12 gap-2 rounded-full px-8"
             >
-              I'm ready
+              I&apos;m ready
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -409,8 +382,8 @@ export function RealWorldExperiment({
             </p>
 
             <p className="mt-6 text-muted-foreground">
-              You already made your prediction. You do not need to
-              control what happens next.
+              You already made your prediction. You do not need to control
+              what happens next.
             </p>
           </div>
 
@@ -419,7 +392,7 @@ export function RealWorldExperiment({
               onClick={() => setStage('return')}
               className="h-12 gap-2 rounded-full px-8"
             >
-              I'm back
+              I&apos;m back
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -427,9 +400,9 @@ export function RealWorldExperiment({
       )}
 
       {stage === 'return' && (
-        <div className="max-w-3xl space-y-6">
+        <div className="max-w-3xl space-y-8">
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
+            <h3 className="text-2xl font-semibold">
               What did you actually do?
             </h3>
 
@@ -443,7 +416,7 @@ export function RealWorldExperiment({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
+            <h3 className="text-2xl font-semibold">
               What happened?
             </h3>
 
@@ -457,7 +430,7 @@ export function RealWorldExperiment({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
+            <h3 className="text-2xl font-semibold">
               How did you react?
             </h3>
 
@@ -471,7 +444,7 @@ export function RealWorldExperiment({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
+            <h3 className="text-2xl font-semibold">
               What did you notice?
             </h3>
 
