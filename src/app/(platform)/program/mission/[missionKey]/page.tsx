@@ -106,12 +106,11 @@ export default function MissionPage() {
       )
   );
 
-  const contextContent =
-    railResources.length > 0 ? (
-      <ContextRail>
-        <ContextRailResources resources={railResources} />
-      </ContextRail>
-    ) : undefined;
+  const contextContent = (
+    <ContextRail>
+      <ContextRailResources resources={railResources} />
+    </ContextRail>
+  );
 
   return (
     <PageShell context={contextContent}>

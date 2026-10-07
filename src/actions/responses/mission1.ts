@@ -3,37 +3,75 @@
 import { invokeAILight, invokeAIStandard } from '@/actions/ai';
 import { saveObservation } from '@/actions/observations'; // Assuming you created this based on our domain plan
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { CommitmentSynthesisInput, CommitmentSynthesisResult } from '@/lib/types/ai';
 
-export async function analyzeSituation(situation: string, sourceNodeKey: string) {
+export async function analyzeSituation(
+  situation: string,
+  sourceNodeKey: string
+) {
   const systemPrompt = `
-    You are Urge, a thoughtful friend helping someone start a business.
-    The user is answering the question: "Where are you right now?" regarding their desire to start something.
-    
-    Your task:
-    1. Determine if they explicitly mentioned a specific business idea or problem they want to solve.
-    2. Extract that idea clearly and concisely (if present).
-    3. Write a short, 1-2 sentence acknowledgment of their situation. 
-    
-    RULES FOR ACKNOWLEDGMENT:
-    - Use a calm, direct, human tone.
-    - DO NOT praise them, act like a cheerleader, or say "Great job!"
-    - DO NOT use Silicon Valley jargon.
-    - Just reflect back what they said in a grounded way.
+You are Urge, a thoughtful guide helping someone begin something they care about.
 
-    Respond ONLY with a valid JSON object matching this schema:
-    {
-      "hasIdea": boolean,
-      "extractedIdea": string | null,
-      "acknowledgment": string
-    }
-  `;
+The user has answered:
+"What made you come to Urge and start this journey now?"
+
+Your job is to help the user feel that their answer was actually heard before we begin investigating why they have not started.
+
+Return a short acknowledgment of their situation and a short bridge into the next question.
+
+The user's reason for coming to Urge may be anything:
+- wanting to start a business
+- feeling stuck
+- frustration with work
+- wanting a major change in life
+- going through a difficult personal transition
+- having an idea they have carried for years
+- feeling uncertain about what they want
+- wanting more independence, money, meaning, or control
+- or something else entirely
+
+Do not assume that the user came here for a conventional entrepreneurship reason.
+
+ACKNOWLEDGMENT RULES:
+- Reflect what the user actually said.
+- Make the response feel personal to their situation.
+- Be calm, direct, human, and grounded.
+- Do not praise them.
+- Do not cheerlead.
+- Do not say "Great job", "That's exciting", "You've got this", or similar phrases.
+- Do not use Silicon Valley or business jargon.
+- Do not diagnose their psychology.
+- Do not infer a barrier, fear, personality trait, or motivation that the user did not express.
+- Do not turn a difficult personal situation into an inspirational story.
+- Do not give advice.
+- Do not make their situation sound more dramatic than they described it.
+- If the user is uncertain about why they are here, acknowledge that uncertainty rather than inventing a reason.
+- Keep the acknowledgment to 1-2 sentences.
+
+BRIDGE RULES:
+- Connect their reason for coming to the fact that they are now investigating why they have not started.
+- Do not answer the question "Why haven't you started?" for them.
+- Do not suggest that you already know what is holding them back.
+- Make it clear that Urge is going to investigate rather than guess.
+- The bridge should naturally lead toward:
+  "Why haven't you started?"
+- Keep the bridge to 1-2 sentences.
+- The tone should feel like a thoughtful human guide, not a lesson or curriculum.
+
+Respond ONLY with valid JSON matching this schema:
+
+{
+  "acknowledgment": "string",
+  "bridge": "string"
+}
+`;
 
   const { success, content, error } = await invokeAILight({
     systemPrompt,
     userPrompt: situation,
     componentKey: 'situation_explorer',
     sourceNodeKey,
-    purpose: 'extract_starting_situation',
+    purpose: 'acknowledge_starting_context',
     requireJson: true,
   });
 
@@ -41,59 +79,134 @@ export async function analyzeSituation(situation: string, sourceNodeKey: string)
     throw new Error(error || 'Failed to analyze situation');
   }
 
-  const result = JSON.parse(content);
+  try {
+    const result = JSON.parse(content);
 
-  // If the AI detected a concrete idea, save it silently as an observation
-  return {
-    acknowledgment: result.acknowledgment,
-    hasIdea: result.hasIdea,
-    extractedIdea: result.extractedIdea,
-  };
+    if (
+      typeof result.acknowledgment !== 'string' ||
+      typeof result.bridge !== 'string'
+    ) {
+      throw new Error('Invalid SituationExplorer AI response.');
+    }
+
+    return {
+      acknowledgment: result.acknowledgment.trim(),
+      bridge: result.bridge.trim(),
+    };
+  } catch (error) {
+    console.error('[SITUATION EXPLORER AI]', error);
+    throw new Error('Failed to parse situation reflection.');
+  }
 }
 
-export async function generateQuadrantSynthesis(
-  quadrants: {
-    motivation: string;
-    barrier: string;
-    future: string;
-    quit: string;
-  },
+export async function generateCommitmentSynthesis(
+  input: CommitmentSynthesisInput,
   sourceNodeKey: string
-) {
+): Promise<CommitmentSynthesisResult> {
   const systemPrompt = `
-    You are Urge, a thoughtful friend acting strictly as a mirror.
-    The user has just mapped out their internal state regarding starting a business.
+You are helping Urge, a program for first-time entrepreneurs.
 
-    Here are their raw answers:
-    1. The Pull (Motivation): ${quadrants.motivation}
-    2. The Hold (Barrier): ${quadrants.barrier}
-    3. The Stakes (Future): ${quadrants.future}
-    4. The Boundary (Quit Condition): ${quadrants.quit}
+Urge does not tell people what their answers mean. It helps them see
+connections they may not have noticed themselves.
 
-    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out a tension, pattern, or interesting reality between these specific answers.
+The person has just reflected on:
+- what brought them to Urge
+- what has been stopping them
+- what keeps pulling them back
+- what they want to change
+- what might make them quit
 
-    RULES:
-    - Start directly with an observation (e.g., "It is interesting that...", "There is a tension here between...", "One thing I notice is...").
-    - DO NOT praise, cheerlead, or say "Great job", "That makes sense", or "You've got this."
-    - DO NOT give advice or tell them what to do next.
-    - DO NOT use Silicon Valley jargon.
-    - Keep it grounded, direct, and slightly uncomfortable if there is an obvious contradiction (e.g., wanting total autonomy but being paralyzed by what others think).
-  `;
+Your job is to find ONE meaningful pattern, tension, relationship, or
+trade-off across those answers.
 
-  const { success, content, error } = await invokeAIStandard({
+This is a REVEAL, not a summary.
+
+DO:
+- Connect different parts of what the person said.
+- Look for tension between what pulls them forward and what holds them back.
+- Notice contradictions or recurring patterns.
+- Notice what seems to make action difficult.
+- Ground the interpretation directly in their answers.
+- Help them see something that was not obvious when answering each question separately.
+- Use tentative language such as "I notice...", "There seems to be...",
+  or "Your answers suggest..." when appropriate.
+- Be specific to this person.
+
+DO NOT:
+- Simply list or repeat their answers.
+- Diagnose them.
+- Tell them what their "real problem" is.
+- Assume fear, perfectionism, confidence, or any other psychological cause
+  unless the person explicitly described it.
+- Give advice or prescribe an action.
+- Turn difficult personal circumstances into an inspirational story.
+- Invent information that the person did not provide.
+- Mention AI, the prompt, or this instruction.
+
+The headline should be short and memorable — ideally one sentence.
+
+The interpretation should be 2–4 sentences. It should explain the
+connection you noticed and why it matters to their journey.
+
+Return ONLY valid JSON:
+
+{
+  "headline": "Short statement of the pattern",
+  "interpretation": "A grounded explanation of the connection you noticed."
+}
+`;
+
+  const userPrompt = `
+WHAT BROUGHT THEM HERE:
+${input.situation}
+
+WHAT HAS BEEN STOPPING THEM:
+${JSON.stringify(input.barriers, null, 2)}
+
+WHAT KEEPS PULLING THEM BACK:
+${JSON.stringify(input.motivations, null, 2)}
+
+WHAT THEY WANT TO CHANGE:
+${input.future}
+
+WHAT COULD MAKE THEM QUIT:
+${JSON.stringify(input.quitConditions, null, 2)}
+`;
+
+  const result = await invokeAILight({
     systemPrompt,
-    userPrompt: "Synthesize these four quadrants into a single observation.",
+    userPrompt,
     componentKey: 'commitment_synthesis',
     sourceNodeKey,
-    purpose: 'quadrant_mirror_synthesis',
-    requireJson: false,
+    purpose: 'reveal_m1_q1_pattern',
+    requireJson: true,
+    temperature: 0.3,
   });
 
-  if (!success || !content) {
-    throw new Error(error || 'Failed to generate synthesis');
+  if (!result.success || !result.content) {
+    throw new Error(
+      result.error || 'Failed to generate commitment synthesis.'
+    );
   }
 
-  return content;
+  try {
+    const parsed = JSON.parse(result.content);
+
+    if (
+      typeof parsed.headline !== 'string' ||
+      typeof parsed.interpretation !== 'string'
+    ) {
+      throw new Error('Invalid synthesis response.');
+    }
+
+    return {
+      headline: parsed.headline.trim(),
+      interpretation: parsed.interpretation.trim(),
+    };
+  } catch (error) {
+    console.error('[COMMITMENT SYNTHESIS]', error);
+    throw new Error('Failed to understand the synthesis response.');
+  }
 }
 
 export async function generateAssetReveal(

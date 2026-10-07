@@ -11,9 +11,17 @@ import type { NodeComponentProps } from '@/components/program/componentRegistry'
 
 import { $userContext, userContextActions } from '@/lib/stores/user-context';
 import { updateUserProgramContext } from '@/actions/user-context';
+import { analyzeSituation } from '@/actions/responses/mission1';
+
+type SituationReflection = {
+  acknowledgment: string;
+  bridge: string;
+};
 
 export function SituationExplorer({
   node,
+  nodeKey,
+  progress,
   onComplete,
 }: NodeComponentProps) {
   const contextState = useStore($userContext);
@@ -21,15 +29,27 @@ export function SituationExplorer({
   const savedStartDrive =
     contextState.userContext?.start_drive ?? '';
 
-  const [startDrive, setStartDrive] =
-    useState(savedStartDrive);
+  const savedReflection = progress.payload?.reflection as
+    | SituationReflection
+    | undefined;
+
+  const [startDrive, setStartDrive] = useState(savedStartDrive);
 
   const [hasSaved, setHasSaved] = useState(
     Boolean(savedStartDrive.trim())
   );
 
+  const [reflection, setReflection] =
+    useState<SituationReflection | null>(
+      savedReflection?.acknowledgment && savedReflection?.bridge
+        ? savedReflection
+        : null
+    );
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   /*
@@ -49,10 +69,24 @@ export function SituationExplorer({
     contextState.userContext?.start_drive,
   ]);
 
+  /*
+   * If the node already has an AI reflection saved in progress,
+   * restore it when revisiting the node.
+   */
+  useEffect(() => {
+    const saved = progress.payload?.reflection as
+      | SituationReflection
+      | undefined;
+
+    if (saved?.acknowledgment && saved?.bridge) {
+      setReflection(saved);
+    }
+  }, [progress.payload]);
+
   const canSave = startDrive.trim().length > 0;
 
   async function handleSave() {
-    if (!canSave || isSaving) return;
+    if (!canSave || isSaving || isAnalyzing) return;
 
     setIsSaving(true);
     setError(null);
@@ -60,20 +94,56 @@ export function SituationExplorer({
     try {
       const value = startDrive.trim();
 
+      /*
+       * First save the user's own words.
+       * This is the durable source of truth.
+       */
       const result = await updateUserProgramContext({
         start_drive: value,
       });
 
-      /*
-       * Keep the unified client-side context in sync with
-       * the database immediately.
-       */
       userContextActions.updateContextLocally(
         result.userContext
       );
 
       setStartDrive(result.userContext.start_drive ?? value);
       setHasSaved(true);
+
+      /*
+       * Then ask AI to reflect the context and create the
+       * bridge into the investigation.
+       */
+      setIsAnalyzing(true);
+
+      try {
+        const aiResult = await analyzeSituation(
+          value,
+          nodeKey
+        );
+
+        setReflection({
+          acknowledgment: aiResult.acknowledgment,
+          bridge: aiResult.bridge,
+        });
+      } catch (aiError) {
+        /*
+         * AI is an enhancement, not a dependency.
+         *
+         * If the call fails, provide a grounded fallback so
+         * the user can still continue.
+         */
+        console.error(
+          '[SITUATION EXPLORER AI]',
+          aiError
+        );
+
+        setReflection({
+          acknowledgment:
+            'Whatever brought you here, it is part of the context you are starting from.',
+          bridge:
+            'Now let’s look at the other side of that story: what has been keeping you from starting?',
+        });
+      }
     } catch (err) {
       console.error('[SITUATION EXPLORER]', err);
 
@@ -84,29 +154,40 @@ export function SituationExplorer({
       );
     } finally {
       setIsSaving(false);
+      setIsAnalyzing(false);
     }
   }
 
   async function handleComplete() {
-    if (!hasSaved || isCompleting) return;
+    if (
+      !hasSaved ||
+      isCompleting ||
+      !reflection
+    ) {
+      return;
+    }
 
     setIsCompleting(true);
     setError(null);
 
     try {
       await onComplete({
-        startDrive,
+        startDrive: startDrive.trim(),
+        reflection,
         completed: true,
       });
     } catch (err) {
-      console.error('[SITUATION EXPLORER COMPLETE]', err);
+      console.error(
+        '[SITUATION EXPLORER COMPLETE]',
+        err
+      );
 
       setError(
         err instanceof Error
           ? err.message
           : 'Something went wrong completing this step.'
       );
-    } finally {
+
       setIsCompleting(false);
     }
   }
@@ -147,7 +228,7 @@ export function SituationExplorer({
             placeholder="Maybe I'm frustrated with my work... Maybe I've had an idea for years... Maybe I'm stuck and want to do something different..."
             rows={7}
             autoFocus
-            disabled={isSaving}
+            disabled={isSaving || isAnalyzing}
             className="resize-none text-base leading-7"
           />
 
@@ -165,13 +246,19 @@ export function SituationExplorer({
           <div className="flex justify-end">
             <Button
               onClick={handleSave}
-              disabled={!canSave || isSaving}
+              disabled={
+                !canSave ||
+                isSaving ||
+                isAnalyzing
+              }
               className="gap-2"
             >
-              {isSaving ? (
+              {isSaving || isAnalyzing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
+                  {isAnalyzing
+                    ? 'Listening...'
+                    : 'Saving...'}
                 </>
               ) : (
                 <>
@@ -184,10 +271,11 @@ export function SituationExplorer({
         </div>
       ) : (
         /* ------------------------------------------------ */
-        /* SAVED START DRIVE                                */
+        /* CONTEXT + BRIDGE                                 */
         /* ------------------------------------------------ */
 
-        <div className="max-w-3xl space-y-8">
+        <div className="max-w-3xl space-y-10">
+          {/* User's own words */}
           <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
             <div className="space-y-3">
               <p className="text-sm font-medium text-muted-foreground">
@@ -200,36 +288,55 @@ export function SituationExplorer({
             </div>
           </div>
 
-          {/* -------------------------------------------- */}
-          {/* TRANSITION                                   */}
-          {/* -------------------------------------------- */}
+          {/* AI reflection */}
+          {reflection && (
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
 
-          <div className="space-y-5 border-t border-border pt-8">
-            <div className="space-y-3">
-              <h2 className="font-heading text-2xl font-semibold tracking-tight">
-                Now let's investigate something different.
-              </h2>
+                  <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    What we're hearing
+                  </p>
+                </div>
 
-              <p className="text-lg leading-8 text-muted-foreground">
-                Knowing what brought you here is one thing.
-                Understanding what has kept you from starting
-                is another.
-              </p>
+                <p className="text-xl leading-9 text-foreground">
+                  {reflection.acknowledgment}
+                </p>
+              </div>
+
+              <div className="space-y-5 border-t border-border pt-8">
+                <p className="text-lg leading-8 text-muted-foreground">
+                  {reflection.bridge}
+                </p>
+
+                <div className="rounded-2xl bg-muted/50 p-6 sm:p-8">
+                  <p className="text-2xl font-semibold leading-9 text-foreground">
+                    Why haven't you started?
+                  </p>
+
+                  <p className="mt-4 text-base leading-7 text-muted-foreground">
+                    We won't assume we know the answer.
+                    Over the next few quests, we'll
+                    investigate what has actually been
+                    getting in your way.
+                  </p>
+                </div>
+              </div>
             </div>
+          )}
 
-            <div className="rounded-2xl bg-muted/50 p-6">
-              <p className="text-xl font-medium leading-8">
-                Why haven't you started?
-              </p>
+          {/* Loading state while AI reflects */}
+          {isAnalyzing && !reflection && (
+            <div className="flex items-center gap-3 py-4 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
 
-              <p className="mt-3 text-base leading-7 text-muted-foreground">
-                Over the next four quests, we'll investigate
-                different possibilities. You won't have to
-                guess. You'll look at what is actually getting
-                in your way.
-              </p>
+              <span>
+                Taking a moment to understand what brought
+                you here...
+              </span>
             </div>
-          </div>
+          )}
 
           {error && (
             <p className="text-sm leading-6 text-destructive">
@@ -237,15 +344,15 @@ export function SituationExplorer({
             </p>
           )}
 
-          {/* -------------------------------------------- */}
-          {/* ACTIONS                                      */}
-          {/* -------------------------------------------- */}
-
+          {/* Actions */}
           <div className="flex items-center justify-between">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setHasSaved(false)}
+              onClick={() => {
+                setHasSaved(false);
+                setReflection(null);
+              }}
               disabled={isCompleting}
             >
               Edit
@@ -253,7 +360,11 @@ export function SituationExplorer({
 
             <Button
               onClick={handleComplete}
-              disabled={isCompleting}
+              disabled={
+                isCompleting ||
+                isAnalyzing ||
+                !reflection
+              }
               className="gap-2"
             >
               {isCompleting ? (
