@@ -11,6 +11,11 @@ export type NodeResource = {
   title: string;
 };
 
+export type NodeMetadata = {
+  // component-specific metadata will live here
+  [key: string]: unknown;
+};
+
 export type ProgramNode = {
   key: string;
   sequence: number;
@@ -22,6 +27,7 @@ export type ProgramNode = {
   resources?: NodeResource[];
   description?: string;
   prompt?: string;
+  metadata?: NodeMetadata;
 };
 
 export type ProgramQuest = {
@@ -47,4 +53,23 @@ export type ProgramMission = {
   quests: ProgramQuest[];
   reveal: ProgramNode;
   action?: ProgramNode;
+};
+
+export type RealWorldExperimentMetadata = {
+  experiment: {
+    type: 'asking';
+
+    difficulty: 'low' | 'meaningful' | 'stretch';
+
+    purpose:
+      | 'practice_asking'
+      | 'experience_rejection'
+      | 'test_identified_fear';
+
+    prompt: string;
+
+    framing: string;
+
+    scenarioHints: string[];
+  };
 };

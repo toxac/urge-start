@@ -1,107 +1,290 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useState } from 'react';
+import { useStore } from '@nanostores/react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { saveObservation } from '@/actions/observations';
-import { getQuest3Reflections, generateFrictionSynthesis } from '@/actions/responses/mission1';
+import { $progress } from '@/lib/stores/progress';
 
-export function PredictionRealityReveal({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
+type ExperimentPayload = {
+  target?: string;
+  intention?: string;
+  why?: string;
+  prediction?: string;
+  actionTaken?: string;
+  outcome?: string;
+  reaction?: string;
+  reflection?: string;
+};
 
-  const [synthesis, setSynthesis] = useState<string | null>(
-    typeof saved.synthesis === 'string' ? saved.synthesis : null
+type RevealPayload = {
+  difference?: string;
+  prediction?: string;
+  outcome?: string;
+  reaction?: string;
+  reflection?: string;
+  completed?: boolean;
+};
+
+export function PredictionRealityReveal({
+  node,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
+  const progressState = useStore($progress);
+
+  /*
+   * The previous node is the source of the experiment evidence.
+   * We read it directly from the progress store rather than
+   * passing its payload through the component props.
+   */
+  const experiment =
+    (progressState.payloads['m1-q3-ask'] ?? {}) as ExperimentPayload;
+
+  /*
+   * This node's own saved progress.
+   */
+  const saved = (progress.payload ?? {}) as RevealPayload;
+
+  const prediction =
+    typeof experiment.prediction === 'string'
+      ? experiment.prediction
+      : '';
+
+  const outcome =
+    typeof experiment.outcome === 'string'
+      ? experiment.outcome
+      : '';
+
+  const reaction =
+    typeof experiment.reaction === 'string'
+      ? experiment.reaction
+      : '';
+
+  const reflection =
+    typeof experiment.reflection === 'string'
+      ? experiment.reflection
+      : '';
+
+  const [difference, setDifference] = useState(
+    typeof saved.difference === 'string'
+      ? saved.difference
+      : ''
   );
-  const [reflections, setReflections] = useState<any[]>([]);
-  const [isGenerating, setIsGenerating] = useState(!saved.synthesis);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const hasFetchedRef = useRef(false);
 
-  useEffect(() => {
-    async function fetchSynthesis() {
-      if (hasFetchedRef.current || synthesis) return;
-      hasFetchedRef.current = true;
-      setIsGenerating(true);
-
-      try {
-        const rawReflections = await getQuest3Reflections();
-        setReflections(rawReflections);
-
-        if (rawReflections.length > 0) {
-          const result = await generateFrictionSynthesis(rawReflections, nodeKey);
-          setSynthesis(result);
-          
-          await saveObservation({
-            title: 'Social Friction Synthesis',
-            content: result,
-            domain: 'reflection',
-            focus: 'personal',
-            source_node_key: nodeKey,
-          });
-        } else {
-          setSynthesis("You moved through the friction, but we couldn't find your reflections. The important part is that you did the reps.");
-        }
-      } catch (error) {
-        console.error('[REVEAL ERROR]', error);
-        setSynthesis("The gap between what we imagine will happen and what actually happens is usually where the fear lives. You just proved you can survive the reality.");
-      } finally {
-        setIsGenerating(false);
-      }
-    }
-
-    fetchSynthesis();
-  }, [synthesis, nodeKey]);
+  const canContinue = difference.trim().length > 0;
 
   async function handleComplete() {
-    if (isSubmitting || !synthesis) return;
+    if (!canContinue || isSubmitting) return;
+
     setIsSubmitting(true);
-    await onComplete({ synthesis, completed: true });
+
+    try {
+      await onComplete({
+        prediction,
+        outcome,
+        reaction,
+        reflection,
+        difference: difference.trim(),
+        completed: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  /*
+   * Revisit state.
+   *
+   * The reveal should remain a mirror of the experience,
+   * not generate a new interpretation.
+   */
+  if (progress.completed || saved.completed === true) {
+    return (
+      <div className="w-full max-w-4xl space-y-10">
+        <div className="space-y-4">
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {node.title}
+          </h2>
+
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+            You had a prediction. You acted. Now you know what actually
+            happened.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What you expected
+            </p>
+
+            <p className="text-lg leading-8">
+              {prediction || 'No prediction recorded.'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What happened
+            </p>
+
+            <p className="text-lg leading-8">
+              {outcome || 'No outcome recorded.'}
+            </p>
+          </div>
+        </div>
+
+        {reaction && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              How you reacted
+            </p>
+
+            <p className="max-w-3xl text-lg leading-8">
+              {reaction}
+            </p>
+          </div>
+        )}
+
+        {reflection && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What you noticed
+            </p>
+
+            <p className="max-w-3xl text-lg leading-8">
+              {reflection}
+            </p>
+          </div>
+        )}
+
+        <div className="border-t border-border pt-8">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What was different?
+          </p>
+
+          <p className="max-w-3xl text-lg leading-8">
+            {difference}
+          </p>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => onComplete(saved)}
+            className="h-12 gap-2 rounded-full px-8 text-base"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full space-y-12">
+    <div className="w-full max-w-4xl space-y-12">
       <div className="space-y-4">
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {node.title}
         </h2>
+
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You stepped out of your own head and forced the world to react. Let's look at what actually happened compared to what you feared.
+          Before you made the ask, you had an idea of how it would go.
+          Now you have something better: what actually happened.
         </p>
       </div>
 
-      {reflections.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 max-w-4xl">
-          {reflections.map((ref, idx) => (
-            <div key={idx} className="rounded-2xl border border-border bg-card p-6">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pb-2">{ref.title}</h3>
-              <p className="text-base leading-7 text-foreground italic">"{ref.content}"</p>
-            </div>
-          ))}
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What did you expect?
+          </p>
+
+          <p className="text-lg leading-8">
+            {prediction || 'No prediction recorded.'}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What actually happened?
+          </p>
+
+          <p className="text-lg leading-8">
+            {outcome || 'No outcome recorded.'}
+          </p>
+        </div>
+      </div>
+
+      {reaction && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            How did you react?
+          </p>
+
+          <p className="max-w-3xl text-lg leading-8">
+            {reaction}
+          </p>
         </div>
       )}
 
-      <div className="max-w-4xl border-t border-border pt-8 min-h-[160px]">
-        {isGenerating ? (
-          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm">Synthesizing the reality gap...</p>
-          </div>
-        ) : synthesis ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-700">
-            <p className="text-xl leading-8 text-foreground font-medium">
-              {synthesis}
-            </p>
-            <div className="flex">
-              <Button onClick={handleComplete} disabled={isSubmitting} className="h-12 gap-2 rounded-full px-8 text-base">
-                {isSubmitting ? 'Moving forward...' : 'I see it'}
-                {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-              </Button>
-            </div>
-          </div>
-        ) : null}
+      {reflection && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What did you notice?
+          </p>
+
+          <p className="max-w-3xl text-lg leading-8">
+            {reflection}
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-5 border-t border-border pt-8">
+        <div className="space-y-2">
+          <h3 className="text-xl font-semibold">
+            Was anything different from what you expected?
+          </h3>
+
+          <p className="text-muted-foreground">
+            It could have gone better, worse, or simply differently.
+            What stands out when you put your prediction beside reality?
+          </p>
+        </div>
+
+        <Textarea
+          value={difference}
+          onChange={(event) => setDifference(event.target.value)}
+          placeholder="What was different..."
+          className="min-h-[160px] max-w-3xl resize-none text-lg leading-8"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="flex max-w-3xl justify-end">
+        <Button
+          onClick={handleComplete}
+          disabled={!canContinue || isSubmitting}
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );

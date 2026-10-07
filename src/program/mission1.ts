@@ -343,6 +343,26 @@ export const mission1: ProgramMission = {
             'Give the user direct experience of approaching someone, making a genuine ask, and observing what happens rather than avoiding the interaction.',
           component: 'real_world_ask',
           dependencies: ['m1-q3-squad'],
+          metadata: {
+            experiment: {
+              type: 'asking',
+              difficulty: 'meaningful',
+              purpose: 'practice_asking',
+
+              prompt: 'Who could you make a real ask of today?',
+
+              framing:
+                'The goal is to approach someone and notice what happens when you ask. You do not need to control the answer.',
+
+              scenarioHints: [
+                'Ask someone for an introduction.',
+                'Ask someone for feedback on something you are thinking about.',
+                'Ask someone to share something they know.',
+                'Ask someone for access to a person, place, audience, or resource.',
+                'Ask someone for a small favour that would help you move forward.',
+              ],
+            },
+          },
         },
 
         {
@@ -415,6 +435,26 @@ export const mission1: ProgramMission = {
             'Experience a low-stakes rejection.',
           component: 'low_threshold_ask',
           dependencies: ['m1-q4-setup'],
+          metadata: {
+            experiment: {
+              type: 'asking',
+              difficulty: 'low',
+              purpose: 'experience_rejection',
+
+              prompt: 'What is one small ask you could make where a no would be okay?',
+
+              framing:
+                'The goal is not getting a yes. The goal is experiencing what it feels like to ask when you know the answer might be no.',
+
+              scenarioHints: [
+                'Ask for a small discount.',
+                'Ask for something that is not normally offered.',
+                'Ask someone for a small favour.',
+                'Ask to speak to someone you normally would not approach.',
+                'Ask for something where you would genuinely be okay hearing no.',
+              ],
+            },
+          },
         },
 
         {
@@ -430,6 +470,26 @@ export const mission1: ProgramMission = {
             'Experience a slightly more uncomfortable rejection.',
           component: 'fear_challenge',
           dependencies: ['m1-q4-warmup'],
+          metadata: {
+            experiment: {
+              type: 'asking',
+              difficulty: 'stretch',
+              purpose: 'test_identified_fear',
+
+              prompt: 'What is the ask you actually want to make but have been avoiding?',
+
+              framing:
+                'Choose something that matters to you and that you have genuinely been avoiding. The point is to find out what happens when you act despite the fear.',
+
+              scenarioHints: [
+                'Ask someone important for a meeting.',
+                'Ask a potential customer for a conversation.',
+                'Ask someone for an introduction.',
+                'Ask for a commitment you have been hesitant to request.',
+                'Ask for something where hearing no would genuinely matter to you.',
+              ],
+            },
+          },
         },
 
         {

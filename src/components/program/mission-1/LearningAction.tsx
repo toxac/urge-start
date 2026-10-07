@@ -1,107 +1,377 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { useStore } from '@nanostores/react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { saveCommitment } from '@/actions/commitments';
+import { $progress } from '@/lib/stores/progress';
+import { saveUserTasks } from '@/actions/tasks';
 
-export function LearningAction({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
+type OutcomeType =
+  | 'decision'
+  | 'commitment'
+  | 'task'
+  | 'nothing';
 
-  const [rule, setRule] = useState(
-    typeof saved.rule === 'string' ? saved.rule : ''
+type ActionPayload = {
+  outcomeType?: OutcomeType;
+  outcome?: string;
+  taskId?: string;
+  completed?: boolean;
+};
+
+const OUTCOME_OPTIONS: {
+  type: OutcomeType;
+  title: string;
+  description: string;
+}[] = [
+  {
+    type: 'decision',
+    title: 'I want to keep doing this.',
+    description:
+      'I learned something useful and want to keep approaching people instead of retreating into my own head.',
+  },
+  {
+    type: 'commitment',
+    title: 'I want to change how I approach this.',
+    description:
+      'I want to carry something from this experience into the next time I hesitate.',
+  },
+  {
+    type: 'task',
+    title: 'I want to make another ask.',
+    description:
+      'Turn what you learned into another real-world action.',
+  },
+  {
+    type: 'nothing',
+    title: 'Nothing yet.',
+    description:
+      'I want to let this experience sit before deciding what to do next.',
+  },
+];
+
+export function LearningAction({
+  node,
+  nodeKey,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
+  const progressState = useStore($progress);
+
+  /*
+   * The reveal is the immediate source of learning for this action.
+   */
+  const reveal = progressState.payloads['m1-q3-reveal'] ?? {};
+
+  const difference =
+    typeof reveal.difference === 'string'
+      ? reveal.difference
+      : '';
+
+  /*
+   * This node's own saved outcome.
+   */
+  const saved = (progress.payload ?? {}) as ActionPayload;
+
+  const [outcomeType, setOutcomeType] = useState<OutcomeType | null>(
+    saved.outcomeType ?? null
   );
-  
-  const [isCommitted, setIsCommitted] = useState(saved.completed === true);
+
+  const [outcome, setOutcome] = useState(
+    typeof saved.outcome === 'string'
+      ? saved.outcome
+      : ''
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = rule.trim().length >= 10;
+  const selectedOption = OUTCOME_OPTIONS.find(
+    (option) => option.type === outcomeType
+  );
 
-  async function handleSaveRule() {
-    if (!canSubmit || isSubmitting) return;
+  const requiresText =
+    outcomeType === 'decision' ||
+    outcomeType === 'commitment' ||
+    outcomeType === 'task';
+
+  const canContinue =
+    outcomeType === 'nothing' ||
+    (requiresText && outcome.trim().length > 0);
+
+  function handleSelect(type: OutcomeType) {
+    setOutcomeType(type);
+    setError(null);
+
+    if (type === 'nothing') {
+      setOutcome('');
+    }
+  }
+
+  async function handleComplete() {
+    if (!outcomeType || !canContinue || isSubmitting) return;
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      await saveCommitment({
-        statement: `Rule of Engagement: ${rule.trim()}`,
-        source_node_key: nodeKey,
+      let taskId: string | undefined;
+
+      /*
+       * A task is only created when the founder explicitly
+       * chooses the task outcome.
+       */
+      if (outcomeType === 'task') {
+        const result = await saveUserTasks([
+          {
+            title: outcome.trim(),
+            description:
+              difference ||
+              'Follow-up action from the Q3 real-world asking experiment.',
+            task_type: 'practice',
+            source_node_key: nodeKey,
+            metadata: {
+              outcome_type: 'task',
+              source_experiment_node: 'm1-q3-ask',
+              source_reveal_node: 'm1-q3-reveal',
+            },
+          },
+        ]);
+
+        taskId = result.tasks?.[0]?.id;
+      }
+
+      await onComplete({
+        outcomeType,
+        outcome: outcome.trim(),
+        ...(taskId ? { taskId } : {}),
+        completed: true,
       });
-      setIsCommitted(true);
-    } catch (err: any) {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      console.error('[LEARNING ACTION ERROR]', err);
+      setError(
+        'Something went wrong while saving this. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleComplete() {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    await onComplete({ rule: rule.trim(), completed: true });
+  /*
+   * Revisit state.
+   */
+  if (progress.completed || saved.completed === true) {
+    return (
+      <div className="w-full max-w-4xl space-y-10">
+        <div className="space-y-4">
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {node.title}
+          </h2>
+
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+            You decided what to do with the experience.
+          </p>
+        </div>
+
+        {difference && (
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What you noticed
+            </p>
+
+            <p className="text-lg leading-8">
+              {difference}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Your outcome
+          </p>
+
+          <div className="flex items-start gap-3">
+            <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+
+            <div>
+              <p className="text-lg font-semibold">
+                {selectedOption?.title}
+              </p>
+
+              {outcome && (
+                <p className="mt-2 max-w-3xl text-lg leading-8">
+                  {outcome}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => onComplete(saved)}
+            className="h-12 gap-2 rounded-full px-8 text-base"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full space-y-10">
-      
-      {!isCommitted ? (
-        <div className="space-y-8">
-          <div className="space-y-4">
-            <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              {node.title || "Establish a Rule of Engagement."}
-            </h2>
-            <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-              You will feel this exact friction again. Based on what you just learned, write down a personal rule for how you will handle it next time. (e.g., "If I hesitate for more than 5 minutes, I have to hit send," or "I will not let my fear of looking foolish make decisions for me.")
-            </p>
-          </div>
+    <div className="w-full max-w-4xl space-y-12">
+      <div className="space-y-4">
+        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {node.title}
+        </h2>
 
-          <div className="max-w-3xl space-y-4">
-            <Textarea
-              value={rule}
-              onChange={(e) => setRule(e.target.value)}
-              placeholder="My new rule is..."
-              className="min-h-[160px] resize-none text-lg leading-8 font-medium"
-              disabled={isSubmitting}
-            />
-          </div>
+        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+          You now know what happened. The question is not what Urge
+          thinks you should do. What do you want to do with what you
+          learned?
+        </p>
+      </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+      {difference && (
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            What you noticed
+          </p>
 
-          <div className="flex max-w-3xl justify-end">
-            <Button onClick={handleSaveRule} disabled={!canSubmit || isSubmitting} className="h-12 gap-2 rounded-full px-8 text-base">
-              {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</> : 'Lock it in'}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="animate-in fade-in slide-in-from-bottom-4 max-w-3xl space-y-12 duration-700">
-          <div className="space-y-4">
-            <h2 className="font-heading text-4xl font-semibold tracking-tight text-foreground">
-              Rule established.
-            </h2>
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-8">
-              <p className="font-heading text-2xl font-medium leading-relaxed text-foreground">
-                "{rule}"
-              </p>
-            </div>
-            <p className="text-lg leading-8 text-muted-foreground pt-4">
-              This rule is now part of your operating system.
-            </p>
-          </div>
-
-          <div className="flex">
-            <Button onClick={handleComplete} disabled={isSubmitting} className="h-12 gap-2 rounded-full px-8 text-base">
-              {isSubmitting ? 'Finalizing Quest...' : 'Complete Quest 3'}
-              {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-            </Button>
-          </div>
+          <p className="text-lg leading-8">
+            {difference}
+          </p>
         </div>
       )}
 
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-xl font-semibold">
+            What do you want to do with this?
+          </h3>
+
+          <p className="mt-2 text-muted-foreground">
+            There is no right answer. Choose what feels true.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {OUTCOME_OPTIONS.map((option) => {
+            const selected = outcomeType === option.type;
+
+            return (
+              <button
+                key={option.type}
+                type="button"
+                onClick={() => handleSelect(option.type)}
+                disabled={isSubmitting}
+                className={[
+                  'rounded-2xl border p-6 text-left transition-colors',
+                  'hover:border-foreground/40',
+                  selected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-card',
+                ].join(' ')}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold">
+                      {option.title}
+                    </p>
+
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {option.description}
+                    </p>
+                  </div>
+
+                  {selected && (
+                    <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {outcomeType && outcomeType !== 'nothing' && (
+        <div className="max-w-3xl space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold">
+              {outcomeType === 'task'
+                ? 'What will you do?'
+                : outcomeType === 'commitment'
+                  ? 'What are you committing to?'
+                  : 'What is your decision?'}
+            </h3>
+
+            <p className="text-muted-foreground">
+              {outcomeType === 'task'
+                ? 'Make it specific enough that you could actually do it.'
+                : outcomeType === 'commitment'
+                  ? 'Put the behaviour you want to carry forward into your own words.'
+                  : 'State what you have decided based on the experience.'}
+            </p>
+          </div>
+
+          <Textarea
+            value={outcome}
+            onChange={(event) => setOutcome(event.target.value)}
+            placeholder={
+              outcomeType === 'task'
+                ? 'I will...'
+                : outcomeType === 'commitment'
+                  ? 'When I hesitate, I will...'
+                  : 'I have decided to...'
+            }
+            className="min-h-[150px] resize-none text-lg leading-8"
+            disabled={isSubmitting}
+          />
+        </div>
+      )}
+
+      {outcomeType === 'nothing' && (
+        <div className="max-w-3xl rounded-2xl border border-border bg-card p-6">
+          <p className="text-lg leading-8">
+            You do not have to turn every experience into an immediate
+            task. Sometimes noticing what happened is enough for now.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex max-w-3xl justify-end">
+        <Button
+          onClick={handleComplete}
+          disabled={!canContinue || isSubmitting}
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              {outcomeType === 'nothing'
+                ? 'Continue'
+                : 'Lock it in'}
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,112 +1,203 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { saveObservation } from '@/actions/observations';
+import { $progress } from '@/lib/stores/progress';
 
-// Ensure these actions exist in your mission1.ts file as defined earlier
-import { getQuest4Reflections, generateRejectionSynthesis } from '@/actions/responses/mission1';
+type RevealPayload = {
+  notice?: string;
+  completed?: boolean;
+};
 
-export function FearEvidenceReveal({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
+export function FearEvidenceReveal({
+  node,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
+  const progressState = useStore($progress);
+  const saved = (progress.payload ?? {}) as RevealPayload;
 
-  const [synthesis, setSynthesis] = useState<string | null>(
-    typeof saved.synthesis === 'string' ? saved.synthesis : null
+  const fear = progressState.payloads['m1-q4-setup'] ?? {};
+  const warmup = progressState.payloads['m1-q4-warmup'] ?? {};
+  const stretch = progressState.payloads['m1-q4-stretch'] ?? {};
+
+  const [notice, setNotice] = useState(
+    typeof saved.notice === 'string'
+      ? saved.notice
+      : ''
   );
-  const [reflections, setReflections] = useState<any[]>([]);
-  const [isGenerating, setIsGenerating] = useState(!saved.synthesis);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const hasFetchedRef = useRef(false);
 
-  useEffect(() => {
-    async function fetchSynthesis() {
-      if (hasFetchedRef.current || synthesis) return;
-      hasFetchedRef.current = true;
-      setIsGenerating(true);
-
-      try {
-        const rawReflections = await getQuest4Reflections();
-        setReflections(rawReflections);
-
-        if (rawReflections.length > 0) {
-          const result = await generateRejectionSynthesis(rawReflections, nodeKey);
-          setSynthesis(result);
-          
-          await saveObservation({
-            title: 'Rejection Synthesis',
-            content: result,
-            domain: 'reflection',
-            focus: 'personal',
-            source_node_key: nodeKey,
-          });
-        } else {
-          setSynthesis("You faced the rejection, but we couldn't find your written reflections. The important part is that you realized a 'no' is just data, not a disaster.");
-        }
-      } catch (error) {
-        console.error('[FEAR REVEAL ERROR]', error);
-        setSynthesis("The anticipation of rejection is always worse than the rejection itself. You survived the 'no'. That means it no longer controls what you are willing to ask for.");
-      } finally {
-        setIsGenerating(false);
-      }
-    }
-
-    fetchSynthesis();
-  }, [synthesis, nodeKey]);
+  const canContinue = notice.trim().length > 0;
 
   async function handleComplete() {
-    if (isSubmitting || !synthesis) return;
+    if (!canContinue || isSubmitting) return;
+
     setIsSubmitting(true);
-    await onComplete({ synthesis, completed: true });
+
+    try {
+      await onComplete({
+        notice: notice.trim(),
+        completed: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (progress.completed || saved.completed === true) {
+    return (
+      <div className="w-full max-w-4xl space-y-10">
+        <div className="space-y-4">
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {node.title}
+          </h2>
+
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+            You have put the fear beside what actually happened.
+          </p>
+        </div>
+
+        <div className="space-y-8">
+          <Evidence
+            label="What you feared"
+            value={fear.fearedOutcome}
+          />
+
+          <Evidence
+            label="What you did"
+            value={stretch.actionTaken}
+          />
+
+          <Evidence
+            label="What actually happened"
+            value={stretch.outcome}
+          />
+
+          <Evidence
+            label="What you noticed"
+            value={notice}
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => onComplete(saved)}
+            className="h-12 gap-2 rounded-full px-8"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full space-y-12">
+    <div className="w-full max-w-4xl space-y-12">
       <div className="space-y-4">
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title || "The Autopsy of a No"}
+          {node.title}
         </h2>
+
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You went out and intentionally got rejected. Let's look at what actually happened in your own words.
+          We are not going to tell you what this experience means.
+          Put the fear beside the evidence and decide what you notice.
         </p>
       </div>
 
-      {reflections.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 max-w-4xl">
-          {reflections.map((ref, idx) => (
-            <div key={idx} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pb-2">
-                {ref.title}
-              </h3>
-              <p className="text-base leading-7 text-foreground italic">"{ref.content}"</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="space-y-8">
+        <Evidence
+          label="What you feared"
+          value={fear.fearedOutcome}
+        />
 
-      <div className="max-w-4xl border-t border-border pt-8 min-h-[160px]">
-        {isGenerating ? (
-          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm">Analyzing your response to rejection...</p>
-          </div>
-        ) : synthesis ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-700">
-            <p className="text-xl leading-8 text-foreground font-medium">
-              {synthesis}
-            </p>
-            <div className="flex">
-              <Button onClick={handleComplete} disabled={isSubmitting} className="h-12 gap-2 rounded-full px-8 text-base">
-                {isSubmitting ? 'Moving forward...' : 'I see it'}
-                {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        <Evidence
+          label="What you did"
+          value={stretch.actionTaken}
+        />
+
+        <Evidence
+          label="What actually happened"
+          value={stretch.outcome}
+        />
+
+        {warmup.outcome && (
+          <Evidence
+            label="What happened in the warmup"
+            value={warmup.outcome}
+          />
+        )}
       </div>
+
+      <div className="max-w-3xl space-y-4 border-t border-border pt-8">
+        <div className="space-y-2">
+          <h3 className="text-xl font-semibold">
+            What do you notice?
+          </h3>
+
+          <p className="text-muted-foreground">
+            Don't force a positive conclusion. A no is still useful
+            evidence. So is a yes. So is something you did not expect.
+          </p>
+        </div>
+
+        <Textarea
+          value={notice}
+          onChange={(event) => setNotice(event.target.value)}
+          placeholder="What I notice..."
+          className="min-h-[180px] resize-none text-lg leading-8"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="flex max-w-3xl justify-end">
+        <Button
+          onClick={handleComplete}
+          disabled={!canContinue || isSubmitting}
+          className="h-12 gap-2 rounded-full px-8"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Evidence({
+  label,
+  value,
+}: {
+  label: string;
+  value?: unknown;
+}) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="text-lg leading-8">
+        {value}
+      </p>
     </div>
   );
 }

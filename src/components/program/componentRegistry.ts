@@ -26,11 +26,11 @@ import {
   FearAudit,
   FearEvidenceReveal,
   Mission1Reveal,
-  Mission1Action
+  Mission1Action,
+  FearExplorer
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
-import { ExternalRealWorldTask } from './common/ExternalRealWorldTask';
 import { RealWorldExperiment } from './common/RealWorldExperiment';
 
 export type NodeComponentProps = {
@@ -68,9 +68,9 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'prediction_reality_reveal': PredictionRealityReveal,
   'learning_action': LearningAction,
   // M1Q4: Fear
-  'fear_explorer': StandardSetupFrame,
-  'low_threshold_ask': LowThresholdAsk,
-  'fear_challenge': FearChallenge,
+  'fear_explorer': FearExplorer,
+  'low_threshold_ask': RealWorldExperiment,
+  'fear_challenge': RealWorldExperiment,
   'fear_evidence_reveal': FearEvidenceReveal,
   'behavior_commitment': FearAudit,
   // M1 Action
