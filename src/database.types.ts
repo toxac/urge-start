@@ -244,10 +244,13 @@ export type Database = {
           component: string
           created_at: string
           dependencies: string[]
+          description: string | null
           intent: string
+          metadata: Json
           mission_key: string
           node_key: string
           program_version: number
+          prompt: string | null
           quest_key: string | null
           resources: Json
           role: Database["public"]["Enums"]["program_node_role"]
@@ -259,10 +262,13 @@ export type Database = {
           component: string
           created_at?: string
           dependencies?: string[]
+          description?: string | null
           intent: string
+          metadata?: Json
           mission_key: string
           node_key: string
           program_version: number
+          prompt?: string | null
           quest_key?: string | null
           resources?: Json
           role: Database["public"]["Enums"]["program_node_role"]
@@ -274,10 +280,13 @@ export type Database = {
           component?: string
           created_at?: string
           dependencies?: string[]
+          description?: string | null
           intent?: string
+          metadata?: Json
           mission_key?: string
           node_key?: string
           program_version?: number
+          prompt?: string | null
           quest_key?: string | null
           resources?: Json
           role?: Database["public"]["Enums"]["program_node_role"]

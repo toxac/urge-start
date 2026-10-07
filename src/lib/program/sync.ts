@@ -1,3 +1,4 @@
+// src/lib/program/sync.ts
 import { programMissions } from '@/program';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -14,10 +15,13 @@ export type ProgramNodeRow = {
   sequence: number;
   role: ProgramNode['role'];
   title: string;
+  description: string | null;
+  prompt: string | null;
   intent: string;
   component: string;
   dependencies: string[];
   resources: NonNullable<ProgramNode['resources']>;
+  metadata: NonNullable<ProgramNode['metadata']>;
 };
 
 export function buildProgramNodeRows(
@@ -26,84 +30,64 @@ export function buildProgramNodeRows(
   return missions.flatMap((mission) => {
     const rows: ProgramNodeRow[] = [];
 
-    rows.push({
-      node_key: mission.setup.key,
+    const mapNode = (node: ProgramNode, questKey: string | null = null): ProgramNodeRow => ({
+      node_key: node.key,
       mission_key: mission.key,
-      quest_key: null,
+      quest_key: questKey,
       program_version: mission.version,
-      sequence: mission.setup.sequence,
-      role: mission.setup.role,
-      title: mission.setup.title,
-      intent: mission.setup.intent,
-      component: mission.setup.component,
-      dependencies: mission.setup.dependencies ?? [],
-      resources: mission.setup.resources ?? [],
+      sequence: node.sequence,
+      role: node.role,
+      title: node.title,
+      description: node.description ?? null,
+      prompt: node.prompt ?? null,
+      intent: node.intent,
+      component: node.component,
+      dependencies: node.dependencies ?? [],
+      resources: node.resources ?? [],
+      metadata: node.metadata ?? {},
     });
+
+    rows.push(mapNode(mission.setup));
 
     for (const quest of mission.quests) {
       for (const node of quest.nodes) {
-        rows.push({
-          node_key: node.key,
-          mission_key: mission.key,
-          quest_key: quest.key,
-          program_version: mission.version,
-          sequence: node.sequence,
-          role: node.role,
-          title: node.title,
-          intent: node.intent,
-          component: node.component,
-          dependencies: node.dependencies ?? [],
-          resources: node.resources ?? [],
-        });
+        rows.push(mapNode(node, quest.key));
       }
     }
 
-    rows.push({
-      node_key: mission.reveal.key,
-      mission_key: mission.key,
-      quest_key: null,
-      program_version: mission.version,
-      sequence: mission.reveal.sequence,
-      role: mission.reveal.role,
-      title: mission.reveal.title,
-      intent: mission.reveal.intent,
-      component: mission.reveal.component,
-      dependencies: mission.reveal.dependencies ?? [],
-      resources: mission.reveal.resources ?? [],
-    });
+    rows.push(mapNode(mission.reveal));
 
     if (mission.action) {
-      rows.push({
-        node_key: mission.action.key,
-        mission_key: mission.key,
-        quest_key: null,
-        program_version: mission.version,
-        sequence: mission.action.sequence,
-        role: mission.action.role,
-        title: mission.action.title,
-        intent: mission.action.intent,
-        component: mission.action.component,
-        dependencies: mission.action.dependencies ?? [],
-        resources: mission.action.resources ?? [],
-      });
+      rows.push(mapNode(mission.action));
     }
 
     return rows;
   });
 }
 
-export async function syncProgramNodes(): Promise<{ count: number }> {
+export async function clearAndSyncProgramNodes(): Promise<{ count: number }> {
   const supabase = await createSupabaseServerClient();
   const rows = buildProgramNodeRows();
 
-  const { error } = await supabase
+  // 1. Clear existing rows
+  const { error: deleteError } = await supabase
+    .from('program_nodes')
+    .delete()
+    .gte('sequence', 0); // Deletes all rows
+
+  if (deleteError) {
+    throw new Error(`Failed to clear program nodes: ${deleteError.message}`);
+  }
+
+  // 2. Upsert new rows
+  const { error: upsertError } = await supabase
     .from('program_nodes')
     .upsert(rows, {
       onConflict: 'node_key',
     });
 
-  if (error) {
-    throw new Error(`Failed to sync program nodes: ${error.message}`);
+  if (upsertError) {
+    throw new Error(`Failed to sync program nodes: ${upsertError.message}`);
   }
 
   return {

@@ -1,3 +1,4 @@
+// scripts/sync-program.ts
 import { createClient } from '@supabase/supabase-js';
 
 import type { Database } from '../src/database.types';
@@ -22,17 +23,28 @@ const supabase = createClient<Database>(
 async function main() {
   const rows = buildProgramNodeRows();
 
-  const { error } = await supabase
+  console.log('Clearing existing program_nodes...');
+  const { error: deleteError } = await supabase
+    .from('program_nodes')
+    .delete()
+    .gte('sequence', 0);
+
+  if (deleteError) {
+    throw new Error(`Failed to clear program nodes: ${deleteError.message}`);
+  }
+
+  console.log(`Syncing ${rows.length} program nodes...`);
+  const { error: insertError } = await supabase
     .from('program_nodes')
     .upsert(rows, {
       onConflict: 'node_key',
     });
 
-  if (error) {
-    throw new Error(`Failed to sync program nodes: ${error.message}`);
+  if (insertError) {
+    throw new Error(`Failed to sync program nodes: ${insertError.message}`);
   }
 
-  console.log(`Synced ${rows.length} program nodes.`);
+  console.log(`Successfully synced ${rows.length} nodes to program_nodes.`);
 }
 
 main().catch((error) => {

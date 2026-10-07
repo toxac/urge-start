@@ -1,3 +1,4 @@
+import type { Json } from '@/database.types';
 export type ProgramNodeRole =
   | 'setup'
   | 'investigation'
@@ -11,10 +12,7 @@ export type NodeResource = {
   title: string;
 };
 
-export type NodeMetadata = {
-  // component-specific metadata will live here
-  [key: string]: unknown;
-};
+export type NodeMetadata = Record<string, Json>;
 
 export type ProgramNode = {
   key: string;
