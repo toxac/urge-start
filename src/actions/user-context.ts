@@ -1,6 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+
 import type { Tables } from '@/database.types';
 
 export async function getCurrentProgramContext(userId: string): Promise<Tables<'user_program_context'> | null> {
