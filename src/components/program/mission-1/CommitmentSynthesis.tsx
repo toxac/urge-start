@@ -1,166 +1,528 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2, Pencil } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $userContext } from '@/lib/stores/user-context';
-import { $progress } from '@/lib/stores/progress';
-import { generateQuadrantSynthesis } from '@/actions/responses/mission1';
-import { saveObservation } from '@/actions/observations';
 
-export function CommitmentSynthesis({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  // 1. Grab data from the Context Store
+type Barrier = {
+  id: string;
+  title: string;
+  reflection: string;
+};
+
+type Motivation = {
+  id: string;
+  title: string;
+  reflection: string;
+};
+
+type QuitCondition = {
+  id: string;
+  title: string;
+  reflection: string;
+};
+
+type Synthesis = {
+  pattern: string;
+  matters: string;
+  future: string;
+  chosenBehavior: string;
+  barrierIds: string[];
+  motivationIds: string[];
+  quitConditionIds: string[];
+  confirmed: boolean;
+};
+
+export function CommitmentSynthesis({
+  node,
+  nodeKey,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
   const rawContext = useStore($userContext);
   const context = (rawContext as any)?.userContext || rawContext || {};
 
-  // 2. Grab data from the Progress Store (Fallback if context hasn't updated yet)
-  const progressState = useStore($progress);
-  // Assuming the node before this was m1-q1-investigate
-  const investigatePayload = progressState.payloads?.['m1-q1-investigate'] || {};
-
   const saved = progress.payload ?? {};
 
-  const [synthesis, setSynthesis] = useState<string | null>(
-    typeof saved.synthesis === 'string' ? saved.synthesis : null
+  const savedSynthesis =
+    saved.synthesis &&
+    typeof saved.synthesis === 'object'
+      ? (saved.synthesis as Synthesis)
+      : null;
+
+  const barriers: Barrier[] =
+    Array.isArray(context.perceived_barriers?.barriers)
+      ? context.perceived_barriers.barriers
+      : [];
+
+  const motivations: Motivation[] =
+    Array.isArray(context.motivations?.motivations)
+      ? context.motivations.motivations
+      : [];
+
+  const futureReflection =
+    typeof context.desired_future?.reflection === 'string'
+      ? context.desired_future.reflection
+      : '';
+
+  const quitConditions: QuitCondition[] =
+    Array.isArray(context.quit_conditions?.conditions)
+      ? context.quit_conditions.conditions
+      : [];
+
+  const [pattern, setPattern] = useState(
+    savedSynthesis?.pattern ?? ''
   );
-  const [isGenerating, setIsGenerating] = useState(!saved.synthesis);
+
+  const [matters, setMatters] = useState(
+    savedSynthesis?.matters ?? ''
+  );
+
+  const [chosenBehavior, setChosenBehavior] = useState(
+    savedSynthesis?.chosenBehavior ?? ''
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const hasFetchedRef = useRef(false);
+
+  const [mode, setMode] = useState<'edit' | 'review'>(
+    savedSynthesis ? 'review' : 'edit'
+  );
 
   useEffect(() => {
-    // Prevent double-fetching
-    if (hasFetchedRef.current || synthesis) return;
+    if (!savedSynthesis) return;
 
-    // Resolve the data from either the Context Store or the previous node's Progress Payload
-    const qData = {
-      motivation: context.motivations || investigatePayload.motivations,
-      barrier: context.perceived_barriers || investigatePayload.perceived_barriers,
-      future: context.desired_future || investigatePayload.desired_future,
-      quit: context.quit_conditions || investigatePayload.quit_conditions,
-    };
+    setPattern(savedSynthesis.pattern ?? '');
+    setMatters(savedSynthesis.matters ?? '');
+    setChosenBehavior(savedSynthesis.chosenBehavior ?? '');
+    setMode('review');
+  }, [savedSynthesis]);
 
-    // We use a small timeout to ensure Nanostores has fully hydrated before we check for missing data
-    const timer = setTimeout(async () => {
-      hasFetchedRef.current = true;
-      setIsGenerating(true);
+  const primaryBarrier = barriers[0];
+  const primaryMotivation = motivations[0];
 
-      // If data is genuinely missing after hydration, fall back safely so you don't get stuck
-      if (!qData.motivation || !qData.barrier) {
-        console.warn('[SYNTHESIS] Missing quadrant data in both context and progress stores.');
-        setSynthesis("You have a clear picture of what you want and what stands in your way. The friction between these realities is where the actual work begins.");
-        setIsGenerating(false);
-        return;
-      }
+  const canContinue =
+    pattern.trim().length >= 3 &&
+    matters.trim().length >= 3 &&
+    chosenBehavior.trim().length >= 3;
 
-      try {
-        const quadrantData = {
-          motivation: `${qData.motivation.title}: ${qData.motivation.elaboration}`,
-          barrier: `${qData.barrier.title}: ${qData.barrier.elaboration}`,
-          future: `${qData.future?.title || 'Not provided'}: ${qData.future?.elaboration || 'Not provided'}`,
-          quit: `${qData.quit?.title || 'Not provided'}: ${qData.quit?.elaboration || 'Not provided'}`,
-        };
+  const handleSubmit = async () => {
+    if (!canContinue || isSubmitting) return;
 
-        const result = await generateQuadrantSynthesis(quadrantData, nodeKey);
-        setSynthesis(result);
-        
-        await saveObservation({
-          title: 'Quadrant Synthesis',
-          content: result,
-          domain: 'problem',
-          focus: 'personal',
-          source_node_key: nodeKey,
-        });
-
-      } catch (error) {
-        console.error('[SYNTHESIS ERROR]', error);
-        setSynthesis("You have a clear picture of what you want and what stands in your way. The friction between these realities is where the actual work begins.");
-      } finally {
-        setIsGenerating(false);
-      }
-    }, 500); // Wait 500ms for stores to settle
-
-    return () => clearTimeout(timer);
-  }, [context, investigatePayload, synthesis, nodeKey]);
-
-  async function handleComplete() {
-    if (isSubmitting || !synthesis) return;
     setIsSubmitting(true);
-    await onComplete({ synthesis, completed: true });
+
+    try {
+      const synthesis: Synthesis = {
+        pattern: pattern.trim(),
+        matters: matters.trim(),
+        future: futureReflection,
+        chosenBehavior: chosenBehavior.trim(),
+        barrierIds: barriers.map((item) => item.id),
+        motivationIds: motivations.map((item) => item.id),
+        quitConditionIds: quitConditions.map((item) => item.id),
+        confirmed: true,
+      };
+
+      await onComplete({
+        synthesis,
+        completed: true,
+      });
+
+      setMode('review');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (mode === 'review') {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            YOUR LINE
+          </p>
+
+          <h2 className="text-2xl font-semibold tracking-tight">
+            You know what is pulling you.
+          </h2>
+
+          <p className="text-muted-foreground">
+            Here is what you said. Read it back to yourself.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border bg-muted/30 p-6 space-y-6">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-2">
+              WHEN I FEEL MY RESISTANCE
+            </p>
+
+            <p className="text-lg leading-relaxed">
+              I tend to {pattern}.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-2">
+              WHAT MATTERS TO ME
+            </p>
+
+            <p className="text-lg leading-relaxed">
+              {matters}
+            </p>
+          </div>
+
+          {futureReflection && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                THE FUTURE I WANT
+              </p>
+
+              <p className="text-lg leading-relaxed">
+                {futureReflection}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-2">
+              SO I AM CHOOSING TO
+            </p>
+
+            <p className="text-lg leading-relaxed">
+              {chosenBehavior}.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => setMode('edit')}
+            className="gap-2"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
-  // Helper to render the UI safely
-  const renderQuadrant = (title: string, data: any) => {
-    if (!data) return (
-      <div className="flex flex-col space-y-2 rounded-xl bg-card/50 p-6 border border-border border-dashed">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground/50 italic">No data recorded.</p>
-      </div>
-    );
-    return (
-      <div className="flex flex-col space-y-2 rounded-xl bg-card p-6 border border-border">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</h3>
-        <p className="font-heading text-lg font-medium text-foreground">{data.title}</p>
-        <p className="text-sm leading-6 text-muted-foreground line-clamp-3">"{data.elaboration}"</p>
-      </div>
-    );
-  };
-
-  // Derive the display data (so the UI matches what the AI analyzed)
-  const displayData = {
-    motivation: context.motivations || investigatePayload.motivations,
-    barrier: context.perceived_barriers || investigatePayload.perceived_barriers,
-    future: context.desired_future || investigatePayload.desired_future,
-    quit: context.quit_conditions || investigatePayload.quit_conditions,
-  };
-
   return (
-    <div className="w-full space-y-12">
-      
-      <div className="space-y-4">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title}
+    <div className="space-y-10">
+      {/* Intro */}
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-muted-foreground">
+          LOOK AT WHAT IS ACTUALLY DRIVING YOU
+        </p>
+
+        <h2 className="text-2xl font-semibold tracking-tight">
+          You have said a lot. Now look at it together.
         </h2>
-        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          Before we draw a line in the sand, let's look at exactly what you just told us.
+
+        <p className="text-muted-foreground leading-relaxed">
+          There is no right interpretation here. You are the person who
+          gets to decide what these answers mean.
         </p>
       </div>
 
-      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
-        {renderQuadrant("The Pull", displayData.motivation)}
-        {renderQuadrant("The Hold", displayData.barrier)}
-        {renderQuadrant("The Stakes", displayData.future)}
-        {renderQuadrant("The Boundary", displayData.quit)}
-      </div>
+      {/* Deterministic mirror */}
 
-      <div className="max-w-3xl border-t border-border pt-8 min-h-[160px]">
-        {isGenerating ? (
-          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm">Looking for the tension...</p>
-          </div>
-        ) : synthesis ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-700">
-            <p className="text-xl leading-8 text-foreground font-medium">
-              {synthesis}
-            </p>
-            <div className="flex">
-              <Button
-                onClick={handleComplete}
-                disabled={isSubmitting}
-                className="h-12 gap-2 rounded-full px-8 text-base"
+      {(primaryBarrier || primaryMotivation) && (
+        <div className="rounded-2xl border p-6 space-y-4">
+          <p className="text-sm font-medium text-muted-foreground">
+            SOMETHING YOU MIGHT NOTICE
+          </p>
+
+          <p className="text-lg leading-relaxed">
+            {primaryMotivation && (
+              <>
+                You keep coming back to{' '}
+                <strong>{primaryMotivation.title.toLowerCase()}</strong>
+              </>
+            )}
+
+            {primaryMotivation && primaryBarrier && ' while '}
+
+            {primaryBarrier && (
+              <>
+                <strong>
+                  {primaryBarrier.title.toLowerCase()}
+                </strong>{' '}
+                is one of the things making it harder to move.
+              </>
+            )}
+          </p>
+
+          <p className="text-sm text-muted-foreground">
+            That is only a connection between the things you told us.
+            What it means is up to you.
+          </p>
+        </div>
+      )}
+
+      {/* What is pulling you */}
+
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">
+            WHAT IS PULLING YOU
+          </p>
+
+          <h3 className="text-xl font-semibold">
+            Why do you keep coming back?
+          </h3>
+        </div>
+
+        {motivations.length > 0 ? (
+          <div className="space-y-3">
+            {motivations.map((motivation) => (
+              <div
+                key={motivation.id}
+                className="rounded-xl border p-4"
               >
-                {isSubmitting ? 'Moving forward...' : 'I see it'}
-                {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </div>
+                <p className="font-medium">{motivation.title}</p>
 
+                {motivation.reflection && (
+                  <p className="mt-2 text-muted-foreground leading-relaxed">
+                    {motivation.reflection}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            You did not record a motivation.
+          </p>
+        )}
+      </section>
+
+      {/* What is holding you back */}
+
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">
+            WHAT IS HOLDING YOU BACK
+          </p>
+
+          <h3 className="text-xl font-semibold">
+            What has been getting in the way?
+          </h3>
+        </div>
+
+        {barriers.length > 0 ? (
+          <div className="space-y-3">
+            {barriers.map((barrier) => (
+              <div
+                key={barrier.id}
+                className="rounded-xl border p-4"
+              >
+                <p className="font-medium">{barrier.title}</p>
+
+                {barrier.reflection && (
+                  <p className="mt-2 text-muted-foreground leading-relaxed">
+                    {barrier.reflection}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            You did not record a barrier.
+          </p>
+        )}
+      </section>
+
+      {/* What you want to change */}
+
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">
+            WHAT YOU WANT TO CHANGE
+          </p>
+
+          <h3 className="text-xl font-semibold">
+            If this happens, what would be different?
+          </h3>
+        </div>
+
+        {futureReflection ? (
+          <div className="rounded-xl border p-5">
+            <p className="text-lg leading-relaxed">
+              {futureReflection}
+            </p>
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            You did not record a future reflection.
+          </p>
+        )}
+      </section>
+
+      {/* What could make you quit */}
+
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">
+            WHAT COULD MAKE YOU QUIT
+          </p>
+
+          <h3 className="text-xl font-semibold">
+            What might pull you off course?
+          </h3>
+        </div>
+
+        {quitConditions.length > 0 ? (
+          <div className="space-y-3">
+            {quitConditions.map((condition) => (
+              <div
+                key={condition.id}
+                className="rounded-xl border p-4"
+              >
+                <p className="font-medium">{condition.title}</p>
+
+                {condition.reflection && (
+                  <p className="mt-2 text-muted-foreground leading-relaxed">
+                    {condition.reflection}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            You did not record a quit condition.
+          </p>
+        )}
+      </section>
+
+      {/* User-owned synthesis */}
+
+      <section className="space-y-6 border-t pt-8">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            NOW MAKE THE CONNECTION
+          </p>
+
+          <h3 className="text-xl font-semibold">
+            What do you notice?
+          </h3>
+
+          <p className="text-muted-foreground leading-relaxed">
+            We are not going to tell you what your answers mean.
+            Complete these sentences in your own words.
+          </p>
+        </div>
+
+        {/* Pattern */}
+
+        <div className="space-y-3">
+          <label
+            htmlFor="pattern"
+            className="text-sm font-medium"
+          >
+            When I feel my resistance, I tend to...
+          </label>
+
+          <textarea
+            id="pattern"
+            value={pattern}
+            onChange={(event) => setPattern(event.target.value)}
+            placeholder="I tend to..."
+            rows={4}
+            className="w-full rounded-xl border bg-background px-4 py-3 text-base outline-none transition focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* Matters */}
+
+        <div className="space-y-3">
+          <label
+            htmlFor="matters"
+            className="text-sm font-medium"
+          >
+            What matters to me is...
+          </label>
+
+          <textarea
+            id="matters"
+            value={matters}
+            onChange={(event) => setMatters(event.target.value)}
+            placeholder="What matters most to me is..."
+            rows={4}
+            className="w-full rounded-xl border bg-background px-4 py-3 text-base outline-none transition focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* Chosen behavior */}
+
+        <div className="space-y-3">
+          <label
+            htmlFor="chosenBehavior"
+            className="text-sm font-medium"
+          >
+            So I am choosing to...
+          </label>
+
+          <textarea
+            id="chosenBehavior"
+            value={chosenBehavior}
+            onChange={(event) =>
+              setChosenBehavior(event.target.value)
+            }
+            placeholder="I am choosing to..."
+            rows={4}
+            className="w-full rounded-xl border bg-background px-4 py-3 text-base outline-none transition focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </section>
+
+      {/* Continue */}
+
+      <div className="flex justify-end pt-2">
+        <Button
+          onClick={handleSubmit}
+          disabled={!canContinue || isSubmitting}
+          className="gap-2"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
