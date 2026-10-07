@@ -22,3 +22,4 @@ export { FearEvidenceReveal } from './FearEvidenceReveal';
 export { Mission1Reveal } from './Mission1Reveal';
 export { Mission1Action } from './Mission1Action';
 export {AskingBaseline} from './AskingBaseline';
+export { VisibilityAction } from './VisibilityAction';

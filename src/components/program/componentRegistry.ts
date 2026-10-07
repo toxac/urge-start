@@ -17,6 +17,7 @@ import {
   AssetReveal,
   GapAction,
   AskingBaseline,
+  VisibilityAction,
   SquadBuilder,
   PredictionRealityReveal,
   LearningAction,
@@ -61,7 +62,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   // M1Q3: Make the Ask
   'asking_baseline': AskingBaseline,
   'squad_builder': SquadBuilder,
-  'visibility_action': ExternalRealWorldTask,
+  'visibility_action': VisibilityAction,
   'real_world_ask': ExternalRealWorldTask,
   'prediction_reality_reveal': PredictionRealityReveal,
   'learning_action': LearningAction,
