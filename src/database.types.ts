@@ -856,10 +856,13 @@ export type Database = {
       }
       user_tasks: {
         Row: {
+          completed_at: string | null
           contact_id: string | null
           created_at: string
           description: string | null
+          due_at: string | null
           id: string
+          is_nudge_enabled: boolean
           metadata: Json
           observation_id: string | null
           project_id: string | null
@@ -871,10 +874,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           description?: string | null
+          due_at?: string | null
           id?: string
+          is_nudge_enabled?: boolean
           metadata?: Json
           observation_id?: string | null
           project_id?: string | null
@@ -886,10 +892,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           description?: string | null
+          due_at?: string | null
           id?: string
+          is_nudge_enabled?: boolean
           metadata?: Json
           observation_id?: string | null
           project_id?: string | null
