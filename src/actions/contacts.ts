@@ -1,33 +1,97 @@
 'use server';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type {
+  CreateUserContactInput,
+  UserContact,
+} from '@/lib/types/user-contacts';
 
-export async function inviteSquad(emails: string[], message: string, sourceNodeKey: string) {
+export async function createUserContact(
+  input: CreateUserContactInput
+) {
   const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) throw new Error('Unauthorized');
 
-  // Map to the actual user_contacts schema requirements
-  const contactsToInsert = emails.filter(Boolean).map(email => ({
-    user_id: user.id,
-    name: email.trim(), // 'name' is required, so we default to the email address
-    role: 'squad',
-    context: `Invited from ${sourceNodeKey}`,
-    contact_details: {
-      email: email.trim(),
-      status: 'invited',
-      source_node: sourceNodeKey
-    }
-  }));
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (contactsToInsert.length > 0) {
-    const { error: dbError } = await supabase.from('user_contacts').insert(contactsToInsert);
-    if (dbError) throw new Error(`Failed to save contacts: ${dbError.message}`);
+  if (authError || !user) {
+    throw new Error('Unauthorized');
   }
 
-  // 2. Trigger Email Sending (Mocked for now)
-  console.log(`[EMAIL MOCK] Sending squad invites to ${emails.join(', ')}`);
-  console.log(`[EMAIL MOCK] Message: "${message}"`);
+  const { data, error } = await supabase
+    .from('user_contacts')
+    .insert({
+      ...input,
+      user_id: user.id,
+    })
+    .select()
+    .single();
 
-  return { success: true };
+  if (error) {
+    throw new Error(`Failed to save contact: ${error.message}`);
+  }
+
+  return {
+    success: true,
+    contact: data as UserContact,
+  };
+}
+
+export async function createUserContacts(
+  contacts: CreateUserContactInput[]
+) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  if (contacts.length === 0) {
+    return {
+      success: true,
+      contacts: [],
+    };
+  }
+
+  const contactsToInsert = contacts.map((contact) => ({
+    ...contact,
+    user_id: user.id,
+  }));
+
+  const { data, error } = await supabase
+    .from('user_contacts')
+    .insert(contactsToInsert)
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to save contacts: ${error.message}`);
+  }
+
+  return {
+    success: true,
+    contacts: data as UserContact[],
+  };
+}
+
+/**
+ * Temporary placeholder for the future notification/invitation system.
+ * This deliberately does not send anything yet.
+ */
+export async function inviteContact(
+  contactId: string,
+  message: string
+) {
+  console.log(`[INVITE MOCK] Contact: ${contactId}`);
+  console.log(`[INVITE MOCK] Message: "${message}"`);
+
+  return {
+    success: true,
+  };
 }
