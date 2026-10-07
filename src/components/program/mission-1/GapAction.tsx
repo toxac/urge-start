@@ -163,7 +163,7 @@ function getActionPayload(progress: unknown) {
   };
 }
 
-export default function GapAction({
+export function GapAction({
   nodeKey,
   progress,
   onComplete,
