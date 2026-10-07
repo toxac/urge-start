@@ -411,14 +411,14 @@ export const mission1: ProgramMission = {
           key: 'm1-q4-setup',
           sequence: 1,
           role: 'setup',
-          title: 'What are you afraid will happen if they say no?',
+          title: 'What are you afraid will happen?',
           description:
-            'A no can feel much bigger before you hear it. This investigation gives you a chance to test that fear instead of letting it make the decision for you.',
+            'A no can feel much bigger before you hear it. This is a chance to look closely at what you are afraid will happen instead of letting that fear make the decision for you.',
           prompt:
             'What do you imagine will happen if someone says no?',
           intent:
-            'Reframe rejection as information and create a safe entry point for intentionally seeking it.',
-          component: 'standard_setup_frame',
+            'Help the user name the outcome they are afraid of and understand why it matters to them.',
+          component: 'fear_explorer',
           dependencies: ['m1-q3-action'],
         },
 
@@ -426,13 +426,10 @@ export const mission1: ProgramMission = {
           key: 'm1-q4-warmup',
           sequence: 2,
           role: 'investigation',
-          title: 'Start with an easy no.',
-          description:
-            'Make a low-stakes ask where hearing no would be uncomfortable but not costly.',
-          prompt:
-            'What small ask could you make where a no would be okay?',
-          intent:
-            'Experience a low-stakes rejection.',
+          title: 'Start with a small ask.',
+          description: 'Make a low-stakes ask where hearing no would be uncomfortable but not costly.',
+          prompt: 'What small ask could you make where a no would be okay?',
+          intent: 'Give the user a low-stakes experience of asking when the answer might be no.',
           component: 'low_threshold_ask',
           dependencies: ['m1-q4-setup'],
           metadata: {
@@ -465,9 +462,9 @@ export const mission1: ProgramMission = {
           description:
             'Push a little further. Choose an ask that feels more uncomfortable but is still safe to make.',
           prompt:
-            'What is a bigger ask you could make today?',
+            'What is the ask you actually want to make but have been avoiding?',
           intent:
-            'Experience a slightly more uncomfortable rejection.',
+            'Give the user a meaningful opportunity to act despite the fear they identified.',
           component: 'fear_challenge',
           dependencies: ['m1-q4-warmup'],
           metadata: {
@@ -496,11 +493,11 @@ export const mission1: ProgramMission = {
           key: 'm1-q4-reveal',
           sequence: 4,
           role: 'reveal',
-          title: 'What did the no actually mean?',
+          title: 'What actually happened?',
           description:
-            'Compare what you feared would happen with what actually happened. The difference is the useful part.',
+            'Compare what you feared would happen with what actually happened. What did you notice?',
           intent:
-            'Examine the reality of the rejection versus the anticipation.',
+            'Help the user compare their fear with the experience they actually had without telling them what the experience means.',
           component: 'fear_evidence_reveal',
           dependencies: ['m1-q4-stretch'],
         },
@@ -509,14 +506,14 @@ export const mission1: ProgramMission = {
           key: 'm1-q4-action',
           sequence: 5,
           role: 'action',
-          title: 'How will you respond to the next no?',
+          title: 'How will you respond next time?',
           description:
-            'You cannot control whether someone says yes. You can decide what you do after hearing no.',
+            'You cannot control whether someone says yes. You can decide what you do when uncertainty or fear shows up again.',
           prompt:
-            'What will you do the next time you hear no?',
+            'What will you do the next time you feel this fear?',
           intent:
-            'Establish a systematic response to hearing no.',
-          component: 'fear_audit',
+            'Turn the experience into a repeatable response to fear and uncertainty.',
+          component: 'behavior_commitment',
           dependencies: ['m1-q4-reveal'],
         },
       ],
