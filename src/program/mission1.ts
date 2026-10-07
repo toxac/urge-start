@@ -174,11 +174,11 @@ export const mission1: ProgramMission = {
           role: 'setup',
           title: 'You are not starting from zero.',
           description:
-            'Before you worry about what you need, take a look at what is already within reach.',
+            'It is easy to focus on everything you do not have yet. Before you do, let’s look at what is already around you.',
           prompt:
-            'What do you already have that could help you get started?',
+            'What are you starting with?',
           intent:
-            'Frame an honest inventory of the people, capabilities, experience, resources, and access already available to the user.',
+            'Shift the user from thinking about what they lack to noticing the resources, people, capabilities, and experience already within reach.',
           component: 'asset_inventory_intro',
           dependencies: ['m1-q1-action'],
         },
