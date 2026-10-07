@@ -278,102 +278,102 @@ export const mission1: ProgramMission = {
     // -------------------------------------------------------------------------
 
     {
-  key: 'q3',
-  sequence: 3,
-  title: 'Make the Ask',
-  description:
-    'Stop trying to figure everything out alone. Start involving people, making yourself visible, and learning what happens when you ask.',
-
-  nodes: [
-    {
-      key: 'm1-q3-setup',
-      sequence: 1,
-      role: 'setup',
-      title: 'What makes asking hard?',
-      description:
-        'Asking can feel surprisingly difficult. You might worry that what you have is not good enough, that you are bothering someone, or that they will judge you. That hesitation can keep you working alone for much longer than you need to.',
-      prompt:
-        'Before we think about asking anyone for anything, let’s notice what happens inside you when you imagine making an ask.',
-      intent:
-        'Make the user aware that hesitation around asking can become a real roadblock, without asking them to solve or overcome it yet.',
-      component: 'asking_baseline',
-      dependencies: ['m1-q2-action'],
-    },
-
-    {
-      key: 'm1-q3-squad',
-      sequence: 2,
-      role: 'investigation',
-      title: 'Who could help you move?',
-      description:
-        'You do not need a co-founder or a big team. There are people who could help you see something differently, learn something, make progress, or get through a difficult moment.',
-      prompt:
-        'Who could play a useful role in your journey?',
-      intent:
-        'Identify people the user could intentionally involve for specific forms of help, rather than creating a generic support group.',
-      component: 'squad_builder',
-      dependencies: ['m1-q3-setup'],
-    },
-
-    {
-      key: 'm1-q3-visible',
+      key: 'q3',
       sequence: 3,
-      role: 'investigation',
-      title: 'Let people see you starting.',
+      title: 'Make the Ask',
       description:
-        'You do not need a finished business, polished idea, or impressive story. Start by letting the Urge community see who you are and what brought you here.',
-      prompt:
-        'Introduce yourself to the Urge community.',
-      intent:
-        'Give the user a safe first experience of being visible before asking them to make a higher-stakes real-world ask.',
-      component: 'visibility_action',
-      dependencies: ['m1-q3-squad'],
-    },
+        'Stop trying to figure everything out alone. Start involving people, making yourself visible, and learning what happens when you ask.',
 
-    {
-      key: 'm1-q3-ask',
-      sequence: 4,
-      role: 'investigation',
-      title: 'Make a real ask.',
-      description:
-        'Now ask someone for something that matters. The answer is theirs to give. Your job is not to control the outcome. Pay attention to what actually happens.',
-      prompt:
-        'Who could you make a real ask of today?',
-      intent:
-        'Give the user direct experience of approaching someone, making a genuine ask, and observing what happens rather than avoiding the interaction.',
-      component: 'real_world_ask',
-      dependencies: ['m1-q3-visible'],
-    },
+      nodes: [
+        {
+          key: 'm1-q3-setup',
+          sequence: 1,
+          role: 'setup',
+          title: 'What makes asking hard?',
+          description:
+            'Asking can feel surprisingly difficult. You might worry that what you have is not good enough, that you are bothering someone, or that they will judge you. That hesitation can keep you working alone for much longer than you need to.',
+          prompt:
+            'Before we think about asking anyone for anything, let’s notice what happens inside you when you imagine making an ask.',
+          intent:
+            'Make the user aware that hesitation around asking can become a real roadblock, without asking them to solve or overcome it yet.',
+          component: 'asking_baseline',
+          dependencies: ['m1-q2-action'],
+        },
 
-    {
-      key: 'm1-q3-reveal',
-      sequence: 5,
-      role: 'reveal',
-      title: 'What did you expect? What actually happened?',
-      description:
-        'Before you made the ask, you probably had some idea of how it would go. Put that prediction beside what actually happened.',
-      intent:
-        'Help the user see the difference between anticipated and actual experience without interpreting the experience for them.',
-      component: 'prediction_reality_reveal',
-      dependencies: ['m1-q3-ask'],
-    },
+        {
+          key: 'm1-q3-visible',
+          sequence: 2,
+          role: 'investigation',
+          title: 'Let people see you starting.',
+          description:
+            'You do not need a finished business, polished idea, or impressive story. Start by letting the Urge community see who you are and what brought you here.',
+          prompt:
+            'Introduce yourself to the Urge community.',
+          intent:
+            'Give the user a safe first experience of being visible before asking them to make a higher-stakes real-world ask.',
+          component: 'visibility_action',
+          dependencies: ['m1-q3-setup'],
+        },
 
-    {
-      key: 'm1-q3-action',
-      sequence: 6,
-      role: 'action',
-      title: 'Keep the door open.',
-      description:
-        'One interaction does not change how you behave overnight. Choose a small practice that will help you keep approaching people instead of retreating into figuring things out alone.',
-      prompt:
-        'What will you practise the next time you feel yourself hesitating to ask?',
-      intent:
-        'Turn the experience into a small repeatable behaviour that reinforces openness, asking, and action.',
-      component: 'learning_action',
-      dependencies: ['m1-q3-reveal'],
+        {
+          key: 'm1-q3-squad',
+          sequence: 3,
+          role: 'investigation',
+          title: 'Who could help you move?',
+          description:
+            'You do not need a co-founder or a big team. There are people who could help you see something differently, learn something, make progress, or get through a difficult moment.',
+          prompt:
+            'Who could play a useful role in your journey?',
+          intent:
+            'Identify people the user could intentionally involve for specific forms of help, rather than creating a generic support group.',
+          component: 'squad_builder',
+          dependencies: ['m1-q3-visible'],
+        },
+
+        {
+          key: 'm1-q3-ask',
+          sequence: 4,
+          role: 'investigation',
+          title: 'Make a real ask.',
+          description:
+            'Now ask someone for something that matters. The answer is theirs to give. Your job is not to control the outcome. Pay attention to what actually happens.',
+          prompt:
+            'Who could you make a real ask of today?',
+          intent:
+            'Give the user direct experience of approaching someone, making a genuine ask, and observing what happens rather than avoiding the interaction.',
+          component: 'real_world_ask',
+          dependencies: ['m1-q3-squad'],
+        },
+
+        {
+          key: 'm1-q3-reveal',
+          sequence: 5,
+          role: 'reveal',
+          title: 'What did you expect? What actually happened?',
+          description:
+            'Before you made the ask, you probably had some idea of how it would go. Put that prediction beside what actually happened.',
+          intent:
+            'Help the user see the difference between anticipated and actual experience without interpreting the experience for them.',
+          component: 'prediction_reality_reveal',
+          dependencies: ['m1-q3-ask'],
+        },
+
+        {
+          key: 'm1-q3-action',
+          sequence: 6,
+          role: 'action',
+          title: 'Keep the door open.',
+          description:
+            'One interaction does not change how you behave overnight. Choose a small practice that will help you keep approaching people instead of retreating into figuring things out alone.',
+          prompt:
+            'What will you practise the next time you feel yourself hesitating to ask?',
+          intent:
+            'Turn the experience into a small repeatable behaviour that reinforces openness, asking, and action.',
+          component: 'learning_action',
+          dependencies: ['m1-q3-reveal'],
+        },
+      ],
     },
-  ],
-},
 
     // -------------------------------------------------------------------------
     // Quest 4 — Seek the No
