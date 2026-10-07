@@ -1,196 +1,282 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  Loader2,
+} from 'lucide-react';
+import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
-import { M1_QUEST1_CONSTANTS } from '@/lib/constants/mission1-constants';
 import { updateUserProgramContext } from '@/actions/user-context';
-import { saveObservation } from '@/actions/observations';
+import {
+  $userContext,
+  userContextActions,
+} from '@/lib/stores/user-context';
 
-export function FutureStateExplorer({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
-  const options = M1_QUEST1_CONSTANTS.future.options;
+type DesiredFutureContext = {
+  reflection?: string;
+};
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    typeof saved.selectedId === 'string' ? saved.selectedId : null
-  );
-  
-  const [elaboration, setElaboration] = useState(
-    typeof saved.elaboration === 'string' ? saved.elaboration : ''
-  );
-  
-  const [showAcknowledgment, setShowAcknowledgment] = useState(
-    saved.completed === true
-  );
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function FutureStateExplorer({
+  node,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
+  const contextState = useStore($userContext);
+
+  const savedContext =
+    contextState.userContext?.desired_future as
+      | DesiredFutureContext
+      | null
+      | undefined;
+
+  const progressPayload = progress.payload ?? {};
+
+  const [reflection, setReflection] = useState('');
+  const [mode, setMode] = useState<'write' | 'review'>('write');
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedCard = options.find((opt) => opt.id === selectedId);
-  const canSubmitElaboration = elaboration.trim().length >= 10;
+  useEffect(() => {
+    if (!contextState.isHydrated) return;
 
-  async function handleSaveElaboration() {
-    if (!selectedCard || !canSubmitElaboration || isSubmitting) return;
-    
-    setIsSubmitting(true);
+    if (savedContext?.reflection) {
+      setReflection(savedContext.reflection);
+      setMode('review');
+      return;
+    }
+
+    if (
+      typeof progressPayload.reflection === 'string' &&
+      progressPayload.reflection.trim()
+    ) {
+      setReflection(progressPayload.reflection);
+    }
+  }, [
+    contextState.isHydrated,
+    contextState.userContext?.desired_future,
+  ]);
+
+  const canContinue = reflection.trim().length >= 20;
+
+  async function saveFuture() {
+    if (!canContinue || isSaving) return;
+
+    setIsSaving(true);
     setError(null);
 
+    const value = reflection.trim();
+
     try {
-      await updateUserProgramContext({
+      const result = await updateUserProgramContext({
         desired_future: {
-          selected_id: selectedCard.id,
-          title: selectedCard.title,
-          elaboration: elaboration.trim()
-        }
+          reflection: value,
+        },
       });
 
-      await saveObservation({
-        title: `Desired Future: ${selectedCard.title}`,
-        content: elaboration.trim(),
-        domain: 'problem',
-        focus: 'personal',
-        source_node_key: nodeKey,
-      });
+      userContextActions.updateContextLocally(
+        result.userContext
+      );
 
-      setShowAcknowledgment(true);
-    } catch (err: any) {
-      console.error('[FUTURE]', err);
-      setError('Something went wrong saving your response. Please try again.');
+      setReflection(value);
+      setMode('review');
+
+      await onComplete({
+        reflection: value,
+        completed: true,
+      });
+    } catch (err) {
+      console.error('[FUTURE STATE EXPLORER]', err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong saving your reflection.'
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   }
 
-  async function handleComplete() {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    
-    await onComplete({
-      selectedId,
-      elaboration: elaboration.trim(),
-      completed: true,
-    });
+  async function handleContinue() {
+    if (isCompleting) return;
+
+    setIsCompleting(true);
+    setError(null);
+
+    try {
+      await onComplete({
+        reflection: reflection.trim(),
+        completed: true,
+      });
+    } catch (err) {
+      console.error(
+        '[FUTURE STATE EXPLORER COMPLETE]',
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong completing this step.'
+      );
+    } finally {
+      setIsCompleting(false);
+    }
   }
 
   return (
-    <div className="w-full space-y-10">
-      
-      <div className="space-y-4">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title}
-        </h2>
-        {!selectedId && (
-          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            Don't reduce the answer to money. Think about your work, your time, your family, or the kind of life you could create. What really changes if this works?
-          </p>
-        )}
-      </div>
+    <div className="w-full space-y-10 pb-12">
+      {mode === 'write' && (
+        <>
+          <div className="max-w-3xl space-y-5">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+              {node.title}
+            </h1>
 
-      <div className={`grid gap-4 transition-all duration-500 ${selectedId ? 'grid-cols-1' : 'sm:grid-cols-2'}`}>
-        {options.map((option) => {
-          const isSelected = selectedId === option.id;
-          if (selectedId && !isSelected) return null;
+            <p className="text-lg leading-8 text-muted-foreground">
+              You have looked at what gets in your way and
+              what keeps bringing you back.
+            </p>
 
-          return (
-            <button
-              key={option.id}
-              onClick={() => !showAcknowledgment && setSelectedId(option.id)}
-              disabled={showAcknowledgment}
-              className={`group relative flex flex-col items-start rounded-2xl border p-6 text-left transition-all ${
-                isSelected 
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20' 
-                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-              } ${showAcknowledgment ? 'cursor-default' : 'cursor-pointer'}`}
-            >
-              <div className="flex w-full items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <h3 className={`font-heading text-xl font-medium ${isSelected ? 'text-foreground' : 'text-foreground/80 group-hover:text-foreground'}`}>
-                    {option.title}
-                  </h3>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {option.description}
-                  </p>
-                </div>
-                
-                {!showAcknowledgment && (
-                  <div className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                    isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
-                  }`}>
-                    {isSelected && <Check className="h-3.5 w-3.5" />}
-                  </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+            <p className="text-lg leading-8 text-muted-foreground">
+              Now imagine that you actually make this happen.
+              Not the business plan. Not the numbers. Your
+              life.
+            </p>
 
-      {selectedId && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 max-w-3xl space-y-8 duration-700">
-          
-          {!showAcknowledgment ? (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <label className="text-lg font-medium text-foreground">
-                  Try to describe the difference, not the business plan.
-                </label>
-                <Textarea
-                  value={elaboration}
-                  onChange={(e) => setElaboration(e.target.value)}
-                  placeholder="My life would be different because..."
-                  className="min-h-[160px] resize-none text-lg leading-8"
-                  disabled={isSubmitting}
-                />
-              </div>
+            <p className="text-lg leading-8 text-muted-foreground">
+              What would be different?
+            </p>
+          </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="max-w-3xl space-y-5">
+            <label className="text-lg font-medium text-foreground">
+              If you make this happen, what changes for you?
+            </label>
 
-              <div className="flex items-center gap-4">
-                <Button
-                  onClick={handleSaveElaboration}
-                  disabled={!canSubmitElaboration || isSubmitting}
-                  className="h-12 rounded-full px-8 text-base"
-                >
-                  {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</> : "Lock this in"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => { setSelectedId(null); setElaboration(''); }}
-                  disabled={isSubmitting}
-                  className="h-12 rounded-full px-6 text-muted-foreground"
-                >
-                  Choose a different option
-                </Button>
-              </div>
+            <Textarea
+              value={reflection}
+              onChange={(event) =>
+                setReflection(event.target.value)
+              }
+              placeholder={
+                'My life or work would be different because...'
+              }
+              rows={10}
+              autoFocus
+              disabled={isSaving}
+              className="resize-none text-base leading-7"
+            />
+
+            <div className="space-y-2">
+              <p className="text-sm leading-6 text-muted-foreground">
+                Think beyond the idea itself. What would
+                change about your work, your time, your choices,
+                the people you help, or how you feel about
+                yourself?
+              </p>
+
+              <p className="text-sm leading-6 text-muted-foreground">
+                Write what you actually want, not what you
+                think you are supposed to want.
+              </p>
             </div>
-          ) : (
-            <div className="space-y-8 border-t border-border pt-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                  The reality
-                </div>
-                <p className="text-xl leading-8 text-foreground">
-                  {selectedCard?.response}
-                </p>
-              </div>
 
+            {error && (
+              <p className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
+            <div className="flex justify-end">
               <Button
-                onClick={handleComplete}
-                disabled={isSubmitting}
+                onClick={saveFuture}
+                disabled={!canContinue || isSaving}
                 className="h-12 gap-2 rounded-full px-8 text-base"
               >
-                {isSubmitting ? 'Moving forward...' : 'Continue'}
-                {!isSubmitting && <ArrowRight className="h-5 w-5" />}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="h-5 w-5" />
+                  </>
+                )}
               </Button>
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
 
+      {mode === 'review' && (
+        <>
+          <div className="max-w-3xl space-y-5">
+            <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">
+              What would be different
+            </p>
+
+            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+              This is the change you are trying to create.
+            </h1>
+
+            <p className="text-lg leading-8 text-muted-foreground">
+              Keep this in your own words. You don't need to
+              turn it into a plan yet.
+            </p>
+          </div>
+
+          <div className="max-w-3xl rounded-2xl border border-border bg-card p-6 sm:p-8">
+            <p className="whitespace-pre-wrap text-lg leading-8 text-foreground">
+              {reflection}
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <div className="flex max-w-3xl items-center justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setMode('write')}
+              disabled={isCompleting}
+            >
+              Edit
+            </Button>
+
+            <Button
+              onClick={handleContinue}
+              disabled={isCompleting}
+              className="h-12 gap-2 rounded-full px-8 text-base"
+            >
+              {isCompleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Continuing...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-5 w-5" />
+                </>
+              )}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
