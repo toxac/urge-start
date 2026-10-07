@@ -1,78 +1,215 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { updateUserProgramContext } from '@/actions/user-context';
-import { saveObservation } from '@/actions/observations';
+import { userContextActions, $userContext } from '@/lib/stores/user-context';
 
-const CAPABILITY_TRAITS = [
-  { id: 'chaos_to_order', title: 'Translating chaos into order', description: 'Taking messy, undefined problems and creating a clear system or process.' },
-  { id: 'reading_the_room', title: 'Reading the room', description: 'Understanding what people actually want or feel, even when they don\'t say it.' },
-  { id: 'tinkering', title: 'Tinkering with broken systems', description: 'Taking things apart (software, machines, rules) to figure out how to make them work better.' },
-  { id: 'selling_ideas', title: 'Selling ideas to skeptics', description: 'Convincing people to buy in when they start out doubting you.' },
-  { id: 'deep_focus', title: 'Obsessive deep work', description: 'Locking into a single hard problem for hours until it is solved.' },
-  { id: 'rallying_people', title: 'Rallying people', description: 'Getting a group of unorganized people moving in the exact same direction.' },
+type CapabilityEntry = {
+  id: string;
+  title: string;
+  evidence: string;
+};
+
+type CapabilitiesContext = {
+  items: CapabilityEntry[];
+};
+
+const CAPABILITIES = [
+  {
+    id: 'make_clear',
+    title: 'Make confusing things clear',
+    description: 'Turn something messy or complicated into something people can understand.',
+  },
+  {
+    id: 'organise',
+    title: 'Organise people or things',
+    description: 'Bring order to moving parts and help things happen in the right order.',
+  },
+  {
+    id: 'find_information',
+    title: 'Find information',
+    description: 'Track down useful information, answers, or resources when you need them.',
+  },
+  {
+    id: 'fix_things',
+    title: 'Fix things when they break',
+    description: 'Figure out what went wrong and find a way to make it work again.',
+  },
+  {
+    id: 'spot_problems',
+    title: 'Spot problems',
+    description: 'Notice something that is not working, missing, or likely to become a problem.',
+  },
+  {
+    id: 'find_workarounds',
+    title: 'Find workarounds',
+    description: 'Keep moving when the obvious solution is unavailable.',
+  },
+  {
+    id: 'explain',
+    title: 'Explain difficult things',
+    description: 'Help someone understand something that was difficult or unfamiliar.',
+  },
+  {
+    id: 'get_agreement',
+    title: 'Get people to agree',
+    description: 'Bring different people around to an idea or a way forward.',
+  },
+  {
+    id: 'make_things_happen',
+    title: 'Make things happen',
+    description: 'Move an idea from talking about it to actually getting something done.',
+  },
+  {
+    id: 'teach_self',
+    title: 'Teach yourself new things',
+    description: 'Figure out how to learn something you did not already know.',
+  },
+  {
+    id: 'connect_people',
+    title: 'Connect people',
+    description: 'Know who might be useful to whom and help make the connection.',
+  },
+  {
+    id: 'simplify',
+    title: 'Make things simpler',
+    description: 'Remove unnecessary complexity and find an easier way to do something.',
+  },
 ];
 
-export function CapabilityInventory({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
+function getSavedCapabilities(progress: NodeComponentProps['progress']): CapabilityEntry[] {
+  const context = $userContext.get().userContext?.capabilities as
+    | CapabilitiesContext
+    | null
+    | undefined;
 
+  if (context && Array.isArray(context.items)) {
+    return context.items;
+  }
+
+  const saved = progress.payload?.capabilities;
+
+  if (
+    saved &&
+    typeof saved === 'object' &&
+    Array.isArray((saved as CapabilitiesContext).items)
+  ) {
+    return (saved as CapabilitiesContext).items;
+  }
+
+  return [];
+}
+
+export function CapabilityInventory({
+  node,
+  nodeKey,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
+  const savedCapabilities = getSavedCapabilities(progress);
+
+  const [items, setItems] = useState<CapabilityEntry[]>(savedCapabilities);
   const [selectedIds, setSelectedIds] = useState<string[]>(
-    Array.isArray(saved.selectedIds) ? saved.selectedIds : []
+    savedCapabilities.map((item) => item.id)
   );
-  
-  const [elaboration, setElaboration] = useState(
-    typeof saved.elaboration === 'string' ? saved.elaboration : ''
+
+  const [isCommitted, setIsCommitted] = useState(
+    savedCapabilities.length > 0 || progress.payload?.completed === true
   );
-  
-  const [isCommitted, setIsCommitted] = useState(saved.completed === true);
+  const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = selectedIds.length > 0 && elaboration.trim().length >= 10;
-
   const toggleSelection = (id: string) => {
-    if (isCommitted) return;
-    setSelectedIds(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id);
-      if (prev.length >= 3) return prev; // Limit to max 3
-      return [...prev, id];
+    if (isCommitted && !isEditing) return;
+
+    setSelectedIds((current) => {
+      if (current.includes(id)) {
+        setItems((existing) => existing.filter((item) => item.id !== id));
+        return current.filter((item) => item !== id);
+      }
+
+      return [...current, id];
     });
   };
 
+  const getCapability = (id: string) =>
+    CAPABILITIES.find((capability) => capability.id === id);
+
+  const getEvidence = (id: string) =>
+    items.find((item) => item.id === id)?.evidence ?? '';
+
+  const updateEvidence = (id: string, evidence: string) => {
+    setItems((current) => {
+      const existing = current.find((item) => item.id === id);
+      const capability = getCapability(id);
+
+      if (!capability) return current;
+
+      if (existing) {
+        return current.map((item) =>
+          item.id === id ? { ...item, evidence } : item
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id,
+          title: capability.title,
+          evidence,
+        },
+      ];
+    });
+  };
+
+  const validItems = selectedIds
+    .map((id) => {
+      const capability = getCapability(id);
+      const evidence = getEvidence(id).trim();
+
+      if (!capability || evidence.length < 10) return null;
+
+      return {
+        id: capability.id,
+        title: capability.title,
+        evidence,
+      };
+    })
+    .filter((item): item is CapabilityEntry => item !== null);
+
+  const canSave =
+    selectedIds.length > 0 &&
+    selectedIds.every((id) => getEvidence(id).trim().length >= 10);
+
   async function handleSave() {
-    if (!canSubmit || isSubmitting) return;
-    
+    if (!canSave || isSubmitting) return;
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const selectedTraits = CAPABILITY_TRAITS.filter(t => selectedIds.includes(t.id));
-      
-      // Save to context
-      await updateUserProgramContext({
-        capabilities: {
-          traits: selectedTraits.map(t => t.title),
-          elaboration: elaboration.trim()
-        }
+      const capabilities: CapabilitiesContext = {
+        items: validItems,
+      };
+
+      const result = await updateUserProgramContext({
+        capabilities,
       });
 
-      // Save as an observation for AI Synthesis
-      await saveObservation({
-        title: 'Behavioral Leverage',
-        content: `Traits: ${selectedTraits.map(t => t.title).join(', ')}. Proof: ${elaboration.trim()}`,
-        domain: 'solution',
-        focus: 'personal',
-        source_node_key: nodeKey,
-      });
+      userContextActions.updateContextLocally(result.userContext);
 
+      setItems(validItems);
+      setSelectedIds(validItems.map((item) => item.id));
       setIsCommitted(true);
-    } catch (err: any) {
-      console.error('[CAPABILITY]', err);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('[CAPABILITY INVENTORY]', err);
       setError('Something went wrong saving your response. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -81,119 +218,232 @@ export function CapabilityInventory({ node, nodeKey, progress, onComplete }: Nod
 
   async function handleComplete() {
     if (isSubmitting) return;
+
     setIsSubmitting(true);
-    
-    await onComplete({
-      selectedIds,
-      elaboration: elaboration.trim(),
-      completed: true,
-    });
+
+    try {
+      await onComplete({
+        capabilities: {
+          items,
+        },
+        completed: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleEdit() {
+    setIsEditing(true);
+    setIsCommitted(false);
   }
 
   return (
     <div className="w-full space-y-10">
-      
       <div className="space-y-4">
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title || "Identify your actual leverage."}
+          {node.title || 'What can you already do?'}
         </h2>
+
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          Forget your job title. Titles are boxes other people put you in. What is the actual, behavioral trait you rely on when things get hard? Pick up to three.
+          You may not think of yourself as particularly skilled at business yet.
+          That&apos;s okay. Think about the things people already rely on you to
+          do — at work, at home, in your community, or just because you&apos;re
+          the person who figures things out.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 max-w-4xl">
-        {CAPABILITY_TRAITS.map((option) => {
-          const isSelected = selectedIds.includes(option.id);
-          const isDisabled = !isSelected && selectedIds.length >= 3;
+      {isCommitted && !isEditing ? (
+        <div className="max-w-4xl space-y-8">
+          <div className="space-y-4">
+            <h3 className="text-xl font-medium">These are things you already know how to do.</h3>
 
-          return (
-            <button
-              key={option.id}
-              onClick={() => toggleSelection(option.id)}
-              disabled={isCommitted || (isDisabled && !isCommitted)}
-              className={`group relative flex flex-col items-start rounded-2xl border p-6 text-left transition-all ${
-                isSelected 
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20' 
-                  : isDisabled && !isCommitted
-                  ? 'border-border bg-muted/30 opacity-50 cursor-not-allowed'
-                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50 cursor-pointer'
-              } ${isCommitted ? 'cursor-default' : ''}`}
+            <div className="space-y-4">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-border bg-card p-6"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="h-3.5 w-3.5" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="font-heading text-xl font-medium">
+                        {item.title}
+                      </h4>
+
+                      <p className="text-base leading-7 text-muted-foreground">
+                        {item.evidence}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+            You don&apos;t need to turn these into a business right now. Just
+            notice that you are bringing abilities with you. You are not
+            starting from zero.
+          </p>
+
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={handleEdit}
+              disabled={isSubmitting}
+              className="h-12 gap-2 rounded-full px-6 text-base"
             >
-              <div className="flex w-full items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <h3 className={`font-heading text-xl font-medium ${isSelected ? 'text-foreground' : 'text-foreground/80 group-hover:text-foreground'}`}>
-                    {option.title}
-                  </h3>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {option.description}
-                  </p>
-                </div>
-                
-                <div className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                  isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
-                }`}>
-                  {isSelected && <Check className="h-3.5 w-3.5" />}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
 
-      {selectedIds.length > 0 && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 max-w-3xl space-y-8 duration-700">
-          
-          {!isCommitted ? (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <label className="text-lg font-medium text-foreground">
-                  Give us one brief example of a time you had to use this in the real world.
-                </label>
-                <Textarea
-                  value={elaboration}
-                  onChange={(e) => setElaboration(e.target.value)}
-                  placeholder="At my last job, I had to..."
-                  className="min-h-[160px] resize-none text-lg leading-8"
+            <Button
+              onClick={handleComplete}
+              disabled={isSubmitting}
+              className="h-12 gap-2 rounded-full px-8 text-base"
+            >
+              {isSubmitting ? 'Moving forward...' : 'Continue'}
+              {!isSubmitting && <ArrowRight className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-4">
+            <h3 className="text-xl font-medium">
+              What do people already rely on you to do?
+            </h3>
+
+            <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+              Choose the ones that genuinely fit. You don&apos;t need to choose
+              everything.
+            </p>
+          </div>
+
+          <div className="grid max-w-5xl gap-4 sm:grid-cols-2">
+            {CAPABILITIES.map((option) => {
+              const isSelected = selectedIds.includes(option.id);
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => toggleSelection(option.id)}
                   disabled={isSubmitting}
-                />
+                  className={`group relative flex items-start rounded-2xl border p-6 text-left transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                      : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex w-full items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-heading text-xl font-medium">
+                        {option.title}
+                      </h4>
+
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        {option.description}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border'
+                      }`}
+                    >
+                      {isSelected && <Check className="h-3.5 w-3.5" />}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedIds.length > 0 && (
+            <div className="max-w-4xl space-y-8">
+              <div className="space-y-3">
+                <h3 className="text-xl font-medium">
+                  Now give us the evidence.
+                </h3>
+
+                <p className="text-base leading-7 text-muted-foreground">
+                  For each one you selected, tell us about a real situation
+                  where you did this.
+                </p>
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              <div className="space-y-8">
+                {selectedIds.map((id) => {
+                  const capability = getCapability(id);
+
+                  if (!capability) return null;
+
+                  return (
+                    <div
+                      key={id}
+                      className="space-y-4 rounded-2xl border border-border bg-card p-6"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="h-3.5 w-3.5" />
+                        </div>
+
+                        <div>
+                          <h4 className="font-heading text-xl font-medium">
+                            {capability.title}
+                          </h4>
+
+                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                            {capability.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Textarea
+                        value={getEvidence(id)}
+                        onChange={(event) =>
+                          updateEvidence(id, event.target.value)
+                        }
+                        placeholder="For example: My team often gives me messy problems because I’m good at breaking them down..."
+                        className="min-h-[140px] resize-none text-base leading-7"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
 
               <div className="flex items-center gap-4">
                 <Button
                   onClick={handleSave}
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={!canSave || isSubmitting}
                   className="h-12 rounded-full px-8 text-base"
                 >
-                  {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</> : "Lock this in"}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save this'
+                  )}
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-8 border-t border-border pt-8">
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-8">
-                <p className="text-lg leading-8 text-foreground font-medium">
-                  "{elaboration}"
-                </p>
-              </div>
-              <p className="text-lg leading-8 text-muted-foreground">
-                That is the exact muscle you will use to build this. We have saved this to your inventory.
-              </p>
-              <Button
-                onClick={handleComplete}
-                disabled={isSubmitting}
-                className="h-12 gap-2 rounded-full px-8 text-base"
-              >
-                {isSubmitting ? 'Moving forward...' : 'Continue'}
-                {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-              </Button>
-            </div>
           )}
-        </div>
+        </>
       )}
-
     </div>
   );
 }
