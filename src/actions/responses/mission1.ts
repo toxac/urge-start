@@ -8,6 +8,7 @@ import type {
   CommitmentSynthesisResult, 
   FrictionSynthesisResult,
   LearningActionResult,
+  RejectionSynthesisResult
 } from '@/lib/types/ai';
 
 export async function analyzeSituation(
@@ -557,28 +558,72 @@ export async function getQuest4Reflections() {
 export async function generateRejectionSynthesis(
   reflections: { title: string; content: string }[],
   sourceNodeKey: string
-) {
+): Promise<RejectionSynthesisResult> {
   const systemPrompt = `
-    You are Urge. The user just completed 'Rejection Therapy'—intentionally getting rejected in both low and high-stakes scenarios.
-    
-    Here is their raw data on how getting rejected felt:
-    ${reflections.map(r => `${r.title}:${r.content}`).join('\n')}
+    You are Urge.
 
-    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out that rejection is survivable and just a data point.
+    The user has just completed a rejection experiment. They deliberately
+    made an ask where the other person could say no.
+
+    Here is the user's raw experience:
+
+    ${reflections
+      .map((r) => `${r.title}: ${r.content}`)
+      .join('\n')}
+
+    Your task is to identify ONE meaningful relationship, tension, contrast,
+    or surprise between what the user expected and what actually happened.
+
+    Return JSON with exactly two fields:
+
+    {
+      "headline": "A short, compelling insight in sentence case",
+      "interpretation": "One short paragraph explaining the pattern."
+    }
 
     RULES:
-    - Point out that the "no" didn't kill them.
-    - DO NOT praise them. Keep it pragmatic.
-    - Emphasize that 'no' is just a mechanical boundary, not a reflection of their worth.
+    - Do not summarize each answer.
+    - Do not praise the user.
+    - Do not tell the user what they should do.
+    - Do not diagnose or make psychological claims.
+    - Do not force a positive conclusion.
+    - Do not assume the rejection was harmless.
+    - Do not turn the experience into generic advice about rejection.
+    - Focus on the relationship between expectation and evidence.
+    - The insight must be grounded in the user's actual experience.
+    - The headline should feel like something the user might not have noticed
+      without putting the evidence together.
+    - Keep the interpretation to 2-4 sentences.
   `;
 
   const { success, content, error } = await invokeAIStandard({
-    systemPrompt, userPrompt: "Synthesize these rejection reflections.",
-    componentKey: 'fear_evidence_reveal', sourceNodeKey, purpose: 'rejection_synthesis', requireJson: false,
+    systemPrompt,
+    userPrompt: 'Reveal the most meaningful pattern in this experience.',
+    componentKey: 'fear_evidence_reveal',
+    sourceNodeKey,
+    purpose: 'rejection_synthesis',
+    requireJson: true,
+    temperature: 0.3,
   });
 
-  if (!success || !content) throw new Error(error || 'Failed synthesis');
-  return content;
+  if (!success || !content) {
+    throw new Error(error || 'Failed synthesis');
+  }
+
+  try {
+    const parsed = JSON.parse(content) as RejectionSynthesisResult;
+
+    if (
+      typeof parsed.headline !== 'string' ||
+      typeof parsed.interpretation !== 'string'
+    ) {
+      throw new Error('Invalid rejection synthesis response');
+    }
+
+    return parsed;
+  } catch {
+    throw new Error('AI returned an invalid rejection synthesis');
+  }
 }
 
 

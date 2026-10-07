@@ -37,3 +37,8 @@ export type LearningActionOption = {
 export type LearningActionResult = {
   options: LearningActionOption[];
 };
+
+export type RejectionSynthesisResult = {
+  headline: string;
+  interpretation: string;
+};
