@@ -31,6 +31,7 @@ import {
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { ExternalRealWorldTask } from './common/ExternalRealWorldTask';
+import { RealWorldExperiment } from './common/RealWorldExperiment';
 
 export type NodeComponentProps = {
   node: ProgramNode;
@@ -63,7 +64,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'asking_baseline': AskingBaseline,
   'squad_builder': SquadBuilder,
   'visibility_action': VisibilityAction,
-  'real_world_ask': ExternalRealWorldTask,
+  'real_world_ask': RealWorldExperiment,
   'prediction_reality_reveal': PredictionRealityReveal,
   'learning_action': LearningAction,
   // M1Q4: Fear
