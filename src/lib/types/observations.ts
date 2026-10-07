@@ -69,6 +69,9 @@ export const OBSERVATION_FOCUS_OPTIONS = {
         'changes',
         'markets',
     ],
+    experiment: [
+    'asking',
+  ],
 } as const;
 
 // -----------------------------------------------------------------------------
