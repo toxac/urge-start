@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Pencil } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,66 +23,80 @@ const CAPABILITIES = [
   {
     id: 'make_clear',
     title: 'Make confusing things clear',
-    description: 'Turn something messy or complicated into something people can understand.',
+    description:
+      'Turn something messy or complicated into something people can understand.',
   },
   {
     id: 'organise',
     title: 'Organise people or things',
-    description: 'Bring order to moving parts and help things happen in the right order.',
+    description:
+      'Bring order to moving parts and help things happen in the right order.',
   },
   {
     id: 'find_information',
     title: 'Find information',
-    description: 'Track down useful information, answers, or resources when you need them.',
+    description:
+      'Track down useful information, answers, or resources when you need them.',
   },
   {
     id: 'fix_things',
     title: 'Fix things when they break',
-    description: 'Figure out what went wrong and find a way to make it work again.',
+    description:
+      'Figure out what went wrong and find a way to make it work again.',
   },
   {
     id: 'spot_problems',
     title: 'Spot problems',
-    description: 'Notice something that is not working, missing, or likely to become a problem.',
+    description:
+      'Notice something that is not working, missing, or likely to become a problem.',
   },
   {
     id: 'find_workarounds',
     title: 'Find workarounds',
-    description: 'Keep moving when the obvious solution is unavailable.',
+    description:
+      'Keep moving when the obvious solution is unavailable.',
   },
   {
     id: 'explain',
     title: 'Explain difficult things',
-    description: 'Help someone understand something that was difficult or unfamiliar.',
+    description:
+      'Help someone understand something that was difficult or unfamiliar.',
   },
   {
     id: 'get_agreement',
     title: 'Get people to agree',
-    description: 'Bring different people around to an idea or a way forward.',
+    description:
+      'Bring different people around to an idea or a way forward.',
   },
   {
-    id: 'make_things_happen',
-    title: 'Make things happen',
-    description: 'Move an idea from talking about it to actually getting something done.',
+    id: 'build_things',
+    title: 'Build things',
+    description:
+      'Turn an idea, plan, or problem into something real.',
   },
   {
     id: 'teach_self',
     title: 'Teach yourself new things',
-    description: 'Figure out how to learn something you did not already know.',
+    description:
+      'Figure out how to learn something you did not already know.',
   },
   {
     id: 'connect_people',
     title: 'Connect people',
-    description: 'Know who might be useful to whom and help make the connection.',
+    description:
+      'Know who might be useful to whom and help make the connection.',
   },
   {
     id: 'simplify',
     title: 'Make things simpler',
-    description: 'Remove unnecessary complexity and find an easier way to do something.',
+    description:
+      'Remove unnecessary complexity and find an easier way to do something.',
   },
 ];
 
-function getSavedCapabilities(progress: NodeComponentProps['progress']): CapabilityEntry[] {
+function getSavedCapabilities(
+  progress: NodeComponentProps['progress']
+): CapabilityEntry[] {
   const context = $userContext.get().userContext?.capabilities as
     | CapabilitiesContext
     | null
@@ -107,13 +121,14 @@ function getSavedCapabilities(progress: NodeComponentProps['progress']): Capabil
 
 export function CapabilityInventory({
   node,
-  nodeKey,
   progress,
   onComplete,
 }: NodeComponentProps) {
   const savedCapabilities = getSavedCapabilities(progress);
 
-  const [items, setItems] = useState<CapabilityEntry[]>(savedCapabilities);
+  const [items, setItems] =
+    useState<CapabilityEntry[]>(savedCapabilities);
+
   const [selectedIds, setSelectedIds] = useState<string[]>(
     savedCapabilities.map((item) => item.id)
   );
@@ -121,6 +136,7 @@ export function CapabilityInventory({
   const [isCommitted, setIsCommitted] = useState(
     savedCapabilities.length > 0 || progress.payload?.completed === true
   );
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +146,10 @@ export function CapabilityInventory({
 
     setSelectedIds((current) => {
       if (current.includes(id)) {
-        setItems((existing) => existing.filter((item) => item.id !== id));
+        setItems((existing) =>
+          existing.filter((item) => item.id !== id)
+        );
+
         return current.filter((item) => item !== id);
       }
 
@@ -185,7 +204,9 @@ export function CapabilityInventory({
 
   const canSave =
     selectedIds.length > 0 &&
-    selectedIds.every((id) => getEvidence(id).trim().length >= 10);
+    selectedIds.every(
+      (id) => getEvidence(id).trim().length >= 10
+    );
 
   async function handleSave() {
     if (!canSave || isSubmitting) return;
@@ -210,7 +231,9 @@ export function CapabilityInventory({
       setIsEditing(false);
     } catch (err) {
       console.error('[CAPABILITY INVENTORY]', err);
-      setError('Something went wrong saving your response. Please try again.');
+      setError(
+        'Something went wrong saving your response. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -246,17 +269,20 @@ export function CapabilityInventory({
         </h2>
 
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You may not think of yourself as particularly skilled at business yet.
-          That&apos;s okay. Think about the things people already rely on you to
-          do — at work, at home, in your community, or just because you&apos;re
-          the person who figures things out.
+          You may not think of yourself as particularly skilled at
+          business yet. That&apos;s okay. Think about the things
+          people already rely on you to do — at work, at home, in
+          your community, or just because you&apos;re the person who
+          figures things out.
         </p>
       </div>
 
       {isCommitted && !isEditing ? (
         <div className="max-w-4xl space-y-8">
           <div className="space-y-4">
-            <h3 className="text-xl font-medium">These are things you already know how to do.</h3>
+            <h3 className="text-xl font-medium">
+              These are things you already know how to do.
+            </h3>
 
             <div className="space-y-4">
               {items.map((item) => (
@@ -285,9 +311,9 @@ export function CapabilityInventory({
           </div>
 
           <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You don&apos;t need to turn these into a business right now. Just
-            notice that you are bringing abilities with you. You are not
-            starting from zero.
+            You don&apos;t need to turn these into a business right
+            now. Just notice that you are bringing abilities with
+            you. You are not starting from zero.
           </p>
 
           <div className="flex items-center gap-4">
@@ -314,13 +340,26 @@ export function CapabilityInventory({
       ) : (
         <>
           <div className="space-y-4">
-            <h3 className="text-xl font-medium">
-              What do people already rely on you to do?
-            </h3>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h3 className="text-xl font-medium">
+                What do people already rely on you to do?
+              </h3>
+
+              {selectedIds.length > 0 && (
+                <span className="text-sm font-medium text-muted-foreground">
+                  {selectedIds.length}{' '}
+                  {selectedIds.length === 1
+                    ? 'capability'
+                    : 'capabilities'}{' '}
+                  selected
+                </span>
+              )}
+            </div>
 
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-              Choose the ones that genuinely fit. You don&apos;t need to choose
-              everything.
+              Choose every one that genuinely fits. There is no
+              limit. If they all fit, choose them all. For each one,
+              you&apos;ll give us a real example.
             </p>
           </div>
 
@@ -358,7 +397,9 @@ export function CapabilityInventory({
                           : 'border-border'
                       }`}
                     >
-                      {isSelected && <Check className="h-3.5 w-3.5" />}
+                      {isSelected && (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
                     </div>
                   </div>
                 </button>
@@ -374,8 +415,8 @@ export function CapabilityInventory({
                 </h3>
 
                 <p className="text-base leading-7 text-muted-foreground">
-                  For each one you selected, tell us about a real situation
-                  where you did this.
+                  For each one you selected, tell us about a real
+                  situation where you did this.
                 </p>
               </div>
 

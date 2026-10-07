@@ -3,7 +3,12 @@
 import { invokeAILight, invokeAIStandard } from '@/actions/ai';
 import { saveObservation } from '@/actions/observations'; // Assuming you created this based on our domain plan
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { CommitmentSynthesisInput, CommitmentSynthesisResult } from '@/lib/types/ai';
+import type { 
+  CommitmentSynthesisInput, 
+  CommitmentSynthesisResult, 
+  FrictionSynthesisResult,
+  LearningActionResult,
+} from '@/lib/types/ai';
 
 export async function analyzeSituation(
   situation: string,
@@ -312,34 +317,228 @@ export async function getQuest3Reflections() {
 export async function generateFrictionSynthesis(
   reflections: { title: string; content: string }[],
   sourceNodeKey: string
-) {
+): Promise<FrictionSynthesisResult> {
   const systemPrompt = `
-    You are Urge, a thoughtful friend acting as a mirror.
-    The user just completed two uncomfortable social tasks: making themselves visible on social media, and asking a stranger for a micro-commitment.
-    
-    Here are their raw reflections on how it felt:
-    ${reflections.map(r => `${r.title}:${r.content}`).join('\n')}
+You are Urge, a thoughtful and direct friend acting as a mirror.
 
-    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out the gap between the anxiety they predicted and the reality they experienced.
+The user has just completed a real-world experiment involving visibility and asking another person for something.
 
-    RULES:
-    - Start directly with an observation about their relationship to social friction.
-    - DO NOT praise them or say "Great job putting yourself out there."
-    - Be grounded and direct. Highlight the illusion of fear if they realized it wasn't that bad, or acknowledge the sting if it was uncomfortable but survivable.
-  `;
+They made a prediction about what would happen, took the action, experienced the real outcome, noticed their reaction, and reflected on what stood out.
 
-  const { success, content, error } = await invokeAIStandard({
+Your job is NOT to summarize their answers.
+
+Your job is to find ONE meaningful thing the experience reveals that the user may not have noticed themselves.
+
+Look for the relationship between:
+- what they expected
+- what actually happened
+- how they reacted
+- what they noticed
+
+The insight might be:
+- an assumption they made that reality disproved
+- a fear that was larger than the actual consequence
+- something they were trying to solve or control before they had any evidence
+- an unexpected benefit or opportunity created by simply making the ask
+- evidence that changes how they might approach asking in the future
+- a difference between what they thought they needed to do and what actually happened
+- something uncomfortable that turned out to be survivable
+
+Do not force an insight if the evidence does not support one.
+
+IMPORTANT:
+- Stay completely grounded in the user's actual words.
+- Do not invent motives, emotions, or outcomes.
+- Do not diagnose the user.
+- Do not tell the user what they "really" fear.
+- Do not turn one successful experience into a universal rule.
+- Do not give advice or a next step.
+- Do not praise or congratulate the user.
+- Do not use generic statements like "fear is often worse than reality."
+- Do not merely say that reality was different from the prediction.
+- Explain WHY the difference matters in this particular experience.
+
+The headline should capture the specific insight in a short, memorable sentence.
+
+The interpretation should explain the connection in 2–4 sentences.
+
+Return ONLY valid JSON:
+
+{
+  "headline": "string",
+  "interpretation": "string"
+}
+`;
+
+  const userPrompt = `
+Here is the user's actual experience:
+
+${reflections
+  .map(
+    (reflection) =>
+      `${reflection.title}:
+${reflection.content}`
+  )
+  .join('\n\n')}
+
+Find the most meaningful evidence-based insight in this experience.
+`;
+
+  const { success, content, error } = await invokeAILight({
     systemPrompt,
-    userPrompt: "Synthesize these reflections on social friction.",
+    userPrompt,
     componentKey: 'prediction_reality_reveal',
     sourceNodeKey,
     purpose: 'friction_reality_synthesis',
-    requireJson: false,
+    requireJson: true,
+    temperature: 0.3,
   });
 
-  if (!success || !content) throw new Error(error || 'Failed to generate synthesis');
-  return content;
+  if (!success || !content) {
+    throw new Error(error || 'Failed to generate friction synthesis');
+  }
+
+  return JSON.parse(content) as FrictionSynthesisResult;
 }
+
+
+export async function generateLearningActions(
+  synthesis: {
+    headline: string;
+    interpretation: string;
+  },
+  reflections: { title: string; content: string }[],
+  sourceNodeKey: string
+): Promise<LearningActionResult> {
+  const systemPrompt = `
+You are Urge, helping a first-time founder turn one real-world experience into a specific behavioural change.
+
+The founder has just completed a real-world asking experiment.
+
+They:
+1. predicted what might happen,
+2. made the ask,
+3. experienced the actual outcome,
+4. noticed their reaction,
+5. reflected on what stood out,
+6. received a synthesis of what the experience may reveal.
+
+Your job is to generate THREE specific behavioural responses the founder could carry into a similar situation.
+
+This is NOT a task generator.
+This is NOT general entrepreneurship advice.
+This is NOT a list of motivational habits.
+
+The options must be directly connected to THIS experience.
+
+A good option should answer:
+
+"What will I do differently the next time I encounter a similar situation?"
+
+Examples of useful responses:
+- make the ask before trying to solve every possible objection
+- wait for an actual response instead of treating an imagined rejection as evidence
+- follow up when a response is delayed instead of assuming it means no
+- make another specific ask where the same hesitation appears
+
+Do NOT generate vague behaviours such as:
+- keep putting myself out there
+- be more confident
+- keep taking action
+- don't overthink
+- believe in myself
+- stay consistent
+- keep learning
+- communicate more
+
+Do NOT simply repeat the reveal.
+
+Do NOT invent a new problem or motivation.
+
+Each option must be traceable to something in the founder's actual prediction, action, outcome, reaction, reflection, or reveal.
+
+The options should be meaningfully different from one another.
+
+Prefer a behavioural change over a goal.
+Prefer something observable over an intention.
+Prefer something the founder could recognize themselves doing the next time this situation occurs.
+
+Do not assume that the experience was positive.
+If the experience was uncomfortable, disappointing, or unsuccessful, the options must reflect that reality rather than forcing a positive lesson.
+
+Do not tell the founder which option is correct.
+Do not rank the options.
+Do not praise the founder.
+
+Return ONLY valid JSON:
+
+{
+  "options": [
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural choice",
+      "description": "One sentence explaining what this means in practice."
+    },
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural choice",
+      "description": "One sentence explaining what this means in practice."
+    },
+    {
+      "id": "short_stable_id",
+      "title": "Short behavioural choice",
+      "description": "One sentence explaining what this means in practice."
+    }
+  ]
+}
+`;
+
+  const userPrompt = `
+Here is the reveal:
+
+HEADLINE:
+${synthesis.headline}
+
+INTERPRETATION:
+${synthesis.interpretation}
+
+Here is the founder's actual experience:
+
+${reflections
+  .map(
+    reflection =>
+      `${reflection.title}:
+${reflection.content}`
+  )
+  .join('\n\n')}
+
+Generate three specific behavioural responses that are genuinely connected to this experience.
+`;
+
+  const { success, content, error } = await invokeAILight({
+    systemPrompt,
+    userPrompt,
+    componentKey: 'learning_action',
+    sourceNodeKey,
+    purpose: 'generate_learning_actions',
+    requireJson: true,
+    temperature: 0.3,
+  });
+
+  if (!success || !content) {
+    throw new Error(error || 'Failed to generate learning actions');
+  }
+
+  const result = JSON.parse(content) as LearningActionResult;
+
+  if (!Array.isArray(result.options) || result.options.length !== 3) {
+    throw new Error('AI returned an invalid learning action set');
+  }
+
+  return result;
+}
+
+
 
 export async function getQuest4Reflections() {
   const supabase = await createSupabaseServerClient();

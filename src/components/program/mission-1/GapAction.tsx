@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowRight, Check, Loader2, Pencil } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Plus, Pencil, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { saveUserTasks } from '@/actions/tasks';
 
@@ -12,7 +13,6 @@ type GapType =
   | 'reach'
   | 'acquire'
   | 'time'
-  | 'not_needed'
   | 'uncertain';
 
 type GapEntry = {
@@ -23,7 +23,9 @@ type GapEntry = {
 };
 
 type AssetRevealPayload = {
-  gaps?: GapEntry[];
+  synthesis?: string;
+  headline?: string;
+  interpretation?: string;
   confirmed?: boolean;
 };
 
@@ -42,22 +44,57 @@ type SelectedAction = {
   description: string;
 };
 
+const GAP_TYPES: Array<{
+  id: GapType;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: 'learn',
+    title: 'Something I need to learn',
+    description: 'I need some knowledge or understanding before I can move.',
+  },
+  {
+    id: 'reach',
+    title: 'Someone I need to reach',
+    description: 'I need access to a person, group, audience, or introduction.',
+  },
+  {
+    id: 'acquire',
+    title: 'Something I need to access',
+    description: 'I need a resource, tool, place, or capability I do not currently have.',
+  },
+  {
+    id: 'time',
+    title: 'I need to make room',
+    description: 'I need to create enough time or capacity to do this.',
+  },
+  {
+    id: 'uncertain',
+    title: 'I am not sure yet',
+    description: 'I think something may be missing, but I need evidence before deciding.',
+  },
+];
+
 const ACTIONS_BY_GAP: Record<GapType, GapActionOption[]> = {
   learn: [
     {
       id: 'learn_enough',
       title: 'Learn enough to get started',
-      description: 'Learn what you need for the next step, not everything about it.',
+      description:
+        'Learn what you need for the next step, not everything about it.',
     },
     {
       id: 'find_someone',
       title: 'Find someone who already knows this',
-      description: 'Use someone else’s experience instead of waiting to become an expert.',
+      description:
+        'Use someone else’s experience instead of waiting to become an expert.',
     },
     {
       id: 'practise',
       title: 'Practise it',
-      description: 'Get better by doing something small with it.',
+      description:
+        'Get better by doing something small with it.',
     },
   ],
 
@@ -65,12 +102,14 @@ const ACTIONS_BY_GAP: Record<GapType, GapActionOption[]> = {
     {
       id: 'find_help',
       title: 'Find someone who can help',
-      description: 'Identify a person who can help you move this forward.',
+      description:
+        'Identify a person who can help you move this forward.',
     },
     {
       id: 'ask_introduction',
       title: 'Ask for an introduction',
-      description: 'Use someone already within reach to open the door.',
+      description:
+        'Use someone already within reach to open the door.',
     },
   ],
 
@@ -78,17 +117,20 @@ const ACTIONS_BY_GAP: Record<GapType, GapActionOption[]> = {
     {
       id: 'borrow_share_access',
       title: 'Find a way to borrow, share or access it',
-      description: 'Look for a way to use what you need without owning it first.',
+      description:
+        'Look for a way to use what you need without owning it first.',
     },
     {
       id: 'acquire',
       title: 'Find a way to acquire it',
-      description: 'Work out what it would take to get the resource you need.',
+      description:
+        'Work out what it would take to get the resource you need.',
     },
     {
       id: 'find_complement',
       title: 'Find someone who can complement me',
-      description: 'Look for someone who already has what you are missing.',
+      description:
+        'Look for someone who already has what you are missing.',
     },
   ],
 
@@ -96,12 +138,14 @@ const ACTIONS_BY_GAP: Record<GapType, GapActionOption[]> = {
     {
       id: 'make_room',
       title: 'Make room for it',
-      description: 'Decide what you can stop, reduce or rearrange to create the time.',
+      description:
+        'Decide what you can stop, reduce or rearrange to create the time.',
     },
     {
       id: 'find_another_way',
       title: 'Find another way to do it',
-      description: 'Change the approach instead of assuming you need more time.',
+      description:
+        'Change the approach instead of assuming you need more time.',
     },
   ],
 
@@ -109,58 +153,38 @@ const ACTIONS_BY_GAP: Record<GapType, GapActionOption[]> = {
     {
       id: 'find_out',
       title: 'Find out whether I actually need this',
-      description: 'Get enough evidence to decide whether this is a real gap.',
+      description:
+        'Get enough evidence to decide whether this is a real gap.',
     },
     {
       id: 'ask_someone',
       title: 'Ask someone who knows',
-      description: 'Use another person’s experience to reduce the uncertainty.',
+      description:
+        'Use another person’s experience to reduce the uncertainty.',
     },
   ],
-
-  not_needed: [],
 };
-
-const GAP_LABELS: Record<GapType, string> = {
-  learn: 'Something I need to learn',
-  reach: 'Someone I need to reach',
-  acquire: 'Something I need to acquire or access',
-  time: 'I need more time for this',
-  not_needed: 'I do not actually need this yet',
-  uncertain: 'I am not sure',
-};
-
-function getRevealPayload(progress: unknown): AssetRevealPayload | null {
-  if (!progress || typeof progress !== 'object') return null;
-
-  const value = progress as Record<string, unknown>;
-
-  if (
-    !value.payload ||
-    typeof value.payload !== 'object'
-  ) {
-    return null;
-  }
-
-  return value.payload as AssetRevealPayload;
-}
 
 function getActionPayload(progress: unknown) {
   if (!progress || typeof progress !== 'object') return null;
 
   const value = progress as Record<string, unknown>;
 
-  if (
-    !value.payload ||
-    typeof value.payload !== 'object'
-  ) {
+  if (!value.payload || typeof value.payload !== 'object') {
     return null;
   }
 
   return value.payload as {
+    gaps?: GapEntry[];
     selectedActions?: SelectedAction[];
     completed?: boolean;
   };
+}
+
+function getRevealPayload(payload: unknown): AssetRevealPayload | null {
+  if (!payload || typeof payload !== 'object') return null;
+
+  return payload as AssetRevealPayload;
 }
 
 export function GapAction({
@@ -168,17 +192,30 @@ export function GapAction({
   progress,
   onComplete,
 }: NodeComponentProps) {
-  const revealPayload = getRevealPayload(progress);
+  /*
+   * The reveal is a previous node.
+   *
+   * The current `progress` prop belongs to this action node, so it cannot
+   * be used to retrieve the reveal payload.
+   */
+  const revealPayload = getRevealPayload(
+    undefined
+  );
+
   const actionPayload = getActionPayload(progress);
 
-  const gaps = useMemo(
-    () => revealPayload?.gaps ?? [],
-    [revealPayload]
+  const [gaps, setGaps] = useState<GapEntry[]>(
+    actionPayload?.gaps ?? []
   );
 
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>(
     actionPayload?.selectedActions ?? []
   );
+
+  const [isAddingGap, setIsAddingGap] = useState(false);
+  const [newGapTitle, setNewGapTitle] = useState('');
+  const [newGapType, setNewGapType] = useState<GapType>('uncertain');
+  const [newGapDetail, setNewGapDetail] = useState('');
 
   const [isReviewing, setIsReviewing] = useState(
     Boolean(actionPayload?.completed)
@@ -186,14 +223,43 @@ export function GapAction({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const actionableGaps = gaps.filter(
-    (gap) => gap.type !== 'not_needed'
+  const actionableGaps = useMemo(
+    () => gaps,
+    [gaps]
   );
 
-  const toggleAction = (
+  function addGap() {
+    const title = newGapTitle.trim();
+
+    if (!title) return;
+
+    const gap: GapEntry = {
+      id: crypto.randomUUID(),
+      title,
+      type: newGapType,
+      detail: newGapDetail.trim(),
+    };
+
+    setGaps((current) => [...current, gap]);
+
+    setNewGapTitle('');
+    setNewGapDetail('');
+    setNewGapType('uncertain');
+    setIsAddingGap(false);
+  }
+
+  function removeGap(gapId: string) {
+    setGaps((current) => current.filter((gap) => gap.id !== gapId));
+
+    setSelectedActions((current) =>
+      current.filter((action) => action.gapId !== gapId)
+    );
+  }
+
+  function toggleAction(
     gap: GapEntry,
     option: GapActionOption
-  ) => {
+  ) {
     setSelectedActions((current) => {
       const exists = current.some(
         (action) =>
@@ -211,9 +277,6 @@ export function GapAction({
         );
       }
 
-      // Keep this deliberately small.
-      // Q2 is about choosing what deserves attention,
-      // not creating a task list.
       if (current.length >= 2) {
         return current;
       }
@@ -230,9 +293,11 @@ export function GapAction({
         },
       ];
     });
-  };
+  }
 
-  const handleComplete = async () => {
+  async function handleComplete() {
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
 
     try {
@@ -256,6 +321,7 @@ export function GapAction({
           : { success: true, tasks: [] };
 
       onComplete({
+        gaps,
         selectedActions,
         savedTaskIds: result.tasks.map((task) => task.id),
         completed: true,
@@ -265,28 +331,55 @@ export function GapAction({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
 
   if (isReviewing) {
     return (
       <div className="space-y-8">
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">
-            WHAT YOU DECIDED TO DO
+            WHAT DESERVES ATTENTION
           </p>
 
           <h2 className="text-2xl font-semibold tracking-tight">
-            You do not need to fix everything before you start.
+            You do not need to have everything before you begin.
           </h2>
 
           <p className="text-muted-foreground">
-            These are the things you decided are actually worth giving
-            attention to.
+            You have separated what is genuinely missing from what you
+            can already work with.
           </p>
         </div>
 
+        {gaps.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              WHAT YOU IDENTIFIED
+            </p>
+
+            {gaps.map((gap) => (
+              <div
+                key={gap.id}
+                className="rounded-xl border bg-background p-4"
+              >
+                <p className="font-medium">{gap.title}</p>
+
+                {gap.detail && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {gap.detail}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {selectedActions.length > 0 ? (
           <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              WHAT YOU WILL DO
+            </p>
+
             {selectedActions.map((action) => (
               <div
                 key={`${action.gapId}-${action.actionId}`}
@@ -298,12 +391,16 @@ export function GapAction({
                   </div>
 
                   <div className="space-y-1">
-                    <p className="font-medium">{action.actionTitle}</p>
+                    <p className="font-medium">
+                      {action.actionTitle}
+                    </p>
+
                     <p className="text-sm text-muted-foreground">
                       {action.description}
                     </p>
+
                     <p className="text-xs text-muted-foreground">
-                      From: {action.gapTitle}
+                      Because: {action.gapTitle}
                     </p>
                   </div>
                 </div>
@@ -315,9 +412,10 @@ export function GapAction({
             <p className="font-medium">
               Nothing needs your attention right now.
             </p>
+
             <p className="mt-1 text-sm text-muted-foreground">
-              That is a valid decision. You do not need to manufacture a
-              task just to keep moving.
+              That is a valid decision. You do not need to manufacture
+              a task just to keep moving.
             </p>
           </div>
         )}
@@ -332,10 +430,15 @@ export function GapAction({
             Edit
           </Button>
 
-          <Button onClick={() => onComplete({
-            selectedActions,
-            completed: true,
-          })}>
+          <Button
+            onClick={() =>
+              onComplete({
+                gaps,
+                selectedActions,
+                completed: true,
+              })
+            }
+          >
             Continue
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
@@ -356,33 +459,158 @@ export function GapAction({
         </h2>
 
         <p className="text-muted-foreground">
-          Look at the gaps you identified. What is actually worth doing
-          something about right now?
+          You have looked at what you already have. Now decide what,
+          if anything, is genuinely missing before you can take your
+          next step.
         </p>
       </div>
 
-      {actionableGaps.length === 0 ? (
-        <div className="rounded-xl border bg-muted/30 p-5">
-          <p className="font-medium">
-            You have not identified anything that needs action.
+      {gaps.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-muted-foreground">
+            GAPS YOU HAVE IDENTIFIED
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            That is okay. Sometimes the useful conclusion is simply:
-            I have enough to begin.
-          </p>
+
+          {gaps.map((gap) => (
+            <div
+              key={gap.id}
+              className="rounded-xl border bg-background p-4"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="font-medium">{gap.title}</p>
+
+                  {gap.detail && (
+                    <p className="text-sm text-muted-foreground">
+                      {gap.detail}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => removeGap(gap.id)}
+                  className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={`Remove ${gap.title}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {!isAddingGap ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setIsAddingGap(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add something that is genuinely missing
+        </Button>
       ) : (
+        <div className="rounded-xl border bg-muted/20 p-5 space-y-5">
+          <div className="space-y-2">
+            <p className="font-medium">
+              What is genuinely missing?
+            </p>
+
+            <p className="text-sm text-muted-foreground">
+              Be specific. Think about what could actually stop you
+              from taking your next step.
+            </p>
+          </div>
+
+          <Input
+            value={newGapTitle}
+            onChange={(event) => setNewGapTitle(event.target.value)}
+            placeholder="e.g. I need to understand how to price this"
+            autoFocus
+          />
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">
+              What kind of gap is it?
+            </p>
+
+            <div className="space-y-2">
+              {GAP_TYPES.map((type) => {
+                const selected = newGapType === type.id;
+
+                return (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => setNewGapType(type.id)}
+                    className={[
+                      'w-full rounded-xl border p-4 text-left transition',
+                      selected
+                        ? 'border-primary bg-primary/5'
+                        : 'hover:bg-muted/50',
+                    ].join(' ')}
+                  >
+                    <p className="font-medium">{type.title}</p>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {type.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <Input
+            value={newGapDetail}
+            onChange={(event) => setNewGapDetail(event.target.value)}
+            placeholder="Optional: what makes this a gap?"
+          />
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsAddingGap(false);
+                setNewGapTitle('');
+                setNewGapDetail('');
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={addGap}
+              disabled={!newGapTitle.trim()}
+            >
+              Add gap
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {actionableGaps.length > 0 && (
         <div className="space-y-8">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              NOW CHOOSE WHAT DESERVES ACTION
+            </p>
+
+            <p className="text-sm text-muted-foreground">
+              You do not have to act on every gap. Pick up to two that
+              are worth doing something about now.
+            </p>
+          </div>
+
           {actionableGaps.map((gap) => {
             const options = ACTIONS_BY_GAP[gap.type];
 
             return (
               <div key={gap.id} className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {GAP_LABELS[gap.type]}
-                  </p>
-
                   <h3 className="text-lg font-medium">
                     {gap.title}
                   </h3>
@@ -394,64 +622,64 @@ export function GapAction({
                   )}
                 </div>
 
-                {options.length > 0 && (
-                  <div className="space-y-2">
-                    {options.map((option) => {
-                      const selected = selectedActions.some(
-                        (action) =>
-                          action.gapId === gap.id &&
-                          action.actionId === option.id
-                      );
+                <div className="space-y-2">
+                  {options.map((option) => {
+                    const selected = selectedActions.some(
+                      (action) =>
+                        action.gapId === gap.id &&
+                        action.actionId === option.id
+                    );
 
-                      const disabled =
-                        !selected && selectedActions.length >= 2;
+                    const disabled =
+                      !selected &&
+                      selectedActions.length >= 2;
 
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() =>
-                            toggleAction(gap, option)
-                          }
-                          disabled={disabled}
-                          className={[
-                            'w-full rounded-xl border p-4 text-left transition',
-                            selected
-                              ? 'border-primary bg-primary/5'
-                              : 'hover:bg-muted/50',
-                            disabled
-                              ? 'cursor-not-allowed opacity-50'
-                              : '',
-                          ].join(' ')}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={[
-                                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border',
-                                selected
-                                  ? 'border-primary bg-primary text-primary-foreground'
-                                  : 'border-muted-foreground/30',
-                              ].join(' ')}
-                            >
-                              {selected && (
-                                <Check className="h-3.5 w-3.5" />
-                              )}
-                            </div>
-
-                            <div>
-                              <p className="font-medium">
-                                {option.title}
-                              </p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {option.description}
-                              </p>
-                            </div>
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() =>
+                          toggleAction(gap, option)
+                        }
+                        disabled={disabled}
+                        className={[
+                          'w-full rounded-xl border p-4 text-left transition',
+                          selected
+                            ? 'border-primary bg-primary/5'
+                            : 'hover:bg-muted/50',
+                          disabled
+                            ? 'cursor-not-allowed opacity-50'
+                            : '',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={[
+                              'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border',
+                              selected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-muted-foreground/30',
+                            ].join(' ')}
+                          >
+                            {selected && (
+                              <Check className="h-3.5 w-3.5" />
+                            )}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+
+                          <div>
+                            <p className="font-medium">
+                              {option.title}
+                            </p>
+
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {option.description}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -460,8 +688,9 @@ export function GapAction({
 
       <div className="rounded-xl border bg-muted/20 p-4">
         <p className="text-sm text-muted-foreground">
-          You can choose up to two things. You can also choose nothing.
-          You do not need to solve every gap before you begin.
+          You can identify as many gaps as you need, but choose no
+          more than two things to act on. You may also decide that
+          nothing needs attention right now.
         </p>
       </div>
 

@@ -22,3 +22,18 @@ export type CommitmentSynthesisResult = {
   headline: string;
   interpretation: string;
 };
+
+export type FrictionSynthesisResult = {
+  headline: string;
+  interpretation: string;
+};
+
+export type LearningActionOption = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+export type LearningActionResult = {
+  options: LearningActionOption[];
+};
