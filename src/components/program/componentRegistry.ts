@@ -21,8 +21,6 @@ import {
   SquadBuilder,
   PredictionRealityReveal,
   LearningAction,
-  LowThresholdAsk,
-  FearChallenge,
   FearAudit,
   FearEvidenceReveal,
   Mission1Reveal,
