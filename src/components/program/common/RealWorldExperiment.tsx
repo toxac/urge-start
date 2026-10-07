@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { saveObservation } from '@/actions/observations';
+import type {
+  RealWorldExperimentMetadata as ExperimentMetadata,
+} from '@/program/types';
 
 type ExperimentStage =
   | 'prepare'
@@ -27,41 +30,17 @@ type ExperimentPayload = {
   completed: boolean;
 };
 
-type ExperimentMetadata = {
-  experiment?: {
-    type?: string;
-    difficulty?: 'low' | 'meaningful' | 'stretch';
-    purpose?: string;
-    prompt?: string;
-    framing?: string;
-    scenarioHints?: string[];
-  };
-};
-
 export function RealWorldExperiment({
   node,
   nodeKey,
   progress,
   onComplete,
 }: NodeComponentProps) {
+  const experiment = node.metadata as ExperimentMetadata;
+
+  const { prompt, framing, scenarioHints } = experiment.experiment;
+
   const saved = (progress.payload ?? {}) as Partial<ExperimentPayload>;
-
-  const metadata = (node.metadata ?? {}) as ExperimentMetadata;
-  const experiment = metadata.experiment ?? {};
-
-  const prompt =
-    experiment.prompt ??
-    'What is one real-world experiment you could try?';
-
-  const framing =
-    experiment.framing ??
-    'Choose something real, take the step, and come back to notice what happened.';
-
-  const scenarioHints = Array.isArray(experiment.scenarioHints)
-    ? experiment.scenarioHints.filter(
-        (hint): hint is string => typeof hint === 'string' && hint.trim().length > 0,
-      )
-    : [];
 
   const [stage, setStage] = useState<ExperimentStage>(
     saved.completed === true ? 'complete' : 'prepare',
