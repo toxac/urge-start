@@ -57,7 +57,7 @@ export const mission1: ProgramMission = {
           role: 'setup',
           title: 'What is really keeping you from starting?',
           description:
-            'There may be practical reasons for waiting. There may also be fear, uncertainty, or assumptions hiding underneath them. Let’s look at what is really going on.',
+            "Sometimes, the reasons we give ourselves for waiting are only part of the story. Beneath practical challenges, there may be fears, doubts, or assumptions that make it harder to take the first step.\n\nIn this quest, you'll explore what's been stopping you, what keeps pulling you towards starting, what you want to change, and what might make you give up. By looking at these things honestly, you'll get a clearer picture of what's driving you, what's holding you back, and what you're willing to do about it.",
           prompt:
             'What do you think is standing between you and starting?',
           intent:
