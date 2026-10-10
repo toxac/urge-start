@@ -1,12 +1,18 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { ArrowRight, Loader2, Pencil } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { $userContext } from '@/lib/stores/user-context';
+import { updateUserProgramContext } from '@/actions/user-context';
+import {
+  $userContext,
+  userContextActions,
+} from '@/lib/stores/user-context';
 import { generateAssetReveal } from '@/actions/responses/mission1';
 
 type ResourceEntry = {
@@ -14,10 +20,6 @@ type ResourceEntry = {
   type: 'time' | 'money' | 'energy' | 'access' | 'credibility';
   title: string;
   detail: string;
-};
-
-type ResourcesContext = {
-  items: ResourceEntry[];
 };
 
 type NetworkUse =
@@ -43,18 +45,10 @@ type CapabilityEntry = {
   evidence: string;
 };
 
-type CapabilitiesContext = {
-  items: CapabilityEntry[];
-};
-
 type ExperienceEntry = {
   id: string;
   title: string;
   evidence: string;
-};
-
-type ExperienceContext = {
-  items: ExperienceEntry[];
 };
 
 type AssetRevealPayload = {
@@ -63,14 +57,29 @@ type AssetRevealPayload = {
   completed?: boolean;
 };
 
-function getContextItems<T>(
-  value: unknown,
-  key: 'items'
-): T[] {
-  if (!value || typeof value !== 'object') return [];
+type ResourceAssessmentAddition = {
+  additional_notes?: string;
+  [key: string]: unknown;
+};
 
-  const items = (value as Record<string, unknown>)[key];
+type AdditionalAssessment = {
+  resources?: ResourceAssessmentAddition;
+  [key: string]: unknown;
+};
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getAdditionalAssessment(value: unknown): AdditionalAssessment {
+  if (!isRecord(value)) return {};
+  return value as AdditionalAssessment;
+}
+
+function getContextItems<T>(value: unknown): T[] {
+  if (!isRecord(value)) return [];
+
+  const items = value.items;
   return Array.isArray(items) ? (items as T[]) : [];
 }
 
@@ -79,12 +88,8 @@ function getNetworkItems(value: unknown): NetworkEntry[] {
     return value as NetworkEntry[];
   }
 
-  if (value && typeof value === 'object') {
-    const items = (value as Record<string, unknown>).items;
-
-    if (Array.isArray(items)) {
-      return items as NetworkEntry[];
-    }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items as NetworkEntry[];
   }
 
   return [];
@@ -97,70 +102,67 @@ export function AssetReveal({
   onComplete,
 }: NodeComponentProps) {
   const rawContext = useStore($userContext);
-  const userContext = rawContext.userContext;
-
+  const context = rawContext.userContext;
   const hasGeneratedRef = useRef(false);
 
   const saved = (progress.payload ?? {}) as AssetRevealPayload;
 
   const savedSynthesis =
-    typeof saved.synthesis === 'string'
-      ? saved.synthesis
+    typeof saved.synthesis === 'string' ? saved.synthesis : '';
+
+  const additionalAssessment = getAdditionalAssessment(
+    context?.additional_assessment,
+  );
+
+  const resourceAddition = isRecord(additionalAssessment.resources)
+    ? (additionalAssessment.resources as ResourceAssessmentAddition)
+    : {};
+
+  const savedAdditionalNotes =
+    typeof resourceAddition.additional_notes === 'string'
+      ? resourceAddition.additional_notes
       : '';
 
   const [synthesis, setSynthesis] = useState(savedSynthesis);
-
-  const [confirmed, setConfirmed] = useState(
-    saved.confirmed === true
+  const [additionalNotes, setAdditionalNotes] = useState(
+    savedAdditionalNotes,
   );
 
   const [mode, setMode] = useState<'generating' | 'review'>(
-    savedSynthesis ? 'review' : 'generating'
+    savedSynthesis ? 'review' : 'generating',
   );
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [generationAttempt, setGenerationAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  /*
-   * Q2 investigation results
-   */
-  const resources = getContextItems<ResourceEntry>(
-    userContext?.resources,
-    'items'
-  );
-
-  const networks = getNetworkItems(
-    userContext?.network_context
-  );
-
+  const resources = getContextItems<ResourceEntry>(context?.resources);
+  const networks = getNetworkItems(context?.network_context);
   const capabilities = getContextItems<CapabilityEntry>(
-    userContext?.capabilities,
-    'items'
+    context?.capabilities,
   );
+  const experiences = getContextItems<ExperienceEntry>(context?.experience);
 
-  const experiences = getContextItems<ExperienceEntry>(
-    userContext?.experience,
-    'items'
-  );
-
-  /*
-   * Generate the reveal once the context has hydrated.
-   *
-   * We deliberately keep the dependency list small.
-   * This prevents the AI call from repeating when local state changes.
-   */
   useEffect(() => {
-    if (savedSynthesis) return;
+    setAdditionalNotes(savedAdditionalNotes);
+  }, [savedAdditionalNotes]);
 
-    if (!rawContext.isHydrated) return;
+  useEffect(() => {
+    if (savedSynthesis) {
+      setSynthesis(savedSynthesis);
+      setMode('review');
+    }
+  }, [savedSynthesis]);
 
+  useEffect(() => {
+    if (savedSynthesis || !rawContext.isHydrated) return;
     if (hasGeneratedRef.current) return;
 
     hasGeneratedRef.current = true;
-
     setIsGenerating(true);
     setError(null);
+    setMode('generating');
 
     async function generate() {
       try {
@@ -171,11 +173,10 @@ export function AssetReveal({
             capabilities,
             experience: experiences,
           },
-          nodeKey
+          nodeKey,
         );
 
         setSynthesis(result);
-        setConfirmed(false);
         setMode('review');
       } catch (err) {
         console.error('[ASSET REVEAL]', err);
@@ -185,40 +186,69 @@ export function AssetReveal({
         setError(
           err instanceof Error
             ? err.message
-            : 'Something went wrong creating the reflection.'
+            : 'Something went wrong creating the reflection.',
         );
       } finally {
         setIsGenerating(false);
       }
     }
 
-    generate();
+    void generate();
   }, [
     rawContext.isHydrated,
     savedSynthesis,
     nodeKey,
+    generationAttempt,
   ]);
 
-  function handleConfirm() {
-    setConfirmed(true);
-  }
-
-  function handleReconsider() {
-    setConfirmed(false);
-  }
-
   async function handleSubmit() {
-    if (!synthesis.trim() || !confirmed || isSubmitting) {
-      return;
-    }
+    if (!synthesis.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      const existingAssessment = getAdditionalAssessment(
+        context?.additional_assessment,
+      );
+
+      const existingResources = isRecord(existingAssessment.resources)
+        ? existingAssessment.resources
+        : {};
+
+      const trimmedNotes = additionalNotes.trim();
+
+      // Preserve other assessment areas and existing resource assessment fields.
+      const nextResources: ResourceAssessmentAddition = {
+        ...existingResources,
+      };
+
+      if (trimmedNotes) {
+        nextResources.additional_notes = trimmedNotes;
+      } else {
+        delete nextResources.additional_notes;
+      }
+
+      const nextAssessment: AdditionalAssessment = {
+        ...existingAssessment,
+      };
+
+      if (Object.keys(nextResources).length > 0) {
+        nextAssessment.resources = nextResources;
+      } else {
+        delete nextAssessment.resources;
+      }
+
+      const result = await updateUserProgramContext({
+        additional_assessment: nextAssessment,
+      });
+
+      userContextActions.updateContextLocally(result.userContext);
+
       await onComplete({
         synthesis: synthesis.trim(),
         confirmed: true,
+        additional_assessment: nextAssessment,
         completed: true,
       });
     } catch (err) {
@@ -227,33 +257,29 @@ export function AssetReveal({
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong saving your reflection.'
+          : 'Something went wrong saving your reflection.',
       );
-
+    } finally {
       setIsSubmitting(false);
     }
   }
 
-  /*
-   * GENERATING
-   */
   if (mode === 'generating') {
     return (
       <div className="w-full max-w-3xl space-y-8">
         <div className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            WHAT WE NOTICE
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            What we notice
           </p>
 
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
             Looking across what you already have.
           </h2>
 
           <p className="text-lg leading-8 text-muted-foreground">
-            You&apos;ve taken stock of your resources, people,
-            capabilities, and experience. Now we&apos;re looking at
-            them together to see what your starting position actually
-            tells us.
+            You explored your resources, connections, capabilities, and
+            experience separately. Now we&apos;re looking at them together to
+            see what your starting position might make possible.
           </p>
         </div>
 
@@ -264,7 +290,7 @@ export function AssetReveal({
 
         {error && (
           <div className="space-y-4">
-            <p className="text-sm leading-6 text-destructive">
+            <p role="alert" className="text-sm leading-6 text-destructive">
               {error}
             </p>
 
@@ -274,8 +300,9 @@ export function AssetReveal({
               onClick={() => {
                 setError(null);
                 hasGeneratedRef.current = false;
-                setMode('generating');
+                setGenerationAttempt((attempt) => attempt + 1);
               }}
+              disabled={isGenerating}
             >
               Try again
             </Button>
@@ -285,138 +312,126 @@ export function AssetReveal({
     );
   }
 
-  /*
-   * REVIEW
-   */
   return (
     <div className="w-full max-w-3xl space-y-10">
       <div className="space-y-4">
-        <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          WHAT WE NOTICE
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          What we notice
         </p>
 
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {node.title || 'You are not starting from zero.'}
         </h2>
 
         <p className="text-lg leading-8 text-muted-foreground">
-          You looked at each part of what you already have
-          separately. Looking at them together reveals something
-          different.
+          You looked at each part of what you already have separately.
+          Looking at them together reveals something different.
         </p>
       </div>
 
-      <div className="rounded-2xl border bg-muted/20 p-6 sm:p-8">
-        <div className="space-y-6">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              THE LEVERAGE WE SEE
-            </p>
+      {/* AI synthesis: an interpretation, not a verdict. */}
+      <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <div className="space-y-5">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            The leverage we see
+          </p>
 
-            <p className="mt-5 text-lg leading-8 text-foreground">
-              {synthesis}
-            </p>
-          </div>
+          <p className="text-base leading-7 text-foreground sm:text-lg sm:leading-8">
+            {synthesis}
+          </p>
         </div>
-      </div>
+      </section>
 
-      <div className="space-y-5 border-t border-border pt-8">
-        <h3 className="text-2xl font-medium">
+      {/* Why this matters */}
+      <section className="space-y-3 border-t border-border pt-7">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          Why we start here
+        </p>
+
+        <h3 className="font-heading text-xl font-semibold leading-snug sm:text-2xl">
           You are not starting from zero.
         </h3>
 
-        <p className="text-lg leading-8 text-muted-foreground">
-          You don&apos;t need everything before you begin. You need
-          to understand what you can use now, what you can learn as
-          you go, and what genuinely needs attention.
+        <p className="leading-7 text-muted-foreground">
+          You don&apos;t need everything before you begin. You need to
+          understand what you can use now, what you can learn as you go, and
+          what genuinely needs attention. Your starting point is something to
+          work with, not a checklist you must complete.
         </p>
-      </div>
+      </section>
 
-      {!confirmed ? (
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
-              Does this feel true to you?
-            </h3>
+      {/* Additional assessment for resources */}
+      <section className="space-y-4 border-t border-border pt-7">
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Your reflection
+          </p>
 
-            <p className="text-base leading-7 text-muted-foreground">
-              This is an interpretation of what you told us, not a
-              verdict. You are the person who gets to decide whether
-              it fits.
-            </p>
-          </div>
+          <h3 className="font-heading text-xl font-semibold leading-snug sm:text-2xl">
+            Is there something important we&apos;re missing?
+          </h3>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button
-              type="button"
-              onClick={handleConfirm}
-              className="gap-2"
-            >
-              Yes, that feels right
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReconsider}
-            >
-              Not quite — let me reconsider
-            </Button>
-          </div>
+          <p className="leading-7 text-muted-foreground">
+            This is one way of connecting what you shared about your resources,
+            connections, capabilities, and experience. You may know of other
+            strengths, limitations, or support that would complete the picture.
+          </p>
         </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-dashed p-6">
-            <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              YOUR TAKE
-            </p>
 
-            <p className="mt-3 text-base leading-7 text-foreground">
-              You confirmed that this reflection feels true to your
-              starting position.
-            </p>
-          </div>
+        <div className="space-y-2">
+          <label
+            htmlFor="resources-additional-notes"
+            className="text-sm font-medium text-foreground"
+          >
+            Anything else we should know about what you have to work with?
+            <span className="ml-2 font-normal text-muted-foreground">
+              (Optional)
+            </span>
+          </label>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleReconsider}
-              disabled={isSubmitting}
-              className="gap-2"
-            >
-              <Pencil className="h-4 w-4" />
-              Reconsider
-            </Button>
+          <Textarea
+            id="resources-additional-notes"
+            value={additionalNotes}
+            onChange={(event) => setAdditionalNotes(event.target.value)}
+            placeholder="Something else I can draw on, or a limitation I need to work around, is..."
+            rows={4}
+            disabled={isSubmitting}
+            className="resize-y text-base leading-7"
+          />
 
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!synthesis.trim() || isSubmitting}
-              className="gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
+          <p className="text-sm leading-6 text-muted-foreground">
+            You can leave this blank if nothing else comes to mind. You can
+            add to it later.
+          </p>
         </div>
-      )}
+      </section>
 
       {error && (
-        <p className="text-sm leading-6 text-destructive">
+        <p role="alert" className="text-sm leading-6 text-destructive">
           {error}
         </p>
       )}
+
+      <div className="flex justify-end border-t border-border pt-6">
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!synthesis.trim() || isSubmitting}
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
