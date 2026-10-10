@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { MessageCircle, ThumbsUp } from 'lucide-react';
 import type { Tables } from '@/database.types';
+import ForumReactionButton from './ForumReactionButton';
 
 type ForumPost = Tables<'forum_posts'>;
 
@@ -179,32 +180,12 @@ export default function ForumPostCard({
             </Link>
 
             <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (post.id) {
-                            onReact?.(post.id);
-                        }
-                    }}
-                    disabled={!onReact || reacting}
-                    aria-pressed={hasReacted}
-                    aria-label={
-                        hasReacted
-                            ? 'Remove your reaction'
-                            : 'Mark this post as helpful'
-                    }
-                    className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${hasReacted
-                            ? 'bg-primary/10 font-medium text-primary'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        }`}
-                >
-                    <ThumbsUp
-                        className="size-4"
-                        fill={hasReacted ? 'currentColor' : 'none'}
-                    />
-                    <span>Helpful</span>
-                    <span>{reactionCount}</span>
-                </button>
+                <ForumReactionButton
+                    postId={post.id}
+                    initialCount={reactionCount}
+                    initialReaction={post.my_reaction}
+                    onChanged={() => onReact?.(post.id!)}
+                />
 
                 <Link
                     href={`/community/forum/${post.id}#comments`}
