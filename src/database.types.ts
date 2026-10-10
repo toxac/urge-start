@@ -584,6 +584,7 @@ export type Database = {
       }
       user_program_context: {
         Row: {
+          additional_assessment: Json | null
           capabilities: Json
           constraints: Json
           created_at: string
@@ -602,6 +603,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          additional_assessment?: Json | null
           capabilities?: Json
           constraints?: Json
           created_at?: string
@@ -620,6 +622,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          additional_assessment?: Json | null
           capabilities?: Json
           constraints?: Json
           created_at?: string
