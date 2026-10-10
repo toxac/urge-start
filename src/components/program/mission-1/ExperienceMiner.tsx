@@ -1,13 +1,32 @@
+
 'use client';
 
-import { useState } from 'react';
-import { ArrowRight, Check, Loader2, Pencil } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  Loader2,
+  Pencil,
+  PlusCircle,
+  X,
+} from 'lucide-react';
+import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { updateUserProgramContext } from '@/actions/user-context';
-import { userContextActions, $userContext } from '@/lib/stores/user-context';
+import {
+  $userContext,
+  userContextActions,
+} from '@/lib/stores/user-context';
+
+type ExperienceOption = {
+  id: string;
+  title: string;
+  description: string;
+  reflectionPrompt: string;
+  placeholder: string;
+};
 
 type ExperienceEntry = {
   id: string;
@@ -19,79 +38,139 @@ type ExperienceContext = {
   items: ExperienceEntry[];
 };
 
-const EXPERIENCES = [
+const experiences: ExperienceOption[] = [
   {
     id: 'industry',
     title: 'Worked in an industry',
-    description: 'You have spent enough time around an industry to understand how some part of it actually works.',
+    description:
+      'You have spent enough time around an industry to understand how some part of it actually works.',
+    reflectionPrompt:
+      'What did you learn about how this industry works?',
+    placeholder:
+      'I learned how this industry works by...',
   },
   {
     id: 'customers',
     title: 'Dealt with a particular kind of customer',
-    description: 'You have spent time understanding, serving, helping, or selling to a particular kind of person.',
+    description:
+      'You have spent time understanding, serving, helping, or selling to a particular kind of person.',
+    reflectionPrompt:
+      'What did you learn about these people, their needs, or how they make decisions?',
+    placeholder:
+      'From working with these people, I noticed...',
   },
   {
     id: 'repeated_problem',
     title: 'Solved a problem repeatedly',
-    description: 'You have encountered the same kind of problem often enough to learn something about it.',
+    description:
+      'You have encountered the same kind of problem often enough to learn something about it.',
+    reflectionPrompt:
+      'What kept going wrong, and what did you learn from dealing with it?',
+    placeholder:
+      'I kept encountering this problem, and I learned...',
   },
   {
     id: 'built_from_scratch',
     title: 'Built something from scratch',
-    description: 'You have started with very little and figured out how to create something that worked.',
+    description:
+      'You have started with very little and figured out how to create something that worked.',
+    reflectionPrompt:
+      'What were you trying to build, and how did you make it happen?',
+    placeholder:
+      'I started with..., figured out..., and managed to...',
   },
   {
     id: 'run_project',
     title: 'Run an event or project',
-    description: 'You have had to coordinate people, resources, deadlines, or moving parts to make something happen.',
+    description:
+      'You have had to coordinate people, resources, deadlines, or moving parts to make something happen.',
+    reflectionPrompt:
+      'What did you have to coordinate, and what did the experience teach you?',
+    placeholder:
+      'I had to bring together..., and I learned...',
   },
   {
     id: 'managed_resources',
     title: 'Managed money or limited resources',
-    description: 'You have had to make decisions when money, time, people, or other resources were limited.',
+    description:
+      'You have had to make decisions when money, time, people, or other resources were limited.',
+    reflectionPrompt:
+      'What choices did you have to make with limited resources?',
+    placeholder:
+      'I had limited..., so I decided to...',
   },
   {
     id: 'failure',
     title: 'Dealt with failure or a setback',
-    description: 'Something did not work out, and you had to figure out what to do next.',
+    description:
+      'Something did not work out, and you had to figure out what to do next.',
+    reflectionPrompt:
+      'What happened, how did you respond, and what do you understand now that you did not understand before?',
+    placeholder:
+      'Things did not go as planned when..., so I...',
   },
   {
     id: 'community',
     title: 'Been part of a community',
-    description: 'You have been closely involved with a group of people who share an interest, identity, profession, or place.',
+    description:
+      'You have been closely involved with a group of people who share an interest, identity, profession, or place.',
+    reflectionPrompt:
+      'What did being part of this community help you understand about its people?',
+    placeholder:
+      'Being part of this community helped me notice...',
   },
   {
     id: 'seen_business',
     title: 'Seen how a business or industry works',
-    description: 'You have had a close enough view to notice how people buy, sell, deliver, compete, or make decisions.',
+    description:
+      'You have had a close enough view to notice how people buy, sell, deliver, compete, or make decisions.',
+    reflectionPrompt:
+      'What did you notice about how the business operates or makes money?',
+    placeholder:
+      'I noticed that the business...',
   },
   {
     id: 'lived_problem',
     title: 'Personally experienced a problem',
-    description: 'You have experienced a problem yourself rather than only hearing about it from someone else.',
+    description:
+      'You have experienced a problem yourself rather than only hearing about it from someone else.',
+    reflectionPrompt:
+      'What was difficult about this problem, and what do you wish had been different?',
+    placeholder:
+      'When I experienced this, I struggled with...',
   },
   {
     id: 'constraints',
     title: 'Worked around constraints',
-    description: 'You have had to get something done despite limited money, time, information, access, or other resources.',
+    description:
+      'You have had to get something done despite limited money, time, information, access, or other resources.',
+    reflectionPrompt:
+      'What was getting in your way, and how did you work around it?',
+    placeholder:
+      'I could not..., so I found a way to...',
   },
   {
     id: 'figure_it_out',
     title: 'Figured something out without much help',
-    description: 'You have had to navigate something unfamiliar and find your own way through it.',
+    description:
+      'You have had to navigate something unfamiliar and find your own way through it.',
+    reflectionPrompt:
+      'What did you have to figure out, and how did you find your way forward?',
+    placeholder:
+      'I did not know how to..., so I...',
   },
 ];
 
 function getSavedExperiences(
-  progress: NodeComponentProps['progress']
+  progress: NodeComponentProps['progress'],
 ): ExperienceEntry[] {
-  const context = $userContext.get().userContext?.experience as
+  const savedContext = $userContext.get().userContext?.experience as
     | ExperienceContext
     | null
     | undefined;
 
-  if (context && Array.isArray(context.items)) {
-    return context.items;
+  if (savedContext && Array.isArray(savedContext.items)) {
+    return savedContext.items;
   }
 
   const saved = progress.payload?.experience;
@@ -112,340 +191,434 @@ export function ExperienceMiner({
   progress,
   onComplete,
 }: NodeComponentProps) {
-  const savedExperiences = getSavedExperiences(progress);
+  const contextState = useStore($userContext);
 
-  const [items, setItems] = useState<ExperienceEntry[]>(savedExperiences);
+  const savedContext = contextState.userContext?.experience as
+    | ExperienceContext
+    | null
+    | undefined;
 
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    savedExperiences.map((item) => item.id)
+  const hasInitialized = useRef(false);
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+
+  const [activeExperienceId, setActiveExperienceId] = useState<string | null>(
+    null,
   );
-
-  const [isCommitted, setIsCommitted] = useState(
-    savedExperiences.length > 0 || progress.payload?.completed === true
-  );
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleSelection = (id: string) => {
-    if (isCommitted && !isEditing) return;
+  const activeExperience = experiences.find(
+    (experience) => experience.id === activeExperienceId,
+  );
 
-    setSelectedIds((current) => {
-      if (current.includes(id)) {
-        setItems((existing) => existing.filter((item) => item.id !== id));
-        return current.filter((item) => item !== id);
+  const selectedExperiences = useMemo(
+    () => experiences.filter((experience) => selectedIds.includes(experience.id)),
+    [selectedIds],
+  );
+
+  const canSave = draft.trim().length >= 10;
+
+  // Restore saved entries after user context has hydrated.
+  useEffect(() => {
+    if (!contextState.isHydrated || hasInitialized.current) return;
+
+    const contextItems = savedContext?.items;
+    const progressItems = getSavedExperiences(progress);
+
+    const initialItems = Array.isArray(contextItems)
+      ? contextItems
+      : progressItems;
+
+    setSelectedIds(initialItems.map((item) => item.id));
+    setEvidence(
+      Object.fromEntries(
+        initialItems.map((item) => [item.id, item.evidence]),
+      ),
+    );
+
+    hasInitialized.current = true;
+  }, [contextState.isHydrated, savedContext, progress]);
+
+  // Close the dialog with Escape without changing saved responses.
+  useEffect(() => {
+    if (!activeExperienceId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isSaving) {
+        setActiveExperienceId(null);
+        setError(null);
       }
+    }
 
-      return [...current, id];
-    });
-  };
+    window.addEventListener('keydown', handleKeyDown);
 
-  const getExperience = (id: string) =>
-    EXPERIENCES.find((experience) => experience.id === id);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeExperienceId, isSaving]);
 
-  const getEvidence = (id: string) =>
-    items.find((item) => item.id === id)?.evidence ?? '';
+  function openReflection(experience: ExperienceOption) {
+    setError(null);
+    setDraft(evidence[experience.id] ?? '');
+    setActiveExperienceId(experience.id);
+  }
 
-  const updateEvidence = (id: string, evidence: string) => {
-    setItems((current) => {
-      const existing = current.find((item) => item.id === id);
-      const experience = getExperience(id);
+  function closeReflection() {
+    if (isSaving) return;
 
-      if (!experience) return current;
+    setActiveExperienceId(null);
+    setError(null);
+  }
 
-      if (existing) {
-        return current.map((item) =>
-          item.id === id ? { ...item, evidence } : item
-        );
-      }
-
-      return [
-        ...current,
-        {
-          id,
-          title: experience.title,
-          evidence,
-        },
-      ];
-    });
-  };
-
-  const validItems = selectedIds
-    .map((id) => {
-      const experience = getExperience(id);
-      const evidence = getEvidence(id).trim();
-
-      if (!experience || evidence.length < 10) return null;
-
-      return {
+  function buildEntries(
+    ids: string[],
+    values: Record<string, string>,
+  ): ExperienceEntry[] {
+    return experiences
+      .filter((experience) => ids.includes(experience.id))
+      .map((experience) => ({
         id: experience.id,
         title: experience.title,
-        evidence,
-      };
-    })
-    .filter((item): item is ExperienceEntry => item !== null);
+        evidence: (values[experience.id] ?? '').trim(),
+      }));
+  }
 
-  const canSave =
-    selectedIds.length > 0 &&
-    selectedIds.every((id) => getEvidence(id).trim().length >= 10);
+  async function persistExperiences(
+    ids: string[],
+    values: Record<string, string>,
+  ) {
+    const items = buildEntries(ids, values);
 
-  async function handleSave() {
-    if (!canSave || isSubmitting) return;
+    const result = await updateUserProgramContext({
+      experience: { items },
+    });
 
-    setIsSubmitting(true);
+    userContextActions.updateContextLocally(result.userContext);
+
+    return items;
+  }
+
+  async function saveReflection() {
+    if (!activeExperience || !canSave || isSaving) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    const nextIds = selectedIds.includes(activeExperience.id)
+      ? selectedIds
+      : [...selectedIds, activeExperience.id];
+
+    const nextEvidence = {
+      ...evidence,
+      [activeExperience.id]: draft.trim(),
+    };
+
+    try {
+      await persistExperiences(nextIds, nextEvidence);
+
+      setSelectedIds(nextIds);
+      setEvidence(nextEvidence);
+      setActiveExperienceId(null);
+    } catch (err) {
+      console.error('[EXPERIENCE MINER SAVE]', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong saving your response. Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function removeExperience(id: string) {
+    if (isRemoving || isSaving || isCompleting) return;
+
+    const nextIds = selectedIds.filter((item) => item !== id);
+    const nextEvidence = { ...evidence };
+    delete nextEvidence[id];
+
+    setIsRemoving(id);
     setError(null);
 
     try {
-      const experience: ExperienceContext = {
-        items: validItems,
-      };
+      await persistExperiences(nextIds, nextEvidence);
 
-      const result = await updateUserProgramContext({
-        experience,
-      });
-
-      userContextActions.updateContextLocally(result.userContext);
-
-      setItems(validItems);
-      setSelectedIds(validItems.map((item) => item.id));
-      setIsCommitted(true);
-      setIsEditing(false);
+      setSelectedIds(nextIds);
+      setEvidence(nextEvidence);
     } catch (err) {
-      console.error('[EXPERIENCE MINER]', err);
-      setError('Something went wrong saving your response. Please try again.');
+      console.error('[EXPERIENCE MINER REMOVE]', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong removing this response. Please try again.',
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsRemoving(null);
     }
   }
 
-  async function handleComplete() {
-    if (isSubmitting) return;
+  async function handleContinue() {
+    if (selectedIds.length === 0 || isCompleting) return;
 
-    setIsSubmitting(true);
+    setIsCompleting(true);
+    setError(null);
+
+    const items = buildEntries(selectedIds, evidence);
 
     try {
+      await persistExperiences(selectedIds, evidence);
+
       await onComplete({
-        experience: {
-          items,
-        },
+        experience: { items },
         completed: true,
       });
+    } catch (err) {
+      console.error('[EXPERIENCE MINER COMPLETE]', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong completing this step. Please try again.',
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsCompleting(false);
     }
-  }
-
-  function handleEdit() {
-    setIsEditing(true);
-    setIsCommitted(false);
   }
 
   return (
-    <div className="w-full space-y-10">
-      <div className="space-y-4">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title || 'What have you already figured out?'}
-        </h2>
+    <div className="w-full space-y-10 pb-12">
+      <div className="max-w-3xl space-y-5">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {node.title}
+        </h1>
 
-        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You may not have started a business before. But you have lived through
-          things, solved problems, worked with people, and figured things out.
-          Some of that experience may matter more than you realise.
+        {node.description && (
+          <p className="whitespace-pre-line text-lg leading-8 text-muted-foreground">
+            {node.description}
+          </p>
+        )}
+
+        <p className="text-base leading-7 text-muted-foreground">
+          Choose experiences that genuinely apply to you. When you select one,
+          a window will open where you can describe what happened and what you
+          learned. Save each response to add it to your list. You can edit or
+          remove your responses at any time.
         </p>
       </div>
 
-      {isCommitted && !isEditing ? (
-        <div className="max-w-4xl space-y-8">
-          <div className="space-y-4">
-            <h3 className="text-xl font-medium">
-              These are things you have already lived through.
-            </h3>
+      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
+        {experiences.map((experience) => {
+          const isSelected = selectedIds.includes(experience.id);
+          const response = evidence[experience.id] ?? '';
+          const isRemovingThis = isRemoving === experience.id;
 
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-border bg-card p-6"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="h-3.5 w-3.5" />
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="font-heading text-xl font-medium">
-                        {item.title}
-                      </h4>
-
-                      <p className="text-base leading-7 text-muted-foreground">
-                        {item.evidence}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You don&apos;t need to call this business experience. It is simply
-            what you already know because you have lived it.
-          </p>
-
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={handleEdit}
-              disabled={isSubmitting}
-              className="h-12 gap-2 rounded-full px-6 text-base"
+          return (
+            <div
+              key={experience.id}
+              className={`relative self-start rounded-2xl border transition-all ${
+                isSelected
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
+              }`}
             >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
-
-            <Button
-              onClick={handleComplete}
-              disabled={isSubmitting}
-              className="h-12 gap-2 rounded-full px-8 text-base"
-            >
-              {isSubmitting ? 'Moving forward...' : 'Continue'}
-              {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4">
-            <h3 className="text-xl font-medium">
-              What have you already lived through or figured out?
-            </h3>
-
-            <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-              Choose the experiences that genuinely apply to you. You don&apos;t
-              need to choose everything.
-            </p>
-          </div>
-
-          <div className="grid max-w-5xl gap-4 sm:grid-cols-2">
-            {EXPERIENCES.map((option) => {
-              const isSelected = selectedIds.includes(option.id);
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => toggleSelection(option.id)}
-                  disabled={isSubmitting}
-                  className={`group relative flex items-start rounded-2xl border p-6 text-left transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                      : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex w-full items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <h4 className="font-heading text-xl font-medium">
-                        {option.title}
-                      </h4>
-
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        {option.description}
-                      </p>
-                    </div>
-
-                    <div
-                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                        isSelected
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border'
-                      }`}
-                    >
-                      {isSelected && <Check className="h-3.5 w-3.5" />}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedIds.length > 0 && (
-            <div className="max-w-4xl space-y-8">
-              <div className="space-y-3">
-                <h3 className="text-xl font-medium">
-                  Now tell us what you learned from it.
+              <button
+                type="button"
+                onClick={() => openReflection(experience)}
+                disabled={isSaving || Boolean(isRemoving) || isCompleting}
+                aria-label={
+                  isSelected
+                    ? `Edit response: ${experience.title}`
+                    : `Reflect on: ${experience.title}`
+                }
+                className="flex w-full flex-col items-start p-4 text-left sm:p-5"
+              >
+                <h3 className="font-heading text-xl font-medium leading-snug">
+                  {experience.title}
                 </h3>
 
-                <p className="text-base leading-7 text-muted-foreground">
-                  Describe what happened and what you figured out, noticed, or
-                  learned through the experience.
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {experience.description}
+                </p>
+
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
+                  {isSelected ? (
+                    <>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit your response
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      Add an example
+                    </>
+                  )}
+                </div>
+
+                {isSelected && response && (
+                  <p className="mt-4 line-clamp-3 w-full border-t border-border/70 pt-3 text-sm leading-6 text-muted-foreground">
+                    {response}
+                  </p>
+                )}
+              </button>
+
+              {isSelected && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${experience.title}`}
+                  title="Remove this experience"
+                  disabled={Boolean(isRemoving) || isSaving || isCompleting}
+                  onClick={() => void removeExperience(experience.id)}
+                  className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  {isRemovingThis ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {selectedExperiences.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {selectedExperiences.length}{' '}
+          {selectedExperiences.length === 1 ? 'experience' : 'experiences'}{' '}
+          saved. You can still edit or remove them.
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="max-w-4xl text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex max-w-4xl justify-end">
+        <Button
+          onClick={handleContinue}
+          disabled={
+            selectedIds.length === 0 ||
+            isCompleting ||
+            isSaving ||
+            Boolean(isRemoving)
+          }
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isCompleting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
+
+      {activeExperience && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeReflection();
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="experience-dialog-title"
+            className="my-auto w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                  Your experience
+                </p>
+
+                <h2
+                  id="experience-dialog-title"
+                  className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl"
+                >
+                  {activeExperience.title}
+                </h2>
+
+                <p className="leading-7 text-muted-foreground">
+                  {activeExperience.description}
                 </p>
               </div>
 
-              <div className="space-y-8">
-                {selectedIds.map((id) => {
-                  const experience = getExperience(id);
+              <button
+                type="button"
+                onClick={closeReflection}
+                disabled={isSaving}
+                aria-label="Close reflection"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-                  if (!experience) return null;
+            <div className="mt-7 space-y-4">
+              <label
+                htmlFor="experience-evidence"
+                className="block text-base font-medium leading-7"
+              >
+                {activeExperience.reflectionPrompt}
+              </label>
 
-                  return (
-                    <div
-                      key={id}
-                      className="space-y-4 rounded-2xl border border-border bg-card p-6"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="h-3.5 w-3.5" />
-                        </div>
+              <Textarea
+                id="experience-evidence"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={activeExperience.placeholder}
+                className="min-h-[160px] resize-y text-base leading-7"
+                disabled={isSaving}
+                autoFocus
+              />
 
-                        <div>
-                          <h4 className="font-heading text-xl font-medium">
-                            {experience.title}
-                          </h4>
-
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                            {experience.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <Textarea
-                        value={getEvidence(id)}
-                        onChange={(event) =>
-                          updateEvidence(id, event.target.value)
-                        }
-                        placeholder="What happened? What did you figure out, notice, or learn?"
-                        className="min-h-[140px] resize-none text-base leading-7"
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              <p className="text-sm leading-6 text-muted-foreground">
+                It does not need to be a big achievement. A specific example
+                of something you experienced, did, or learned is enough.
+              </p>
 
               {error && (
-                <p className="text-sm text-destructive">{error}</p>
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
               )}
 
-              <div className="flex items-center gap-4">
+              <div className="flex justify-end pt-2">
                 <Button
-                  onClick={handleSave}
-                  disabled={!canSave || isSubmitting}
-                  className="h-12 rounded-full px-8 text-base"
+                  onClick={saveReflection}
+                  disabled={!canSave || isSaving}
+                  className="h-12 gap-2 rounded-full px-8 text-base"
                 >
-                  {isSubmitting ? (
+                  {isSaving ? (
                     <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Saving...
                     </>
                   ) : (
-                    'Save this'
+                    <>
+                      Save experience
+                      <ArrowRight className="h-4 w-4" />
+                    </>
                   )}
                 </Button>
               </div>
             </div>
-          )}
-        </>
+          </section>
+        </div>
       )}
     </div>
   );
