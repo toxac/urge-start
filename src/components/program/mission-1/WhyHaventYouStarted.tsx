@@ -361,9 +361,9 @@ export function WhyHaventYouStarted({
                     ? `Edit response: ${option.title}`
                     : `Reflect on: ${option.title}`
                 }
-                className="flex w-full flex-col items-start p-5 pr-14 text-left sm:p-6 sm:pr-14"
+                className="flex w-full flex-col items-start p-4 text-left sm:p-5"
               >
-                <div className="flex w-full items-start justify-between gap-3">
+                <div className="flex w-full items-start gap-3">
                   <h3 className="font-heading text-xl font-medium leading-snug">
                     {option.title}
                   </h3>
@@ -377,7 +377,7 @@ export function WhyHaventYouStarted({
                   {option.description}
                 </p>
 
-                <div className="mt-4 flex items-center gap-2 text-xs font-medium text-primary">
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
                   {isSelected ? (
                     <>
                       <Pencil className="h-3.5 w-3.5" />
