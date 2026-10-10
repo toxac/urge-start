@@ -1,10 +1,14 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-import { getNode } from '@/program/index';
+import {
+  getMissionForNode,
+  getNode,
+} from '@/program/index';
 import { programComponentRegistry } from './componentRegistry';
 import { NodeFrame } from '@/components/layout/program/NodeFrame';
 import { $progress } from '@/lib/stores/progress';
@@ -25,7 +29,10 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
     return (
       <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
         <AlertCircle className="h-4 w-4" />
-        <p>Program node not found: <span className="font-mono">{nodeKey}</span></p>
+        <p>
+          Program node not found:{' '}
+          <span className="font-mono">{nodeKey}</span>
+        </p>
       </div>
     );
   }
@@ -36,35 +43,58 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
     return (
       <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
         <AlertCircle className="h-4 w-4" />
-        <p>Component not registered for key: <span className="font-mono">{node.component}</span></p>
+        <p>
+          Component not registered for key:{' '}
+          <span className="font-mono">{node.component}</span>
+        </p>
       </div>
     );
   }
 
-  // Retrieve any existing payload if the user is revisiting this node
-  // Your nanostore likely stores this in `payloads` or similar
+  const mission = getMissionForNode(nodeKey);
+
+  if (!mission) {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+        <AlertCircle className="h-4 w-4" />
+        <p>
+          Mission not found for node:{' '}
+          <span className="font-mono">{nodeKey}</span>
+        </p>
+      </div>
+    );
+  }
+
+  const quest = mission.quests.find((item) =>
+    item.nodes.some((questNode) => questNode.key === nodeKey),
+  );
+
+  const locationLabel = quest
+    ? `Quest ${quest.sequence}`
+    : `Mission ${mission.sequence}`;
+
   const nodeProgress = progressState.payloads?.[nodeKey] || {};
 
-  const handleComplete = async (payload?: Record<string, any>) => {
+  const handleComplete = async (
+    payload?: Record<string, any>,
+  ) => {
     if (isSubmitting) return;
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // The manager handles the server action AND updating the Nanostores
       const result = await completeProgramNode(nodeKey, payload || {});
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to complete step.');
       }
-
-      // We don't need to manually update state here because manager.ts just did it,
-      // which will instantly trigger a re-render to the next node.
-
     } catch (err: any) {
       console.error('[NODE RENDERER]', err);
-      setError('Something went wrong saving your progress. Please try again.');
-      setIsSubmitting(false); // Only toggle false on error, success unmounts this node
+      setError(
+        'Something went wrong saving your progress. Please try again.',
+      );
+      setIsSubmitting(false);
     }
   };
 
@@ -84,7 +114,7 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
       )}
 
       <div className={isSubmitting ? 'pointer-events-none opacity-50' : ''}>
-        <NodeFrame node={node}>
+        <NodeFrame node={node} locationLabel={locationLabel}>
           <div className={isSubmitting ? 'pointer-events-none opacity-50' : ''}>
             <Component
               node={node}
