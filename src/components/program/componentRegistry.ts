@@ -59,7 +59,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'asset_reveal': AssetReveal,
   'gap_action': GapAction,
   // M1Q3: Make the Ask
-  'asking_baseline': AskingBaseline,
+  'asking_baseline': StandardSetupFrame,
   'squad_builder': SquadBuilder,
   'visibility_action': VisibilityAction,
   'real_world_ask': RealWorldExperiment,

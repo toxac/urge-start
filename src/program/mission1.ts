@@ -295,13 +295,18 @@ You don't need to know how these connections might help you yet. For now, the go
           key: 'm1-q3-setup',
           sequence: 1,
           role: 'setup',
-          title: 'What makes asking hard?',
-          description:
-            'Asking can feel surprisingly difficult. You might worry that what you have is not good enough, that you are bothering someone, or that they will judge you. That hesitation can keep you working alone for much longer than you need to.',
-          prompt:
-            'Before we think about asking anyone for anything, let’s notice what happens inside you when you imagine making an ask.',
-          intent:
-            'Make the user aware that hesitation around asking can become a real roadblock, without asking them to solve or overcome it yet.',
+          title: 'When you need someone to say yes',
+          description: `Think of a time when you needed something important from another person.
+
+Maybe you needed an opportunity, a favour, an introduction, help with a problem, or a chance you couldn't create on your own. You had to ask. And the answer mattered to you.
+
+Perhaps you rehearsed what to say, put off asking, or worried about how the other person might respond. Perhaps you asked directly. Either way, you know something about what it feels like to need another person to say yes.
+
+Starting a business brings you back to this moment, again and again. You'll ask people to share their experiences, give you feedback, introduce you to someone, try something you've made, or pay for what you offer. You can't build a business entirely on your own, and you can't wait until every ask feels comfortable.
+
+In this quest, you'll explore how you respond when you need to ask for something. Not by guessing how confident you are, but by trying it, noticing what happens, and learning from the experience.`,
+          prompt: 'Let’s find out what happens when you ask.',
+          intent: 'Connect the familiar experience of asking for something important to the repeated asks involved in starting a business. Build readiness for real-world asking experiments without diagnosing the user or asking them to overcome their hesitation in advance.',
           component: 'asking_baseline',
           dependencies: ['m1-q2-action'],
         },
