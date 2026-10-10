@@ -32,13 +32,13 @@ export function StandardSetupFrame({
         </h1>
 
         {descriptionText && (
-          <p className="text-xl leading-relaxed text-muted-foreground">
-            {descriptionText}
-          </p>
+          <p className="whitespace-pre-line text-xl leading-relaxed text-muted-foreground">
+  {descriptionText}
+</p>
         )}
       </div>
 
-      <div className="pt-4">
+      <div className="flex justify-end pt-4">
         <Button
           onClick={() => onComplete({ completed: true })}
           className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"

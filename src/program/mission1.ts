@@ -159,7 +159,9 @@ export const mission1: ProgramMission = {
     // -------------------------------------------------------------------------
     // Quest 2 — What You Already Have
     // -------------------------------------------------------------------------
-
+/**
+ * 
+ */
     {
       key: 'q2',
       sequence: 2,
@@ -173,8 +175,11 @@ export const mission1: ProgramMission = {
           sequence: 1,
           role: 'setup',
           title: 'You are not starting from zero.',
-          description:
-            'It is easy to focus on everything you do not have yet. Before you do, let’s look at what is already around you.',
+          description: `Before you decide what you need to start a business, take stock of what you already have.
+
+In this quest, you'll explore the skills you've built, the experiences you've had, the people you know, and the resources you can draw on. You might discover useful strengths you take for granted, or realise you have more to work with than you thought.
+
+You don't need to have everything. The goal is to see what you can build on—and where there may be gaps to work around.`,
           prompt:
             'What are you starting with?',
           intent:
