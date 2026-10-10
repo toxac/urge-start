@@ -1,13 +1,34 @@
+
 'use client';
 
-import { useState } from 'react';
-import { ArrowRight, Check, Loader2, Pencil } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  Loader2,
+  Pencil,
+  PlusCircle,
+  X,
+} from 'lucide-react';
+import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+
 import { updateUserProgramContext } from '@/actions/user-context';
-import { userContextActions, $userContext } from '@/lib/stores/user-context';
+import {
+  $userContext,
+  userContextActions,
+} from '@/lib/stores/user-context';
+
+type CapabilityOption = {
+  id: string;
+  title: string;
+  description: string;
+  reflectionPrompt: string;
+  placeholder: string;
+};
 
 type CapabilityEntry = {
   id: string;
@@ -16,96 +37,135 @@ type CapabilityEntry = {
 };
 
 type CapabilitiesContext = {
-  items: CapabilityEntry[];
+  items?: CapabilityEntry[];
 };
 
-const CAPABILITIES = [
+const CAPABILITIES: CapabilityOption[] = [
   {
     id: 'make_clear',
     title: 'Make confusing things clear',
     description:
       'Turn something messy or complicated into something people can understand.',
+    reflectionPrompt:
+      'Think of a time you made something confusing easier to understand. What was happening, and what did you do?',
+    placeholder:
+      'Someone was struggling to understand..., so I...',
   },
   {
     id: 'organise',
     title: 'Organise people or things',
     description:
       'Bring order to moving parts and help things happen in the right order.',
+    reflectionPrompt:
+      'When have you brought order to something that felt disorganised? What did you do?',
+    placeholder:
+      'When things got disorganised, I...',
   },
   {
     id: 'find_information',
     title: 'Find information',
     description:
       'Track down useful information, answers, or resources when you need them.',
+    reflectionPrompt:
+      'Think of a time you tracked down information or found an answer others needed. How did you do it?',
+    placeholder:
+      'I needed to find out..., so I...',
   },
   {
     id: 'fix_things',
     title: 'Fix things when they break',
     description:
       'Figure out what went wrong and find a way to make it work again.',
+    reflectionPrompt:
+      'Tell us about a time something went wrong and you helped fix it. What happened?',
+    placeholder:
+      'When this stopped working..., I...',
   },
   {
     id: 'spot_problems',
     title: 'Spot problems',
     description:
       'Notice something that is not working, missing, or likely to become a problem.',
+    reflectionPrompt:
+      'Think of a time you noticed a problem that others had missed. What did you notice?',
+    placeholder:
+      'I noticed that..., and I...',
   },
   {
     id: 'find_workarounds',
     title: 'Find workarounds',
     description:
       'Keep moving when the obvious solution is unavailable.',
+    reflectionPrompt:
+      'When have you found another way forward because the usual approach was not possible?',
+    placeholder:
+      'I could not do it the usual way, so I...',
   },
   {
     id: 'explain',
     title: 'Explain difficult things',
     description:
       'Help someone understand something that was difficult or unfamiliar.',
+    reflectionPrompt:
+      'Tell us about a time you helped someone understand something difficult. How did you explain it?',
+    placeholder:
+      'Someone was trying to understand..., so I...',
   },
   {
     id: 'get_agreement',
     title: 'Get people to agree',
     description:
       'Bring different people around to an idea or a way forward.',
+    reflectionPrompt:
+      'Think of a time you helped people with different views find a way forward. What did you do?',
+    placeholder:
+      'People disagreed about..., and I...',
   },
   {
     id: 'build_things',
     title: 'Build things',
     description:
       'Turn an idea, plan, or problem into something real.',
+    reflectionPrompt:
+      'Tell us about something you helped create or bring to life. What was your part in it?',
+    placeholder:
+      'I wanted to make..., so I...',
   },
   {
     id: 'teach_self',
     title: 'Teach yourself new things',
     description:
       'Figure out how to learn something you did not already know.',
+    reflectionPrompt:
+      'Think of something you learned on your own because you needed to. How did you learn it?',
+    placeholder:
+      'I needed to learn..., so I...',
   },
   {
     id: 'connect_people',
     title: 'Connect people',
     description:
       'Know who might be useful to whom and help make the connection.',
+    reflectionPrompt:
+      'Tell us about a time you connected people who could help each other. What made you bring them together?',
+    placeholder:
+      'I knew that... could help..., so I...',
   },
   {
     id: 'simplify',
     title: 'Make things simpler',
     description:
       'Remove unnecessary complexity and find an easier way to do something.',
+    reflectionPrompt:
+      'Think of a time you made a task or process simpler. What was difficult before, and what did you change?',
+    placeholder:
+      'The old way of doing this was..., so I...',
   },
 ];
 
 function getSavedCapabilities(
-  progress: NodeComponentProps['progress']
+  progress: NodeComponentProps['progress'],
 ): CapabilityEntry[] {
-  const context = $userContext.get().userContext?.capabilities as
-    | CapabilitiesContext
-    | null
-    | undefined;
-
-  if (context && Array.isArray(context.items)) {
-    return context.items;
-  }
-
   const saved = progress.payload?.capabilities;
 
   if (
@@ -113,7 +173,7 @@ function getSavedCapabilities(
     typeof saved === 'object' &&
     Array.isArray((saved as CapabilitiesContext).items)
   ) {
-    return (saved as CapabilitiesContext).items;
+    return (saved as CapabilitiesContext).items ?? [];
   }
 
   return [];
@@ -124,366 +184,473 @@ export function CapabilityInventory({
   progress,
   onComplete,
 }: NodeComponentProps) {
-  const savedCapabilities = getSavedCapabilities(progress);
+  const contextState = useStore($userContext);
+  const hasInitialized = useRef(false);
 
-  const [items, setItems] =
-    useState<CapabilityEntry[]>(savedCapabilities);
+  const savedContext = contextState.userContext?.capabilities as
+    | CapabilitiesContext
+    | null
+    | undefined;
 
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    savedCapabilities.map((item) => item.id)
-  );
+  const progressPayload = progress.payload ?? {};
 
-  const [isCommitted, setIsCommitted] = useState(
-    savedCapabilities.length > 0 || progress.payload?.completed === true
-  );
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeOptionId, setActiveOptionId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleSelection = (id: string) => {
-    if (isCommitted && !isEditing) return;
+  const activeOption = CAPABILITIES.find(
+    (option) => option.id === activeOptionId,
+  );
 
-    setSelectedIds((current) => {
-      if (current.includes(id)) {
-        setItems((existing) =>
-          existing.filter((item) => item.id !== id)
-        );
+  const selectedOptions = useMemo(
+    () =>
+      CAPABILITIES.filter((option) =>
+        selectedIds.includes(option.id),
+      ),
+    [selectedIds],
+  );
 
-        return current.filter((item) => item !== id);
-      }
+  const canSave = draft.trim().length >= 10;
 
-      return [...current, id];
-    });
-  };
+  useEffect(() => {
+    if (!contextState.isHydrated || hasInitialized.current) return;
 
-  const getCapability = (id: string) =>
-    CAPABILITIES.find((capability) => capability.id === id);
+    const contextItems = savedContext?.items;
+    const progressItems = getSavedCapabilities(progress);
 
-  const getEvidence = (id: string) =>
-    items.find((item) => item.id === id)?.evidence ?? '';
+    const initialItems = Array.isArray(contextItems)
+      ? contextItems
+      : progressItems;
 
-  const updateEvidence = (id: string, evidence: string) => {
-    setItems((current) => {
-      const existing = current.find((item) => item.id === id);
-      const capability = getCapability(id);
+    setSelectedIds(initialItems.map((item) => item.id));
 
-      if (!capability) return current;
-
-      if (existing) {
-        return current.map((item) =>
-          item.id === id ? { ...item, evidence } : item
-        );
-      }
-
-      return [
-        ...current,
-        {
-          id,
-          title: capability.title,
-          evidence,
-        },
-      ];
-    });
-  };
-
-  const validItems = selectedIds
-    .map((id) => {
-      const capability = getCapability(id);
-      const evidence = getEvidence(id).trim();
-
-      if (!capability || evidence.length < 10) return null;
-
-      return {
-        id: capability.id,
-        title: capability.title,
-        evidence,
-      };
-    })
-    .filter((item): item is CapabilityEntry => item !== null);
-
-  const canSave =
-    selectedIds.length > 0 &&
-    selectedIds.every(
-      (id) => getEvidence(id).trim().length >= 10
+    setEvidence(
+      Object.fromEntries(
+        initialItems.map((item) => [item.id, item.evidence]),
+      ),
     );
 
-  async function handleSave() {
-    if (!canSave || isSubmitting) return;
+    hasInitialized.current = true;
+  }, [
+    contextState.isHydrated,
+    savedContext,
+    progressPayload,
+  ]);
 
-    setIsSubmitting(true);
+  useEffect(() => {
+    if (!activeOptionId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isSaving) {
+        setActiveOptionId(null);
+        setError(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeOptionId, isSaving]);
+
+  function openReflection(option: CapabilityOption) {
+    setError(null);
+    setDraft(evidence[option.id] ?? '');
+    setActiveOptionId(option.id);
+  }
+
+  function closeReflection() {
+    if (isSaving) return;
+
+    setActiveOptionId(null);
+    setError(null);
+  }
+
+  function buildCapabilities(
+    ids: string[],
+    values: Record<string, string>,
+  ): CapabilityEntry[] {
+    return CAPABILITIES
+      .filter((option) => ids.includes(option.id))
+      .map((option) => ({
+        id: option.id,
+        title: option.title,
+        evidence: (values[option.id] ?? '').trim(),
+      }));
+  }
+
+  async function persistCapabilities(
+    ids: string[],
+    values: Record<string, string>,
+  ) {
+    const capabilities: CapabilitiesContext = {
+      items: buildCapabilities(ids, values),
+    };
+
+    const result = await updateUserProgramContext({
+      capabilities,
+    });
+
+    userContextActions.updateContextLocally(result.userContext);
+
+    return capabilities.items ?? [];
+  }
+
+  async function saveReflection() {
+    if (!activeOption || !canSave || isSaving) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    const nextIds = selectedIds.includes(activeOption.id)
+      ? selectedIds
+      : [...selectedIds, activeOption.id];
+
+    const nextEvidence = {
+      ...evidence,
+      [activeOption.id]: draft.trim(),
+    };
+
+    try {
+      await persistCapabilities(nextIds, nextEvidence);
+
+      setSelectedIds(nextIds);
+      setEvidence(nextEvidence);
+      setActiveOptionId(null);
+    } catch (err) {
+      console.error('[CAPABILITY INVENTORY SAVE]', err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong saving your response.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function removeCapability(id: string) {
+    if (isRemoving || isSaving || isCompleting) return;
+
+    const nextIds = selectedIds.filter((item) => item !== id);
+    const nextEvidence = { ...evidence };
+    delete nextEvidence[id];
+
+    setIsRemoving(id);
     setError(null);
 
     try {
-      const capabilities: CapabilitiesContext = {
-        items: validItems,
-      };
+      await persistCapabilities(nextIds, nextEvidence);
 
-      const result = await updateUserProgramContext({
-        capabilities,
-      });
-
-      userContextActions.updateContextLocally(result.userContext);
-
-      setItems(validItems);
-      setSelectedIds(validItems.map((item) => item.id));
-      setIsCommitted(true);
-      setIsEditing(false);
+      setSelectedIds(nextIds);
+      setEvidence(nextEvidence);
     } catch (err) {
-      console.error('[CAPABILITY INVENTORY]', err);
+      console.error('[CAPABILITY INVENTORY REMOVE]', err);
+
       setError(
-        'Something went wrong saving your response. Please try again.'
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong removing this response.',
       );
     } finally {
-      setIsSubmitting(false);
+      setIsRemoving(null);
     }
   }
 
-  async function handleComplete() {
-    if (isSubmitting) return;
+  async function handleContinue() {
+    if (
+      selectedIds.length === 0 ||
+      isCompleting ||
+      isSaving ||
+      isRemoving
+    ) {
+      return;
+    }
 
-    setIsSubmitting(true);
+    setIsCompleting(true);
+    setError(null);
+
+    const capabilities = buildCapabilities(selectedIds, evidence);
 
     try {
+      await persistCapabilities(selectedIds, evidence);
+
       await onComplete({
         capabilities: {
-          items,
+          items: capabilities,
         },
         completed: true,
       });
+    } catch (err) {
+      console.error('[CAPABILITY INVENTORY COMPLETE]', err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong completing this step.',
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsCompleting(false);
     }
   }
 
-  function handleEdit() {
-    setIsEditing(true);
-    setIsCommitted(false);
-  }
-
   return (
-    <div className="w-full space-y-10">
-      <div className="space-y-4">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title || 'What can you already do?'}
-        </h2>
+    <div className="w-full space-y-10 pb-12">
+      <div className="max-w-3xl space-y-5">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {node.title}
+        </h1>
 
-        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
+        <p className="text-lg leading-8 text-muted-foreground">
           You may not think of yourself as particularly skilled at
-          business yet. That&apos;s okay. Think about the things
-          people already rely on you to do — at work, at home, in
-          your community, or just because you&apos;re the person who
-          figures things out.
+          business yet. That&apos;s okay. Think about the things people
+          already rely on you to do — at work, at home, in your
+          community, or just because you&apos;re the person who figures
+          things out.
+        </p>
+
+        <p className="text-base leading-7 text-muted-foreground">
+          Choose the statements that feel familiar. When you select one,
+          you&apos;ll reflect on a real example from your own experience.
+          You can edit or remove your responses at any time.
         </p>
       </div>
 
-      {isCommitted && !isEditing ? (
-        <div className="max-w-4xl space-y-8">
-          <div className="space-y-4">
-            <h3 className="text-xl font-medium">
-              These are things you already know how to do.
-            </h3>
+      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
+        {CAPABILITIES.map((option) => {
+          const isSelected = selectedIds.includes(option.id);
+          const reflection = evidence[option.id] ?? '';
+          const isRemovingThis = isRemoving === option.id;
 
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-border bg-card p-6"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="h-3.5 w-3.5" />
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="font-heading text-xl font-medium">
-                        {item.title}
-                      </h4>
-
-                      <p className="text-base leading-7 text-muted-foreground">
-                        {item.evidence}
-                      </p>
-                    </div>
-                  </div>
+          return (
+            <div
+              key={option.id}
+              className={`relative self-start rounded-2xl border transition-all ${
+                isSelected
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => openReflection(option)}
+                disabled={
+                  isSaving || Boolean(isRemoving) || isCompleting
+                }
+                aria-label={
+                  isSelected
+                    ? `Edit evidence: ${option.title}`
+                    : `Reflect on: ${option.title}`
+                }
+                className="flex w-full flex-col items-start p-4 text-left sm:p-5"
+              >
+                <div className="flex w-full items-start gap-3">
+                  <h3 className="font-heading text-xl font-medium leading-snug">
+                    {option.title}
+                  </h3>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You don&apos;t need to turn these into a business right
-            now. Just notice that you are bringing abilities with
-            you. You are not starting from zero.
-          </p>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {option.description}
+                </p>
 
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={handleEdit}
-              disabled={isSubmitting}
-              className="h-12 gap-2 rounded-full px-6 text-base"
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
+                  {isSelected ? (
+                    <>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit your example
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      Add an example
+                    </>
+                  )}
+                </div>
 
-            <Button
-              onClick={handleComplete}
-              disabled={isSubmitting}
-              className="h-12 gap-2 rounded-full px-8 text-base"
-            >
-              {isSubmitting ? 'Moving forward...' : 'Continue'}
-              {!isSubmitting && <ArrowRight className="h-5 w-5" />}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h3 className="text-xl font-medium">
-                What do people already rely on you to do?
-              </h3>
+                {isSelected && reflection && (
+                  <p className="mt-4 line-clamp-3 w-full border-t border-border/70 pt-3 text-sm leading-6 text-muted-foreground">
+                    {reflection}
+                  </p>
+                )}
+              </button>
 
-              {selectedIds.length > 0 && (
-                <span className="text-sm font-medium text-muted-foreground">
-                  {selectedIds.length}{' '}
-                  {selectedIds.length === 1
-                    ? 'capability'
-                    : 'capabilities'}{' '}
-                  selected
-                </span>
+              {isSelected && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${option.title}`}
+                  title="Remove this selection"
+                  disabled={
+                    Boolean(isRemoving) || isSaving || isCompleting
+                  }
+                  onClick={() => void removeCapability(option.id)}
+                  className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  {isRemovingThis ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </button>
               )}
             </div>
+          );
+        })}
+      </div>
 
-            <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-              Choose every one that genuinely fits. There is no
-              limit. If they all fit, choose them all. For each one,
-              you&apos;ll give us a real example.
-            </p>
-          </div>
+      {selectedOptions.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {selectedOptions.length}{' '}
+          {selectedOptions.length === 1 ? 'example' : 'examples'} saved.
+          You can still edit or remove them.
+        </p>
+      )}
 
-          <div className="grid max-w-5xl gap-4 sm:grid-cols-2">
-            {CAPABILITIES.map((option) => {
-              const isSelected = selectedIds.includes(option.id);
+      {error && (
+        <p role="alert" className="max-w-4xl text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => toggleSelection(option.id)}
-                  disabled={isSubmitting}
-                  className={`group relative flex items-start rounded-2xl border p-6 text-left transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                      : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex w-full items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <h4 className="font-heading text-xl font-medium">
-                        {option.title}
-                      </h4>
+      <div className="flex max-w-4xl justify-end">
+        <Button
+          onClick={handleContinue}
+          disabled={
+            selectedIds.length === 0 ||
+            isCompleting ||
+            isSaving ||
+            Boolean(isRemoving)
+          }
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isCompleting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
 
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        {option.description}
-                      </p>
-                    </div>
-
-                    <div
-                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                        isSelected
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border'
-                      }`}
-                    >
-                      {isSelected && (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedIds.length > 0 && (
-            <div className="max-w-4xl space-y-8">
+      {activeOption && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeReflection();
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="capability-dialog-title"
+            className="my-auto w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
               <div className="space-y-3">
-                <h3 className="text-xl font-medium">
-                  Now give us the evidence.
-                </h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                  Your experience
+                </p>
 
-                <p className="text-base leading-7 text-muted-foreground">
-                  For each one you selected, tell us about a real
-                  situation where you did this.
+                <h2
+                  id="capability-dialog-title"
+                  className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl"
+                >
+                  {activeOption.title}
+                </h2>
+
+                <p className="leading-7 text-muted-foreground">
+                  {activeOption.description}
                 </p>
               </div>
 
-              <div className="space-y-8">
-                {selectedIds.map((id) => {
-                  const capability = getCapability(id);
+              <button
+                type="button"
+                onClick={closeReflection}
+                disabled={isSaving}
+                aria-label="Close reflection"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-                  if (!capability) return null;
+            <div className="mt-7 space-y-4">
+              <label
+                htmlFor="capability-evidence"
+                className="block text-base font-medium leading-7"
+              >
+                {activeOption.reflectionPrompt}
+              </label>
 
-                  return (
-                    <div
-                      key={id}
-                      className="space-y-4 rounded-2xl border border-border bg-card p-6"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="h-3.5 w-3.5" />
-                        </div>
+              <Textarea
+                id="capability-evidence"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={activeOption.placeholder}
+                rows={6}
+                autoFocus
+                disabled={isSaving}
+                className="resize-y text-base leading-7"
+              />
 
-                        <div>
-                          <h4 className="font-heading text-xl font-medium">
-                            {capability.title}
-                          </h4>
-
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                            {capability.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <Textarea
-                        value={getEvidence(id)}
-                        onChange={(event) =>
-                          updateEvidence(id, event.target.value)
-                        }
-                        placeholder="For example: My team often gives me messy problems because I’m good at breaking them down..."
-                        className="min-h-[140px] resize-none text-base leading-7"
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Use a real example, even if it seems small. There is no
+                need to make it sound impressive. We want to understand
+                what you actually did.
+              </p>
 
               {error && (
-                <p className="text-sm text-destructive">{error}</p>
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
               )}
-
-              <div className="flex items-center gap-4">
-                <Button
-                  onClick={handleSave}
-                  disabled={!canSave || isSubmitting}
-                  className="h-12 rounded-full px-8 text-base"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save this'
-                  )}
-                </Button>
-              </div>
             </div>
-          )}
-        </>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeReflection}
+                disabled={isSaving}
+                className="h-11 rounded-full px-6"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={saveReflection}
+                disabled={!canSave || isSaving}
+                className="h-11 gap-2 rounded-full px-6"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Save example
+                  </>
+                )}
+              </Button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
