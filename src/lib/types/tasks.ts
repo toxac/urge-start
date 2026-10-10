@@ -13,6 +13,7 @@ export type UserTaskUpdate = TablesUpdate<'user_tasks'>;
 
 export type UserTaskType =
   | 'general'
+  | 'habit'
   | 'venture'
   | 'practice'
   | 'anchor';
