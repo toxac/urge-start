@@ -70,6 +70,140 @@ export type Database = {
           },
         ]
       }
+      content_comments: {
+        Row: {
+          body: string
+          content_id: string
+          created_at: string
+          id: string
+          parent_id: string | null
+          response_type: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          content_id: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          response_type?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          content_id?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          response_type?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_comments_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "user_content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_comments_parent_same_post_fk"
+            columns: ["parent_id", "content_id"]
+            isOneToOne: false
+            referencedRelation: "content_comments"
+            referencedColumns: ["id", "content_id"]
+          },
+        ]
+      }
+      content_reactions: {
+        Row: {
+          content_id: string
+          created_at: string
+          id: string
+          reaction_type: string
+          user_id: string
+        }
+        Insert: {
+          content_id: string
+          created_at?: string
+          id?: string
+          reaction_type: string
+          user_id: string
+        }
+        Update: {
+          content_id?: string
+          created_at?: string
+          id?: string
+          reaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_reactions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "user_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_reports: {
+        Row: {
+          comment_id: string | null
+          content_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reporter_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          comment_id?: string | null
+          content_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reporter_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          comment_id?: string | null
+          content_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_reports_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "content_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "user_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discounts: {
         Row: {
           code: string
@@ -379,42 +513,45 @@ export type Database = {
       user_content: {
         Row: {
           body: string
-          content_type: string
+          category: string | null
           created_at: string
           id: string
           metadata: Json
+          post_intent: string | null
           published_at: string | null
           source_id: string | null
           source_type: string | null
-          status: Database["public"]["Enums"]["content_status"]
+          status: string
           title: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           body: string
-          content_type: string
+          category?: string | null
           created_at?: string
           id?: string
           metadata?: Json
+          post_intent?: string | null
           published_at?: string | null
           source_id?: string | null
           source_type?: string | null
-          status?: Database["public"]["Enums"]["content_status"]
+          status?: string
           title?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           body?: string
-          content_type?: string
+          category?: string | null
           created_at?: string
           id?: string
           metadata?: Json
+          post_intent?: string | null
           published_at?: string | null
           source_id?: string | null
           source_type?: string | null
-          status?: Database["public"]["Enums"]["content_status"]
+          status?: string
           title?: string | null
           updated_at?: string
           user_id?: string
