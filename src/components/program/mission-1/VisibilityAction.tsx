@@ -42,7 +42,7 @@ export function VisibilityAction({
         try {
             await createUserContent({
                 title: 'My Urge introduction',
-                content_type: 'introduction',
+                category: 'introduction',
                 body: body.trim(),
                 status: 'published',
                 source_type: 'program_node',
