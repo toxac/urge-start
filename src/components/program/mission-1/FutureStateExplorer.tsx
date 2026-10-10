@@ -141,24 +141,18 @@ export function FutureStateExplorer({
             </h1>
 
             <p className="text-lg leading-8 text-muted-foreground">
-              You have looked at what gets in your way and
-              what keeps bringing you back.
+              You have looked at what gets in your way and what keeps bringing you back. Now imagine that, somehow, you've taken the first steps. You've started something of your own. It's no longer just an idea you've been thinking about — it's becoming part of your life.
             </p>
 
             <p className="text-lg leading-8 text-muted-foreground">
-              Now imagine that you actually make this happen.
-              Not the business plan. Not the numbers. Your
-              life.
+              Picture an ordinary day a little further down the road. Think about how you spend your time, the choices you get to make, the people you work with, and the things you feel at the end of the day.
             </p>
 
-            <p className="text-lg leading-8 text-muted-foreground">
-              What would be different?
-            </p>
           </div>
 
           <div className="max-w-3xl space-y-5">
             <label className="text-lg font-medium text-foreground">
-              If you make this happen, what changes for you?
+              If you make this happen, what would change in your life?
             </label>
 
             <Textarea
@@ -172,7 +166,7 @@ export function FutureStateExplorer({
               rows={10}
               autoFocus
               disabled={isSaving}
-              className="resize-none text-base leading-7"
+              className="resize-none text-base leading-7 mt-2"
             />
 
             <div className="space-y-2">

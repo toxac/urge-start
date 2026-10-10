@@ -77,6 +77,7 @@ There may be practical reasons for waiting. There may also be fear, uncertainty,
 - **Description:** Something keeps pulling you toward this, even when the barriers are still there. That pull matters.
 - **Component:** `motivation_explorer` `<MotivationExplorer>`
 
+
 ### `m1-q1-future` — What would be different?
 
 - **Key:** `m1-q1-future`
