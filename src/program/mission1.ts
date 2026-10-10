@@ -159,9 +159,9 @@ export const mission1: ProgramMission = {
     // -------------------------------------------------------------------------
     // Quest 2 — What You Already Have
     // -------------------------------------------------------------------------
-/**
- * 
- */
+    /**
+     * 
+     */
     {
       key: 'q2',
       sequence: 2,
@@ -208,12 +208,13 @@ You don't need to have everything. The goal is to see what you can build on—an
           sequence: 3,
           role: 'investigation',
           title: 'Who is already within reach?',
-          description:
-            'You do not have to build everything alone. Start with the people you already know or can realistically approach.',
+          description: `Think about the people you know, the groups you're part of, and the communities you can access.
+
+You don't need to know how these connections might help you yet. For now, the goal is to recognise who's already around you and make a record you can return to as you explore opportunities.`,
           prompt:
             'Who could you talk to, learn from, or ask for help?',
           intent:
-            'Identify people the user can realistically approach.',
+            'Build an inventory of the people, groups and communities the user already has connections to.',
           component: 'contact_inventory',
           dependencies: ['m1-q2-inventory'],
         },
