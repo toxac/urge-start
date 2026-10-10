@@ -5,40 +5,39 @@ import Link from 'next/link';
 import { MessageCircle, ThumbsUp } from 'lucide-react';
 import type { Tables } from '@/database.types';
 import ForumReactionButton from './ForumReactionButton';
-
-type ForumPost = Tables<'forum_posts'>;
+import type { ForumPost } from '@/lib/types/forum';
+import {
+  intentLabels,
+  categoryLabels,
+  intentStyles,
+} from '@/lib/types/forum';
 
 type ForumPostCardProps = {
-    post: ForumPost;
-    onReact?: (postId: string) => void;
-    reacting?: boolean;
+  post: ForumPost;
+  onReact?: (postId: string) => void;
+  reacting?: boolean;
 };
 
-const intentLabels: Record<string, string> = {
-    insight: 'Insight',
-    experiment: 'Experiment',
-    question: 'Question',
-    reflection: 'Reflection',
-    milestone: 'Milestone',
-};
 
-const categoryLabels: Record<string, string> = {
-    introduction: 'Introduction',
-    opportunity: 'Opportunity',
-    test: 'Testing an idea',
-    planning: 'Planning',
-    build: 'Building',
-    launch: 'Launch',
-    operate: 'Operations',
-};
+function getCategoryLabel(category: string | null): string | null {
+  if (!category || !(category in categoryLabels)) return null;
 
-const intentStyles: Record<string, string> = {
-    insight: 'bg-amber-50 text-amber-800',
-    experiment: 'bg-sky-50 text-sky-800',
-    question: 'bg-violet-50 text-violet-800',
-    reflection: 'bg-rose-50 text-rose-800',
-    milestone: 'bg-emerald-50 text-emerald-800',
-};
+  return categoryLabels[category as keyof typeof categoryLabels];
+}
+
+function getIntentLabel(intent: string | null): string | null {
+  if (!intent || !(intent in intentLabels)) return null;
+
+  return intentLabels[intent as keyof typeof intentLabels];
+}
+
+function getIntentStyle(intent: string | null): string {
+  if (!intent || !(intent in intentStyles)) {
+    return 'bg-gray-100 text-gray-700';
+  }
+
+  return intentStyles[intent as keyof typeof intentStyles];
+}
 
 function formatRelativeDate(date: string | null) {
     if (!date) return '';
@@ -146,17 +145,17 @@ export default function ForumPostCard({
             <div className="mt-4 flex flex-wrap items-center gap-2">
                 {category && (
                     <span className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                        {categoryLabels[category] ?? category}
+                        {getCategoryLabel(category) ?? category}
                     </span>
                 )}
 
                 {intent && (
                     <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${intentStyles[intent] ??
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getIntentStyle(intent) ??
                             'bg-muted text-muted-foreground'
                             }`}
                     >
-                        {intentLabels[intent] ?? intent}
+                        {getIntentLabel(intent) ?? intent}
                     </span>
                 )}
             </div>
