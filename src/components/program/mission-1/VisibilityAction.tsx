@@ -1,9 +1,12 @@
+
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight,  Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { createUserContent } from '@/actions/user-content';
@@ -16,8 +19,16 @@ export function VisibilityAction({
 }: NodeComponentProps) {
     const saved = progress.payload ?? {};
 
+    const [title, setTitle] = useState(
+        typeof saved.title === 'string' ? saved.title : ''
+    );
+
     const [body, setBody] = useState(
         typeof saved.body === 'string' ? saved.body : ''
+    );
+
+    const [postId, setPostId] = useState<string | null>(
+        typeof saved.postId === 'string' ? saved.postId : null
     );
 
     const [step, setStep] = useState<'write' | 'published' | 'done'>(
@@ -31,7 +42,10 @@ export function VisibilityAction({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const canPublish = body.trim().length >= 20;
+    const canPublish =
+        title.trim().length > 0 &&
+        title.trim().length <= 200 &&
+        body.trim().length >= 20;
 
     async function handlePublish() {
         if (!canPublish || isSubmitting) return;
@@ -40,8 +54,8 @@ export function VisibilityAction({
         setError(null);
 
         try {
-            await createUserContent({
-                title: 'My Urge introduction',
+            const result = await createUserContent({
+                title: title.trim(),
                 category: 'introduction',
                 body: body.trim(),
                 status: 'published',
@@ -53,6 +67,7 @@ export function VisibilityAction({
                 },
             });
 
+            setPostId(result.content.id);
             setStep('published');
         } catch (err) {
             console.error(err);
@@ -97,11 +112,13 @@ export function VisibilityAction({
                 </div>
 
                 <Button
-                    onClick={() => onComplete({
-                        body: body.trim(),
-                        published: true,
-                        completed: true,
-                    })}
+                    onClick={() =>
+                        onComplete({
+                            body: body.trim(),
+                            published: true,
+                            completed: true,
+                        })
+                    }
                     disabled={isSubmitting}
                     className="h-12 gap-2 rounded-full px-8 text-base"
                 >
@@ -125,9 +142,25 @@ export function VisibilityAction({
                     </h2>
 
                     <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8">
+                        <h3 className="mb-3 text-xl font-semibold text-foreground">
+                            {title}
+                        </h3>
+
                         <p className="whitespace-pre-wrap text-lg leading-8 text-foreground">
                             “{body}”
                         </p>
+
+                        {postId && (
+                            <p className="mt-5 text-sm">
+                                <Link
+                                    href={`/community/forum/${postId}`}
+                                    className="font-medium text-primary underline underline-offset-4"
+                                >
+                                    View your introduction
+                                    <span aria-hidden="true"> →</span>
+                                </Link>
+                            </p>
+                        )}
                     </div>
 
                     <p className="text-lg leading-8 text-muted-foreground">
@@ -198,6 +231,24 @@ export function VisibilityAction({
                         people know who is here.
                     </p>
                 </div>
+            </div>
+
+            <div className="space-y-3">
+                <label
+                    htmlFor="introduction-title"
+                    className="text-lg font-medium text-foreground"
+                >
+                    Title
+                </label>
+
+                <Input
+                    id="introduction-title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="A little about me"
+                    maxLength={200}
+                    disabled={isSubmitting}
+                />
             </div>
 
             <div className="space-y-3">
