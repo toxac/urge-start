@@ -12,10 +12,6 @@ export type UserContentInsert = TablesInsert<'user_content'>;
 
 export type UserContentUpdate = TablesUpdate<'user_content'>;
 
-/**
- * What the post relates to in the Urge journey.
- * Nullable in the database for general community posts.
- */
 export type UserContentCategory =
   | 'introduction'
   | 'opportunity'
@@ -25,9 +21,6 @@ export type UserContentCategory =
   | 'launch'
   | 'operate';
 
-/**
- * Why the member is posting.
- */
 export type UserContentIntent =
   | 'insight'
   | 'experiment'
@@ -35,24 +28,27 @@ export type UserContentIntent =
   | 'reflection'
   | 'milestone';
 
-export type UserContentStatus = UserContent['status'];
+export type UserContentStatus =
+  | 'draft'
+  | 'published'
+  | 'hidden'
+  | 'archived';
 
 export type UserContentMetadata = Json;
 
-/**
- * Input for creating content.
- * user_id is supplied by the trusted server-side action.
- */
 export type CreateUserContentInput = Omit<
   UserContentInsert,
-  'user_id'
->;
+  'user_id' | 'status' | 'published_at'
+> & {
+  status?: 'draft' | 'published';
+  category?: UserContentCategory | null;
+  post_intent?: UserContentIntent | null;
+};
 
-/**
- * Input for updating content.
- * Ownership must be enforced server-side and by RLS.
- */
 export type UpdateUserContentInput = Omit<
   UserContentUpdate,
   'user_id'
->;
+> & {
+  category?: UserContentCategory | null;
+  post_intent?: UserContentIntent | null;
+};
