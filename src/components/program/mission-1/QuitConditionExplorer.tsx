@@ -1,11 +1,14 @@
+
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
-  ChevronLeft,
   Loader2,
+  Pencil,
+  PlusCircle,
+  X,
 } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 
@@ -45,8 +48,7 @@ const quitOptions: QuitOption[] = [
       'The cost of continuing starts to feel greater than what I can afford.',
     reflectionPrompt:
       'What would “this is costing me too much” look like for you?',
-    placeholder:
-      'I would start thinking about stopping if...',
+    placeholder: 'I would start thinking about stopping if...',
   },
   {
     id: 'rejection',
@@ -55,8 +57,7 @@ const quitOptions: QuitOption[] = [
       'Repeated rejection or lack of response could make you question whether it is worth continuing.',
     reflectionPrompt:
       'How might repeated rejection affect your willingness to keep going?',
-    placeholder:
-      'If people kept saying no, I might...',
+    placeholder: 'If people kept saying no, I might...',
   },
   {
     id: 'slow_progress',
@@ -65,8 +66,7 @@ const quitOptions: QuitOption[] = [
       'You keep putting in effort but do not see enough progress to believe it is working.',
     reflectionPrompt:
       'How long could you keep going without seeing meaningful progress?',
-    placeholder:
-      'If I kept working but saw no progress...',
+    placeholder: 'If I kept working but saw no progress...',
   },
   {
     id: 'loss_of_interest',
@@ -75,8 +75,7 @@ const quitOptions: QuitOption[] = [
       'The excitement fades, the problem no longer feels important, or something else starts to matter more.',
     reflectionPrompt:
       'What might make you genuinely lose interest in continuing?',
-    placeholder:
-      'I might stop caring about it if...',
+    placeholder: 'I might stop caring about it if...',
   },
   {
     id: 'life',
@@ -85,8 +84,7 @@ const quitOptions: QuitOption[] = [
       'Family, work, health, relationships, or other responsibilities become harder to balance.',
     reflectionPrompt:
       'What could happen in your life that would make continuing difficult?',
-    placeholder:
-      'If life became difficult because...',
+    placeholder: 'If life became difficult because...',
   },
   {
     id: 'self_doubt',
@@ -95,8 +93,7 @@ const quitOptions: QuitOption[] = [
       'Setbacks could turn into a belief that you are not capable of making this work.',
     reflectionPrompt:
       'What kind of setback could make you start doubting yourself?',
-    placeholder:
-      'I might start thinking I cannot do this if...',
+    placeholder: 'I might start thinking I cannot do this if...',
   },
 ];
 
@@ -107,215 +104,212 @@ export function QuitConditionExplorer({
 }: NodeComponentProps) {
   const contextState = useStore($userContext);
 
-  const savedContext =
-    contextState.userContext?.quit_conditions as
-      | QuitConditionsContext
-      | null
-      | undefined;
-
-  const savedConditions = Array.isArray(
-    savedContext?.conditions
-  )
-    ? savedContext.conditions
-    : [];
+  const savedContext = contextState.userContext?.quit_conditions as
+    | QuitConditionsContext
+    | null
+    | undefined;
 
   const progressPayload = progress.payload ?? {};
+  const hasInitialized = useRef(false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [reflections, setReflections] = useState<
-    Record<string, string>
-  >({});
+  const [reflections, setReflections] = useState<Record<string, string>>(
+    {},
+  );
 
-  const [mode, setMode] = useState<
-    'select' | 'reflect' | 'review'
-  >('select');
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-
+  const [activeOptionId, setActiveOptionId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeOption = quitOptions.find(
+    (option) => option.id === activeOptionId,
+  );
+
+  const selectedOptions = useMemo(
+    () => quitOptions.filter((option) => selectedIds.includes(option.id)),
+    [selectedIds],
+  );
+
+  const canSave = draft.trim().length >= 10;
+
+  // Restore saved responses from context, falling back to node progress.
   useEffect(() => {
-    if (!contextState.isHydrated) return;
+    if (!contextState.isHydrated || hasInitialized.current) return;
 
-    if (savedConditions.length > 0) {
-      setSelectedIds(
-        savedConditions.map((condition) => condition.id)
-      );
-
-      setReflections(
-        Object.fromEntries(
-          savedConditions.map((condition) => [
-            condition.id,
-            condition.reflection,
-          ])
-        )
-      );
-
-      setMode('review');
-      return;
-    }
-
-    const progressConditions = Array.isArray(
-      progressPayload.conditions
-    )
+    const contextConditions = savedContext?.conditions;
+    const progressConditions = Array.isArray(progressPayload.conditions)
       ? (progressPayload.conditions as QuitCondition[])
       : [];
 
-    if (progressConditions.length > 0) {
-      setSelectedIds(
-        progressConditions.map((condition) => condition.id)
-      );
+    const initialConditions = Array.isArray(contextConditions)
+      ? contextConditions
+      : progressConditions;
 
-      setReflections(
-        Object.fromEntries(
-          progressConditions.map((condition) => [
-            condition.id,
-            condition.reflection,
-          ])
-        )
-      );
-    }
+    setSelectedIds(
+      initialConditions.map((condition) => condition.id),
+    );
+
+    setReflections(
+      Object.fromEntries(
+        initialConditions.map((condition) => [
+          condition.id,
+          condition.reflection,
+        ]),
+      ),
+    );
+
+    hasInitialized.current = true;
   }, [
     contextState.isHydrated,
-    contextState.userContext?.quit_conditions,
+    savedContext,
+    progressPayload,
   ]);
 
-  const selectedOptions = useMemo(
-    () =>
-      quitOptions.filter((option) =>
-        selectedIds.includes(option.id)
-      ),
-    [selectedIds]
-  );
+  // Allow Escape to close the dialog without losing the saved response.
+  useEffect(() => {
+    if (!activeOptionId) return;
 
-  const currentOption =
-    selectedOptions[currentIndex] ?? null;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isSaving) {
+        setActiveOptionId(null);
+        setError(null);
+      }
+    }
 
-  const currentReflection = currentOption
-    ? reflections[currentOption.id] ?? ''
-    : '';
+    window.addEventListener('keydown', handleKeyDown);
 
-  const canContinue =
-    currentReflection.trim().length >= 10;
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeOptionId, isSaving]);
 
-  function toggleSelection(id: string) {
-    if (mode !== 'select') return;
-
-    setSelectedIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+  function openReflection(option: QuitOption) {
+    setError(null);
+    setDraft(reflections[option.id] ?? '');
+    setActiveOptionId(option.id);
   }
 
-  function beginReflection() {
-    if (selectedIds.length === 0) return;
+  function closeReflection() {
+    if (isSaving) return;
 
-    setCurrentIndex(0);
-    setMode('reflect');
+    setActiveOptionId(null);
     setError(null);
   }
 
-  function updateReflection(value: string) {
-    if (!currentOption) return;
-
-    setReflections((current) => ({
-      ...current,
-      [currentOption.id]: value,
-    }));
-  }
-
-  function goBackInReflection() {
-    if (currentIndex === 0) {
-      setMode('select');
-      setError(null);
-      return;
-    }
-
-    setCurrentIndex((current) => current - 1);
-  }
-
-  async function saveInvestigation() {
-    const conditions: QuitCondition[] =
-      selectedOptions.map((option) => ({
+  function buildConditions(
+    ids: string[],
+    values: Record<string, string>,
+  ): QuitCondition[] {
+    return quitOptions
+      .filter((option) => ids.includes(option.id))
+      .map((option) => ({
         id: option.id,
         title: option.title,
-        reflection: (reflections[option.id] ?? '').trim(),
+        reflection: (values[option.id] ?? '').trim(),
       }));
+  }
+
+  async function persistConditions(
+    ids: string[],
+    values: Record<string, string>,
+  ) {
+    const conditions = buildConditions(ids, values);
+
+    const result = await updateUserProgramContext({
+      quit_conditions: { conditions },
+    });
+
+    userContextActions.updateContextLocally(result.userContext);
+
+    return conditions;
+  }
+
+  async function saveReflection() {
+    if (!activeOption || !canSave || isSaving) return;
 
     setIsSaving(true);
     setError(null);
 
+    const nextIds = selectedIds.includes(activeOption.id)
+      ? selectedIds
+      : [...selectedIds, activeOption.id];
+
+    const nextReflections = {
+      ...reflections,
+      [activeOption.id]: draft.trim(),
+    };
+
     try {
-      const result = await updateUserProgramContext({
-        quit_conditions: {
-          conditions,
-        },
-      });
+      await persistConditions(nextIds, nextReflections);
 
-      userContextActions.updateContextLocally(
-        result.userContext
-      );
-
-      setMode('review');
-
-      await onComplete({
-        conditions,
-        completed: true,
-      });
+      setSelectedIds(nextIds);
+      setReflections(nextReflections);
+      setActiveOptionId(null);
     } catch (err) {
-      console.error('[QUIT CONDITION EXPLORER]', err);
+      console.error('[QUIT CONDITION EXPLORER SAVE]', err);
 
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong saving your reflection.'
+          : 'Something went wrong saving your response.',
       );
     } finally {
       setIsSaving(false);
     }
   }
 
-  async function nextReflection() {
-    if (!currentOption || !canContinue || isSaving) {
-      return;
-    }
+  async function removeCondition(id: string) {
+    if (isRemoving || isSaving || isCompleting) return;
 
-    if (currentIndex < selectedOptions.length - 1) {
-      setCurrentIndex((current) => current + 1);
-      return;
-    }
+    const nextIds = selectedIds.filter((item) => item !== id);
+    const nextReflections = { ...reflections };
+    delete nextReflections[id];
 
-    await saveInvestigation();
-  }
-
-  async function handleContinue() {
-    if (isCompleting) return;
-
-    setIsCompleting(true);
+    setIsRemoving(id);
     setError(null);
 
     try {
-      await onComplete({
-        conditions: selectedOptions.map((option) => ({
-          id: option.id,
-          title: option.title,
-          reflection: (reflections[option.id] ?? '').trim(),
-        })),
-        completed: true,
-      });
+      await persistConditions(nextIds, nextReflections);
+
+      setSelectedIds(nextIds);
+      setReflections(nextReflections);
     } catch (err) {
-      console.error(
-        '[QUIT CONDITION EXPLORER COMPLETE]',
-        err
-      );
+      console.error('[QUIT CONDITION EXPLORER REMOVE]', err);
 
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong completing this step.'
+          : 'Something went wrong removing this response.',
+      );
+    } finally {
+      setIsRemoving(null);
+    }
+  }
+
+  async function handleContinue() {
+    if (selectedIds.length === 0 || isCompleting) return;
+
+    setIsCompleting(true);
+    setError(null);
+
+    const conditions = buildConditions(selectedIds, reflections);
+
+    try {
+      // Persist the final state before completing the node.
+      await persistConditions(selectedIds, reflections);
+
+      await onComplete({
+        conditions,
+        completed: true,
+      });
+    } catch (err) {
+      console.error('[QUIT CONDITION EXPLORER COMPLETE]', err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong completing this step.',
       );
     } finally {
       setIsCompleting(false);
@@ -324,251 +318,258 @@ export function QuitConditionExplorer({
 
   return (
     <div className="w-full space-y-10 pb-12">
-      {mode === 'select' && (
-        <>
-          <div className="max-w-3xl space-y-5">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              {node.title}
-            </h1>
+      <div className="max-w-3xl space-y-5">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {node.title}
+        </h1>
 
-            <p className="text-lg leading-8 text-muted-foreground">
-              Starting is only part of the journey. Things
-              will get difficult at some point.
-            </p>
+        <p className="text-lg leading-8 text-muted-foreground">
+          Starting is only part of the journey. Things will get
+          difficult at some point.
+        </p>
 
-            <p className="text-lg leading-8 text-muted-foreground">
-              Before you move on, think honestly about what
-              could make you walk away.
-            </p>
+        <p className="text-lg leading-8 text-muted-foreground">
+          Before you move on, think honestly about what could make
+          you walk away.
+        </p>
 
-            <p className="text-base leading-7 text-muted-foreground">
-              Choose the things that feel like realistic risks
-              for you. You can choose more than one.
-            </p>
-          </div>
+        <p className="text-base leading-7 text-muted-foreground">
+          Choose the things that feel like realistic risks for you.
+          When you select one, a window will open where you can
+          reflect on what it means to you. Save your response to
+          keep it visible. You can edit or remove your responses
+          at any time.
+        </p>
+      </div>
 
-          <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
-            {quitOptions.map((option) => {
-              const isSelected = selectedIds.includes(
-                option.id
-              );
+      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
+        {quitOptions.map((option) => {
+          const isSelected = selectedIds.includes(option.id);
+          const reflection = reflections[option.id] ?? '';
+          const isRemovingThis = isRemoving === option.id;
 
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() =>
-                    toggleSelection(option.id)
-                  }
-                  className={`group flex flex-col items-start rounded-2xl border p-6 text-left transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                      : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex w-full items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <h3 className="font-heading text-xl font-medium">
-                        {option.title}
-                      </h3>
-
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        {option.description}
-                      </p>
-                    </div>
-
-                    <div
-                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                        isSelected
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border'
-                      }`}
-                    >
-                      {isSelected && (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {error && (
-            <p className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex max-w-4xl justify-end">
-            <Button
-              onClick={beginReflection}
-              disabled={selectedIds.length === 0}
-              className="h-12 gap-2 rounded-full px-8 text-base"
+          return (
+            <div
+              key={option.id}
+              className={`relative self-start rounded-2xl border transition-all ${
+                isSelected
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
+              }`}
             >
-              Look closer
-              <ArrowRight className="h-5 w-5" />
-            </Button>
-          </div>
-        </>
+              <button
+                type="button"
+                onClick={() => openReflection(option)}
+                disabled={
+                  isSaving || Boolean(isRemoving) || isCompleting
+                }
+                aria-label={
+                  isSelected
+                    ? `Edit response: ${option.title}`
+                    : `Reflect on: ${option.title}`
+                }
+                className="flex w-full flex-col items-start p-4 text-left sm:p-5"
+              >
+                <div className="flex w-full items-start gap-3">
+                  <h3 className="font-heading text-xl font-medium leading-snug">
+                    {option.title}
+                  </h3>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {option.description}
+                </p>
+
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
+                  {isSelected ? (
+                    <>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit your response
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      Select to reflect
+                    </>
+                  )}
+                </div>
+
+                {isSelected && reflection && (
+                  <p className="mt-4 line-clamp-3 w-full border-t border-border/70 pt-3 text-sm leading-6 text-muted-foreground">
+                    {reflection}
+                  </p>
+                )}
+              </button>
+
+              {isSelected && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${option.title}`}
+                  title="Remove this selection"
+                  disabled={
+                    Boolean(isRemoving) || isSaving || isCompleting
+                  }
+                  onClick={() => void removeCondition(option.id)}
+                  className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  {isRemovingThis ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {selectedOptions.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {selectedOptions.length}{' '}
+          {selectedOptions.length === 1 ? 'response' : 'responses'} saved.
+          You can still edit or remove them.
+        </p>
       )}
 
-      {mode === 'reflect' && currentOption && (
-        <>
-          <div className="max-w-3xl space-y-5">
-            <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">
-              Possibility {currentIndex + 1} of{' '}
-              {selectedOptions.length}
-            </p>
+      {error && (
+        <p role="alert" className="max-w-4xl text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              {currentOption.title}
-            </h1>
+      <div className="flex max-w-4xl justify-end">
+        <Button
+          onClick={handleContinue}
+          disabled={
+            selectedIds.length === 0 ||
+            isCompleting ||
+            isSaving ||
+            Boolean(isRemoving)
+          }
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isCompleting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
 
-            <p className="text-lg leading-8 text-muted-foreground">
-              {currentOption.description}
-            </p>
-          </div>
+      {activeOption && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeReflection();
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quit-condition-dialog-title"
+            className="my-auto w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                  Reflection
+                </p>
 
-          <div className="max-w-3xl space-y-5">
-            <label className="text-lg font-medium text-foreground">
-              {currentOption.reflectionPrompt}
-            </label>
+                <h2
+                  id="quit-condition-dialog-title"
+                  className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl"
+                >
+                  {activeOption.title}
+                </h2>
 
-            <Textarea
-              value={currentReflection}
-              onChange={(event) =>
-                updateReflection(event.target.value)
-              }
-              placeholder={currentOption.placeholder}
-              rows={7}
-              autoFocus
-              disabled={isSaving}
-              className="resize-none text-base leading-7"
-            />
+                <p className="leading-7 text-muted-foreground">
+                  {activeOption.description}
+                </p>
+              </div>
 
-            <p className="text-sm leading-6 text-muted-foreground">
-              Be realistic, not dramatic. You are not
-              predicting the future. You are noticing what
-              could make you stop.
-            </p>
+              <button
+                type="button"
+                onClick={closeReflection}
+                disabled={isSaving}
+                aria-label="Close reflection"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-            {error && (
-              <p className="text-sm text-destructive">
-                {error}
+            <div className="mt-7 space-y-4">
+              <label
+                htmlFor="quit-condition-reflection"
+                className="block text-base font-medium leading-7"
+              >
+                {activeOption.reflectionPrompt}
+              </label>
+
+              <Textarea
+                id="quit-condition-reflection"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={activeOption.placeholder}
+                rows={6}
+                autoFocus
+                disabled={isSaving}
+                className="resize-y text-base leading-7"
+              />
+
+              <p className="text-sm leading-6 text-muted-foreground">
+                Be realistic, not dramatic. You are not predicting
+                the future. You are noticing what could make you stop.
               </p>
-            )}
 
-            <div className="flex items-center justify-between gap-4">
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="ghost"
-                onClick={goBackInReflection}
+                onClick={closeReflection}
                 disabled={isSaving}
-                className="gap-2"
+                className="h-11 rounded-full px-6"
               >
-                <ChevronLeft className="h-4 w-4" />
-                Back
+                Cancel
               </Button>
 
               <Button
-                onClick={nextReflection}
-                disabled={!canContinue || isSaving}
-                className="h-12 gap-2 rounded-full px-8 text-base"
+                type="button"
+                onClick={saveReflection}
+                disabled={!canSave || isSaving}
+                className="h-11 gap-2 rounded-full px-6"
               >
                 {isSaving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Saving...
                   </>
-                ) : currentIndex <
-                  selectedOptions.length - 1 ? (
-                  <>
-                    Next
-                    <ArrowRight className="h-4 w-4" />
-                  </>
                 ) : (
                   <>
-                    Finish
-                    <ArrowRight className="h-4 w-4" />
+                    <Check className="h-4 w-4" />
+                    Save response
                   </>
                 )}
               </Button>
             </div>
-          </div>
-        </>
-      )}
-
-      {mode === 'review' && (
-        <>
-          <div className="max-w-3xl space-y-5">
-            <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">
-              What could make you stop
-            </p>
-
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              You know some of the risks that could pull you
-              off course.
-            </h1>
-
-            <p className="text-lg leading-8 text-muted-foreground">
-              You don't need to solve them now. Just keep them
-              visible as you move forward.
-            </p>
-          </div>
-
-          <div className="max-w-3xl space-y-4">
-            {selectedOptions.map((option) => (
-              <div
-                key={option.id}
-                className="rounded-2xl border border-border bg-card p-6"
-              >
-                <h3 className="font-heading text-lg font-medium">
-                  {option.title}
-                </h3>
-
-                <p className="mt-3 text-base leading-7 text-muted-foreground">
-                  {reflections[option.id]}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <p className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex max-w-3xl items-center justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setMode('select')}
-              disabled={isCompleting}
-            >
-              Edit
-            </Button>
-
-            <Button
-              onClick={handleContinue}
-              disabled={isCompleting}
-              className="h-12 gap-2 rounded-full px-8 text-base"
-            >
-              {isCompleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Continuing...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="h-5 w-5" />
-                </>
-              )}
-            </Button>
-          </div>
-        </>
+          </section>
+        </div>
       )}
     </div>
   );
