@@ -109,6 +109,13 @@ export type Database = {
             foreignKeyName: "content_comments_content_id_fkey"
             columns: ["content_id"]
             isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_comments_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
             referencedRelation: "user_content"
             referencedColumns: ["id"]
           },
@@ -144,6 +151,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "content_reactions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "content_reactions_content_id_fkey"
             columns: ["content_id"]
@@ -193,6 +207,13 @@ export type Database = {
             columns: ["comment_id"]
             isOneToOne: false
             referencedRelation: "content_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_reports_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
             referencedColumns: ["id"]
           },
           {
@@ -1144,7 +1165,28 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      forum_posts: {
+        Row: {
+          avatar_url: string | null
+          body: string | null
+          category: string | null
+          city: string | null
+          comment_count: number | null
+          country: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string | null
+          my_reaction: string | null
+          post_intent: string | null
+          published_at: string | null
+          reaction_count: number | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+          username: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       complete_program_node: {
