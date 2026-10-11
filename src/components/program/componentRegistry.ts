@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import type { ProgramNode } from '@/program/types';
 
-import { DummyNode } from './DummyNode';
 import { 
   SituationExplorer, 
   FutureStateExplorer, 
@@ -25,7 +24,6 @@ import {
   FearEvidenceReveal,
   Mission1Reveal,
   Mission1Action,
-  FearExplorer
 } from '@/components/program/mission-1';
 // We will create this common component next
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
@@ -66,7 +64,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'prediction_reality_reveal': PredictionRealityReveal,
   'learning_action': LearningAction,
   // M1Q4: Fear
-  'fear_explorer': FearExplorer,
+  'fear_explorer': StandardSetupFrame,
   'low_threshold_ask': RealWorldExperiment,
   'fear_challenge': RealWorldExperiment,
   'fear_evidence_reveal': FearEvidenceReveal,

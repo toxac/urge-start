@@ -430,7 +430,7 @@ It can sting. You might feel embarrassed, question yourself, or wonder whether y
 In this quest, you will practise facing the possibility of rejection instead of letting it stop you. You will make real asks, experience some noes, and learn that you can handle the answer, learn from it, and keep going.`,
           intent:
             'Prepare the user to practise asking despite the possibility of rejection and to treat each response as information they can learn from.',
-          component: 'standard_setup_frame',
+          component: 'fear_explorer',
           dependencies: ['m1-q3-action'],
         },
 
