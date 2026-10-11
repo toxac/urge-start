@@ -556,50 +556,72 @@ export async function getQuest4Reflections() {
   return data || [];
 }
 
+
 export async function generateRejectionSynthesis(
   reflections: { title: string; content: string }[],
   sourceNodeKey: string
 ): Promise<RejectionSynthesisResult> {
   const systemPrompt = `
-    You are Urge.
+You are Urge, a thoughtful and direct friend acting as a mirror.
 
-    The user has just completed a rejection experiment. They deliberately
-    made an ask where the other person could say no.
+The user has completed two real-world asking experiments:
+- A warmup ask.
+- A harder ask with potentially greater social friction.
 
-    Here is the user's raw experience:
+The evidence below may include what the user expected, why and how
+they made each ask, what actually happened, how they reacted, and
+what they noticed afterward.
 
-    ${reflections
-      .map((r) => `${r.title}: ${r.content}`)
-      .join('\n')}
+USER'S EVIDENCE:
+${reflections
+  .map((r) => `${r.title}: ${r.content}`)
+  .join('\n')}
 
-    Your task is to identify ONE meaningful relationship, tension, contrast,
-    or surprise between what the user expected and what actually happened.
+YOUR TASK
 
-    Return JSON with exactly two fields:
+Identify ONE meaningful pattern, contrast, tension, or surprise
+that emerges when the experiences are considered together.
 
-    {
-      "headline": "A short, compelling insight in sentence case",
-      "interpretation": "One short paragraph explaining the pattern."
-    }
+Look for a meaningful relationship between:
+- What the user expected.
+- What they actually did.
+- How the other person responded.
+- How the user reacted.
+- What the user noticed afterward.
+- Whether the harder ask changed anything compared with the warmup.
 
-    RULES:
-    - Do not summarize each answer.
-    - Do not praise the user.
-    - Do not tell the user what they should do.
-    - Do not diagnose or make psychological claims.
-    - Do not force a positive conclusion.
-    - Do not assume the rejection was harmless.
-    - Do not turn the experience into generic advice about rejection.
-    - Focus on the relationship between expectation and evidence.
-    - The insight must be grounded in the user's actual experience.
-    - The headline should feel like something the user might not have noticed
-      without putting the evidence together.
-    - Keep the interpretation to 2-4 sentences.
-  `;
+Do not assume that the user's fear was exaggerated or that the
+experience had a positive outcome. The insight might be reassuring,
+uncomfortable, inconclusive, or unexpected.
+
+Return valid JSON with exactly two fields:
+
+{
+  "headline": "A short, compelling insight in sentence case",
+  "interpretation": "A short paragraph explaining the pattern."
+}
+
+RULES:
+- Do not summarize the experiments one by one.
+- Do not praise or congratulate the user.
+- Do not tell the user what they should do next.
+- Do not diagnose or make unsupported psychological claims.
+- Do not force a positive conclusion.
+- Do not assume the other person said no.
+- Do not treat another person's response as a judgment of the user's worth.
+- Do not invent motives, reactions, or outcomes.
+- Do not force a comparison if the evidence does not support one.
+- Ground the insight in the actual evidence provided.
+- If the evidence is mixed or inconclusive, acknowledge that.
+- Keep the headline concise and specific.
+- Keep the interpretation to 2–4 sentences.
+- Use clear, natural language suitable for a first-time founder.
+`;
 
   const { success, content, error } = await invokeAIStandard({
     systemPrompt,
-    userPrompt: 'Reveal the most meaningful pattern in this experience.',
+    userPrompt:
+      'Look across both asking experiments and reveal the most meaningful pattern supported by the evidence.',
     componentKey: 'fear_evidence_reveal',
     sourceNodeKey,
     purpose: 'rejection_synthesis',
@@ -608,24 +630,36 @@ export async function generateRejectionSynthesis(
   });
 
   if (!success || !content) {
-    throw new Error(error || 'Failed synthesis');
+    throw new Error(error || 'Failed to generate rejection synthesis');
   }
+
+  let parsed: unknown;
 
   try {
-    const parsed = JSON.parse(content) as RejectionSynthesisResult;
-
-    if (
-      typeof parsed.headline !== 'string' ||
-      typeof parsed.interpretation !== 'string'
-    ) {
-      throw new Error('Invalid rejection synthesis response');
-    }
-
-    return parsed;
+    parsed = JSON.parse(content);
   } catch {
+    throw new Error('AI returned invalid JSON for the rejection synthesis');
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('headline' in parsed) ||
+    !('interpretation' in parsed) ||
+    typeof parsed.headline !== 'string' ||
+    typeof parsed.interpretation !== 'string' ||
+    !parsed.headline.trim() ||
+    !parsed.interpretation.trim()
+  ) {
     throw new Error('AI returned an invalid rejection synthesis');
   }
+
+  return {
+    headline: parsed.headline.trim(),
+    interpretation: parsed.interpretation.trim(),
+  };
 }
+
 
 
 export async function generateFearActions(

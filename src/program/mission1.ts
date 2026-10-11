@@ -511,7 +511,7 @@ In this quest, you will practise facing the possibility of rejection instead of 
           intent:
             'Help the user compare their fear with the experience they actually had without telling them what the experience means.',
           component: 'fear_evidence_reveal',
-          dependencies: ['m1-q4-stretch'],
+          dependencies: ['m1-q4-warmup','m1-q4-stretch'],
         },
 
         {
