@@ -1,80 +1,123 @@
+
 'use client';
 
-import { useState } from 'react';
-import { ArrowRight, Check, Loader2, Plus, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  Loader2,
+  Mail,
+  Plus,
+  UserRound,
+  Users,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { createUserContacts, inviteContact } from '@/actions/contacts';
-import type {
-  CreateUserContactInput,
-  UserContactRelationship,
-} from '@/lib/types/user-contacts';
+import { createUserContact, getUserContacts } from '@/actions/contacts';
+import type { SquadPersona, UserContact } from '@/lib/types/user-contacts';
+
+const SQUAD_ROLES = [
+  {
+    id: 'believer',
+    label: 'The Believer',
+    description: 'Reminds you why you started. Lifts you when you’re low.',
+    example: 'A close friend or family member',
+  },
+  {
+    id: 'challenger',
+    label: 'The Challenger',
+    description: 'Asks hard questions. Pokes holes. Keeps you honest.',
+    example: 'A peer or former colleague',
+  },
+  {
+    id: 'guide',
+    label: 'The Guide',
+    description: 'Has walked a similar path. Shares experience, not answers.',
+    example: 'Someone who is further along',
+  },
+  {
+    id: 'doer',
+    label: 'The Doer',
+    description: 'Keeps you accountable. Checks in on actions, not feelings.',
+    example: 'A peer at a similar stage',
+  },
+  {
+    id: 'connector',
+    label: 'The Connector',
+    description: 'Opens doors. Knows people. Makes introductions.',
+    example: 'Someone with a wide network',
+  },
+] as const satisfies readonly {
+  id: SquadPersona;
+  label: string;
+  description: string;
+  example: string;
+}[];
 
 type SquadMember = {
   id: string;
   name: string;
-  organization: string;
-  role: string;
   email: string;
-  context: string;
-  relationships: UserContactRelationship[];
-  invited: boolean;
+  role: SquadPersona | null;
 };
 
-const RELATIONSHIPS: {
-  value: UserContactRelationship;
-  label: string;
-}[] = [
-  {
-    value: 'learning',
-    label: 'Someone I can learn from',
-  },
-  {
-    value: 'challenge',
-    label: 'Someone who can challenge my thinking',
-  },
-  {
-    value: 'industry',
-    label: 'Someone who knows my industry',
-  },
-  {
-    value: 'introduction',
-    label: 'Someone who can make an introduction',
-  },
-  {
-    value: 'practical_help',
-    label: 'Someone I can ask for practical help',
-  },
-  {
-    value: 'accountability',
-    label: 'Someone who will help me keep moving',
-  },
-  {
-    value: 'feedback',
-    label: 'Someone I can get feedback from',
-  },
-];
+type JsonObject = Record<string, unknown>;
 
-function createEmptyMember(): SquadMember {
-  return {
-    id: crypto.randomUUID(),
-    name: '',
-    organization: '',
-    role: '',
-    email: '',
-    context: '',
-    relationships: [],
-    invited: false,
-  };
+function isObject(value: unknown): value is JsonObject {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
-function invitationFor(member: SquadMember) {
-  const reason = member.context.trim();
+function getInitialMembers(
+  payload: Record<string, any> | undefined,
+): SquadMember[] {
+  if (!Array.isArray(payload?.members)) return [];
 
-  return `I'm starting something new and I'm inviting a few people into the journey. I'd like you to be one of them because ${reason.toLowerCase().startsWith('because') ? reason.slice(8).trim() : reason}. Would you be up for being in my corner?`;
+  return payload.members
+    .filter(
+      (member: any) =>
+        member &&
+        typeof member.id === 'string' &&
+        typeof member.email === 'string',
+    )
+    .map((member: any) => {
+      const persona = SQUAD_ROLES.find(
+        (item) =>
+          item.id === member.role ||
+          item.id === member.persona ||
+          item.label === member.role,
+      );
+
+      return {
+        id: member.id,
+        name: typeof member.name === 'string' ? member.name : '',
+        email: member.email,
+        role: persona?.id ?? null,
+      };
+    });
+}
+
+function mapContactToMember(contact: UserContact): SquadMember {
+  const context = isObject(contact.context) ? contact.context : {};
+  const squad = isObject(context.squad) ? context.squad : {};
+
+  const persona = SQUAD_ROLES.find(
+    (item) =>
+      item.id === squad.persona ||
+      item.label === squad.persona_label,
+  );
+
+  return {
+    id: contact.id,
+    name: contact.name ?? '',
+    email: contact.email ?? '',
+    role: persona?.id ?? null,
+  };
 }
 
 export function SquadBuilder({
@@ -82,608 +125,433 @@ export function SquadBuilder({
   progress,
   onComplete,
 }: NodeComponentProps) {
-  const saved = progress.payload ?? {};
-
-  const savedMembers = Array.isArray(saved.members)
-    ? (saved.members as SquadMember[])
-    : [];
-
-  const [members, setMembers] = useState<SquadMember[]>(
-    savedMembers.length >= 3
-      ? savedMembers
-      : [createEmptyMember(), createEmptyMember(), createEmptyMember()]
+  const [members, setMembers] = useState<SquadMember[]>(() =>
+    getInitialMembers(progress.payload),
   );
 
-  const [step, setStep] = useState<'build' | 'invite' | 'done'>(
-    saved.completed
-      ? 'done'
-      : saved.invitesStarted
-        ? 'invite'
-        : 'build'
-  );
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+  const [selectedRole, setSelectedRole] = useState<SquadPersona | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function updateMember(
-    id: string,
-    field: keyof SquadMember,
-    value: string
-  ) {
-    setMembers((current) =>
-      current.map((member) =>
-        member.id === id
-          ? { ...member, [field]: value }
-          : member
-      )
-    );
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  function toggleRelationship(
-    id: string,
-    relationship: UserContactRelationship
-  ) {
-    setMembers((current) =>
-      current.map((member) => {
-        if (member.id !== id) return member;
+    async function loadSquadContacts() {
+      setIsLoadingContacts(true);
 
-        const relationships = member.relationships.includes(
-          relationship
-        )
-          ? member.relationships.filter(
-              (item) => item !== relationship
-            )
-          : [...member.relationships, relationship];
+      try {
+        const contacts = await getUserContacts();
 
-        return {
-          ...member,
-          relationships,
-        };
-      })
-    );
-  }
+        if (cancelled) return;
 
-  function addMember() {
-    setMembers((current) => [
-      ...current,
-      createEmptyMember(),
-    ]);
-  }
+        const squadMembers = contacts
+          .filter((contact) => contact.roles?.includes('squad'))
+          .map(mapContactToMember);
 
-  function removeMember(id: string) {
-    setMembers((current) => {
-      if (current.length <= 3) return current;
+        setMembers(squadMembers);
+      } catch (err) {
+        console.error('Failed to load squad contacts:', err);
 
-      return current.filter((member) => member.id !== id);
-    });
-  }
+        if (!cancelled) {
+          setError(
+            'We couldn’t load your squad. Please refresh and try again.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingContacts(false);
+        }
+      }
+    }
 
-  const validMembers = members.filter(
-    (member) =>
-      member.name.trim() &&
-      member.email.trim() &&
-      member.context.trim() &&
-      member.relationships.length > 0
+    void loadSquadContacts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const normalizedName = name.trim();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const selectedRoleDetails = SQUAD_ROLES.find(
+    (role) => role.id === selectedRole,
   );
 
-  const canContinue =
-    members.length >= 3 &&
-    validMembers.length === members.length;
+  const emailAlreadyAdded =
+    normalizedEmail.length > 0 &&
+    members.some(
+      (member) => member.email.trim().toLowerCase() === normalizedEmail,
+    );
 
-  async function handlePrepareInvites() {
-    if (!canContinue || isSubmitting) return;
+  const canAdd =
+    !!selectedRole &&
+    normalizedName.length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) &&
+    !emailAlreadyAdded &&
+    !isLoadingContacts &&
+    !isAdding &&
+    !isContinuing;
 
-    setIsSubmitting(true);
+  async function handleAddPerson() {
+    if (!canAdd || !selectedRole || !selectedRoleDetails) return;
+
+    setIsAdding(true);
     setError(null);
 
     try {
-      const contacts: CreateUserContactInput[] =
-        validMembers.map((member) => ({
-          name: member.name.trim(),
-          organization:
-            member.organization.trim() || null,
-          role: member.role.trim() || null,
-          context: member.context.trim(),
-          contact_details: {
-            email: member.email.trim(),
+      const result = await createUserContact({
+        name: normalizedName,
+        email: normalizedEmail,
+        roles: ['squad'],
+        context: {
+          squad: {
+            persona: selectedRole,
+            persona_label: selectedRoleDetails.label,
+            notes: selectedRoleDetails.description,
           },
-          relationships: member.relationships,
-          status: 'pending',
-        }));
+        },
+        contact_details: {},
+        status: 'not_invited',
+      });
 
-      const result = await createUserContacts(contacts);
+      setMembers((current) => [
+        ...current,
+        {
+          id: result.contact.id,
+          name: result.contact.name ?? normalizedName,
+          email: result.contact.email ?? normalizedEmail,
+          role: selectedRole,
+        },
+      ]);
 
-      setMembers((current) =>
-        current.map((member, index) => ({
-          ...member,
-          id:
-            result.contacts[index]?.id ??
-            member.id,
-        }))
-      );
-
-      setStep('invite');
+      setName('');
+      setEmail('');
+      setSelectedRole(null);
     } catch (err) {
       console.error(err);
-      setError(
-        'We could not save your squad. Please try again.'
-      );
+      setError('We couldn’t add this person. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setIsAdding(false);
     }
   }
 
-  async function handleInvite(member: SquadMember) {
-    if (isSubmitting || member.invited) return;
+  async function handleContinue() {
+    if (
+      members.length < 3 ||
+      isContinuing ||
+      isAdding ||
+      isLoadingContacts
+    ) {
+      return;
+    }
 
-    setIsSubmitting(true);
+    setIsContinuing(true);
     setError(null);
-
-    try {
-      await inviteContact(
-        member.id,
-        invitationFor(member)
-      );
-
-      setMembers((current) =>
-        current.map((item) =>
-          item.id === member.id
-            ? { ...item, invited: true }
-            : item
-        )
-      );
-    } catch (err) {
-      console.error(err);
-      setError(
-        `We could not invite ${member.name}. Please try again.`
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleComplete() {
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
 
     try {
       await onComplete({
         members,
-        invitesStarted: true,
         completed: true,
       });
-
-      setStep('done');
-    } finally {
-      setIsSubmitting(false);
+    } catch (err) {
+      console.error(err);
+      setError('We couldn’t save your progress. Please try again.');
+      setIsContinuing(false);
     }
-  }
-
-  const invitedCount = members.filter(
-    (member) => member.invited
-  ).length;
-
-  if (step === 'done') {
-    return (
-      <div className="w-full max-w-3xl space-y-8">
-        <div className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            YOU MADE THE ASK
-          </p>
-
-          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            You reached out.
-          </h2>
-
-          <p className="text-lg leading-8 text-muted-foreground">
-            Whether they say yes, no, or never reply is not
-            up to you. What mattered here was making the ask.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Check className="h-4 w-4 text-primary" />
-              </div>
-
-              <div>
-                <p className="font-medium">
-                  {member.name}
-                </p>
-
-                <p className="text-sm text-muted-foreground">
-                  Invitation sent
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={() =>
-              onComplete({
-                members,
-                invitesStarted: true,
-                completed: true,
-              })
-            }
-            className="h-12 gap-2 rounded-full px-8 text-base"
-          >
-            Continue
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'invite') {
-    return (
-      <div className="w-full max-w-3xl space-y-10">
-        <div className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            NOW REACH OUT
-          </p>
-
-          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            Bring them into the journey.
-          </h2>
-
-          <p className="text-lg leading-8 text-muted-foreground">
-            You've chosen the people. Now do the uncomfortable
-            part: actually reach out.
-          </p>
-        </div>
-
-        <div className="space-y-6">
-          {members.map((member) => {
-            const message = invitationFor(member);
-
-            return (
-              <div
-                key={member.id}
-                className="space-y-5 rounded-2xl border border-border bg-card p-6 sm:p-8"
-              >
-                <div>
-                  <p className="font-heading text-xl font-medium">
-                    {member.name}
-                  </p>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {member.email}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-muted/50 p-5">
-                  <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-                    YOUR INVITATION
-                  </p>
-
-                  <p className="mt-3 text-base leading-7">
-                    {message}
-                  </p>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={() => handleInvite(member)}
-                    disabled={isSubmitting || member.invited}
-                    className="h-11 gap-2 rounded-full px-6"
-                  >
-                    {member.invited ? (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Reached out
-                      </>
-                    ) : isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        Reach out
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {error && (
-          <p className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            {invitedCount} of {members.length} reached out
-          </p>
-
-          <Button
-            onClick={handleComplete}
-            disabled={
-              invitedCount < 3 ||
-              isSubmitting
-            }
-            className="h-12 gap-2 rounded-full px-8 text-base"
-          >
-            {isSubmitting ? 'Saving...' : 'Continue'}
-            {!isSubmitting && (
-              <ArrowRight className="h-5 w-5" />
-            )}
-          </Button>
-        </div>
-      </div>
-    );
   }
 
   return (
     <div className="w-full max-w-3xl space-y-10">
-      <div className="space-y-4">
-        <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          PEOPLE YOU ALREADY KNOW
-        </p>
-
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+      <header className="space-y-4">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {node.title || 'Who could help you move?'}
-        </h2>
+        </h1>
 
-        <p className="text-lg leading-8 text-muted-foreground">
-          You do not need a co-founder or a big team. Think
-          about people who could help you see something
-          differently, learn something, make an introduction,
-          or take a difficult step.
-        </p>
+        {node.description && (
+          <p className="whitespace-pre-line text-lg leading-8 text-muted-foreground">
+            {node.description}
+          </p>
+        )}
 
         <p className="text-base leading-7 text-muted-foreground">
-          Choose at least three people you already know. You
-          will actually reach out to them.
+          You don’t need a co-founder or a big team. Think about people who
+          could play a useful role in your journey. Choose the kind of support
+          you want, then add their details.
         </p>
-      </div>
+      </header>
 
-      <div className="space-y-8">
-        {members.map((member, index) => (
-          <div
-            key={member.id}
-            className="space-y-6 rounded-2xl border border-border bg-card p-6 sm:p-8"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  PERSON {index + 1}
-                </p>
-              </div>
-
-              {members.length > 3 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeMember(member.id)}
-                  disabled={isSubmitting}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <label
-                  htmlFor={`name-${member.id}`}
-                  className="text-sm font-medium"
-                >
-                  Who?
-                </label>
-
-                <Input
-                  id={`name-${member.id}`}
-                  value={member.name}
-                  onChange={(event) =>
-                    updateMember(
-                      member.id,
-                      'name',
-                      event.target.value
-                    )
-                  }
-                  placeholder="Their name"
-                  className="mt-2 h-12 text-base"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor={`role-${member.id}`}
-                    className="text-sm font-medium"
-                  >
-                    What do they do?
-                  </label>
-
-                  <Input
-                    id={`role-${member.id}`}
-                    value={member.role}
-                    onChange={(event) =>
-                      updateMember(
-                        member.id,
-                        'role',
-                        event.target.value
-                      )
-                    }
-                    placeholder="Founder, designer, teacher..."
-                    className="mt-2 h-12 text-base"
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor={`organization-${member.id}`}
-                    className="text-sm font-medium"
-                  >
-                    Where do they work?
-                  </label>
-
-                  <Input
-                    id={`organization-${member.id}`}
-                    value={member.organization}
-                    onChange={(event) =>
-                      updateMember(
-                        member.id,
-                        'organization',
-                        event.target.value
-                      )
-                    }
-                    placeholder="Company or community"
-                    className="mt-2 h-12 text-base"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor={`email-${member.id}`}
-                  className="text-sm font-medium"
-                >
-                  How can you reach them?
-                </label>
-
-                <Input
-                  id={`email-${member.id}`}
-                  type="email"
-                  value={member.email}
-                  onChange={(event) =>
-                    updateMember(
-                      member.id,
-                      'email',
-                      event.target.value
-                    )
-                  }
-                  placeholder="Their email address"
-                  className="mt-2 h-12 text-base"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div>
-                <p className="text-sm font-medium">
-                  Why could they be useful?
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {RELATIONSHIPS.map((relationship) => {
-                    const selected =
-                      member.relationships.includes(
-                        relationship.value
-                      );
-
-                    return (
-                      <button
-                        key={relationship.value}
-                        type="button"
-                        onClick={() =>
-                          toggleRelationship(
-                            member.id,
-                            relationship.value
-                          )
-                        }
-                        disabled={isSubmitting}
-                        className={[
-                          'rounded-full border px-4 py-2 text-sm transition-colors',
-                          selected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground',
-                        ].join(' ')}
-                      >
-                        {relationship.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor={`context-${member.id}`}
-                  className="text-sm font-medium"
-                >
-                  Why this person?
-                </label>
-
-                <Textarea
-                  id={`context-${member.id}`}
-                  value={member.context}
-                  onChange={(event) =>
-                    updateMember(
-                      member.id,
-                      'context',
-                      event.target.value
-                    )
-                  }
-                  placeholder="What makes this person useful to you?"
-                  className="mt-2 min-h-[120px] resize-none text-base leading-7"
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
+      <section className="space-y-6 rounded-2xl border border-border bg-card p-5 sm:p-7">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            <h2 className="font-heading text-xl font-semibold">
+              {members.length > 0 ? 'Add another person' : 'Choose their role'}
+            </h2>
           </div>
-        ))}
+
+          <p className="text-sm leading-6 text-muted-foreground">
+            What kind of support would this person bring?
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {SQUAD_ROLES.map((role) => {
+            const selected = selectedRole === role.id;
+
+            return (
+              <button
+                key={role.id}
+                type="button"
+                onClick={() => {
+                  setSelectedRole(role.id);
+                  setError(null);
+                }}
+                disabled={isLoadingContacts || isAdding || isContinuing}
+                aria-pressed={selected}
+                className={[
+                  'w-full rounded-xl border p-4 text-left transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  selected
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                    : 'border-border hover:border-primary/50 hover:bg-muted/30',
+                ].join(' ')}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={[
+                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                      selected
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-muted-foreground/50',
+                    ].join(' ')}
+                  >
+                    {selected && <Check className="h-3 w-3" />}
+                  </span>
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="font-semibold">{role.label}</p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {role.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {role.example}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="squad-name" className="text-sm font-medium">
+            Their name
+          </label>
+
+          <div className="relative">
+            <UserRound
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+
+            <Input
+              id="squad-name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                setError(null);
+              }}
+              placeholder="Who are you thinking of?"
+              className="h-12 pl-10 text-base"
+              disabled={isLoadingContacts || isAdding || isContinuing}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="squad-email" className="text-sm font-medium">
+            Their email address
+          </label>
+
+          <div className="relative">
+            <Mail
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+
+            <Input
+              id="squad-email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && canAdd) {
+                  event.preventDefault();
+                  void handleAddPerson();
+                }
+              }}
+              placeholder="name@example.com"
+              className="h-12 pl-10 text-base"
+              disabled={isLoadingContacts || isAdding || isContinuing}
+            />
+          </div>
+
+          {emailAlreadyAdded && (
+            <p className="text-sm text-destructive">
+              You’ve already added this email address.
+            </p>
+          )}
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <Button
           type="button"
-          variant="outline"
-          onClick={addMember}
-          disabled={isSubmitting}
-          className="h-11 gap-2"
+          onClick={handleAddPerson}
+          disabled={!canAdd}
+          className="h-12 w-full gap-2 rounded-full text-base"
         >
-          <Plus className="h-4 w-4" />
-          Add another person
-        </Button>
-      </div>
-
-      {error && (
-        <p className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          {validMembers.length} of {members.length} ready
-        </p>
-
-        <Button
-          onClick={handlePrepareInvites}
-          disabled={!canContinue || isSubmitting}
-          className="h-12 gap-2 rounded-full px-8 text-base"
-        >
-          {isSubmitting ? (
+          {isLoadingContacts ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Saving...
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading your squad...
+            </>
+          ) : isAdding ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Adding person...
             </>
           ) : (
             <>
-              Prepare the asks
-              <ArrowRight className="h-5 w-5" />
+              <Plus className="h-4 w-4" />
+              Add to my squad
             </>
           )}
         </Button>
+      </section>
+
+      {(members.length > 0 || isLoadingContacts) && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="font-heading text-xl font-semibold">Your squad</h2>
+
+            {!isLoadingContacts && (
+              <span className="text-sm text-muted-foreground">
+                {members.length} {members.length === 1 ? 'person' : 'people'}
+              </span>
+            )}
+          </div>
+
+          {isLoadingContacts ? (
+            <p className="text-sm text-muted-foreground">
+              Loading your saved contacts...
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {members.map((member) => {
+                const role = SQUAD_ROLES.find(
+                  (item) => item.id === member.role,
+                );
+
+                return (
+                  <div
+                    key={member.id}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {member.name || member.email}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {member.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {role?.label ?? 'Squad member'}
+                      </p>
+                    </div>
+
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      Added
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      <div className="space-y-4 border-t border-border pt-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+            {members.length}
+          </div>
+
+          <div className="flex-1">
+            <p className="font-medium">
+              {isLoadingContacts
+                ? 'Loading your squad'
+                : members.length < 3
+                  ? `Add ${3 - members.length} more ${
+                      3 - members.length === 1 ? 'person' : 'people'
+                    } to your squad`
+                  : 'Your squad is taking shape'}
+            </p>
+
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              You can choose more than three people. Think about the different
+              kinds of support you might need as you move forward.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            onClick={handleContinue}
+            disabled={
+              members.length < 3 ||
+              isLoadingContacts ||
+              isContinuing ||
+              isAdding
+            }
+            className="h-12 gap-2 rounded-full px-8 text-base"
+          >
+            {isContinuing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Continuing...
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
+export default SquadBuilder;

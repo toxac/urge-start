@@ -275,3 +275,5 @@ There may be practical reasons for waiting. There may also be fear, uncertainty,
 - **Description:** The goal is not to become fearless or perfectly confident. It is to keep moving when uncertainty shows up.
 - **Component:** `mission_transfer_action` `<Mission1Action>`
 
+
+

@@ -492,39 +492,42 @@ export type Database = {
       user_contacts: {
         Row: {
           contact_details: Json
-          context: string | null
+          context: Json | null
           created_at: string
+          email: string | null
           id: string
+          metadata: Json
           name: string
           organization: string | null
-          relationships: string[]
-          role: string | null
+          roles: string[]
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
           contact_details?: Json
-          context?: string | null
+          context?: Json | null
           created_at?: string
+          email?: string | null
           id?: string
+          metadata?: Json
           name: string
           organization?: string | null
-          relationships?: string[]
-          role?: string | null
+          roles?: string[]
           status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           contact_details?: Json
-          context?: string | null
+          context?: Json | null
           created_at?: string
+          email?: string | null
           id?: string
+          metadata?: Json
           name?: string
           organization?: string | null
-          relationships?: string[]
-          role?: string | null
+          roles?: string[]
           status?: string
           updated_at?: string
           user_id?: string

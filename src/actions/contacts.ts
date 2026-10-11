@@ -1,3 +1,4 @@
+
 'use server';
 
 import crypto from 'crypto';
@@ -6,10 +7,28 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type {
   CreateUserContactInput,
   UserContact,
+  UserContactDetails,
+  UserContactStatus,
 } from '@/lib/types/user-contacts';
 
+function isObject(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function getContactDetails(value: unknown): UserContactDetails {
+  return isObject(value)
+    ? (value as UserContactDetails)
+    : {};
+}
+
 export async function createUserContact(
-  input: CreateUserContactInput
+  input: CreateUserContactInput,
 ) {
   const supabase = await createSupabaseServerClient();
 
@@ -37,12 +56,12 @@ export async function createUserContact(
 
   return {
     success: true,
-    contact: data as UserContact,
+    contact: data as unknown as UserContact,
   };
 }
 
 export async function createUserContacts(
-  contacts: CreateUserContactInput[]
+  contacts: CreateUserContactInput[],
 ) {
   const supabase = await createSupabaseServerClient();
 
@@ -78,24 +97,21 @@ export async function createUserContacts(
 
   return {
     success: true,
-    contacts: data as UserContact[],
+    contacts: data as unknown as UserContact[],
   };
 }
 
 /**
- * Prepare a contact invitation.
+ * Prepare an invitation for a contact.
  *
- * For now this does not send an email.
- * It creates the confirmation token and moves the contact:
+ * This does not send an email.
+ * It creates a confirmation token and changes the status:
  *
- * pending → invited
- *
- * The token will eventually be included in the confirmation
- * link sent by email.
+ * not_invited -> prepared
  */
 export async function inviteContact(
   contactId: string,
-  message: string
+  message: string,
 ) {
   const supabase = await createSupabaseServerClient();
 
@@ -119,68 +135,74 @@ export async function inviteContact(
     throw new Error('Contact not found');
   }
 
-  if (contact.status === 'invited') {
+  if (contact.status === 'prepared' || contact.status === 'sent') {
     return {
       success: true,
-      status: 'invited' as const,
-      message: 'Invitation has already been prepared.',
+      status: contact.status as UserContactStatus,
+      message: 'An invitation has already been prepared.',
     };
   }
 
-  if (contact.status !== 'pending') {
+  if (contact.status !== 'not_invited') {
     throw new Error(
-      `Contact cannot be invited from status "${contact.status}".`
+      `Contact cannot be invited from status "${contact.status}".`,
     );
   }
 
   const invitationToken = crypto.randomBytes(32).toString('hex');
+  const contactDetails = getContactDetails(contact.contact_details);
 
-  const contactDetails =
-    contact.contact_details &&
-    typeof contact.contact_details === 'object' &&
-    !Array.isArray(contact.contact_details)
-      ? contact.contact_details
-      : {};
-
-  const updatedContactDetails = {
+  const updatedContactDetails: UserContactDetails = {
     ...contactDetails,
     invitation_token: invitationToken,
     invitation_message: message,
   };
 
-  const { error: updateError } = await supabase
+  const { data: updatedContact, error: updateError } = await supabase
     .from('user_contacts')
     .update({
-      status: 'invited',
+      status: 'prepared',
       contact_details: updatedContactDetails,
     })
     .eq('id', contactId)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .eq('status', 'not_invited')
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     throw new Error(
-      `Failed to prepare invitation: ${updateError.message}`
+      `Failed to prepare invitation: ${updateError.message}`,
+    );
+  }
+
+  if (!updatedContact) {
+    throw new Error(
+      'The contact status changed before the invitation could be prepared. Please try again.',
     );
   }
 
   return {
     success: true,
-    status: 'invited' as const,
+    status: 'prepared' as const,
     confirmationToken: invitationToken,
   };
 }
 
 /**
- * Confirm a contact invitation.
+ * Confirm a prepared invitation.
  *
- * This will eventually be called by the public confirmation
- * page reached through the email invitation link.
+ * This changes the status:
  *
- * invited → accepted
+ * prepared -> accepted
+ *
+ * The caller must have permission to update the contact under RLS.
+ * Public confirmation will need a suitable server-side authorization
+ * mechanism if the recipient is not authenticated as the contact owner.
  */
 export async function confirmContactInvitation(
   contactId: string,
-  invitationToken: string
+  invitationToken: string,
 ) {
   if (!contactId || !invitationToken) {
     throw new Error('Invalid invitation.');
@@ -192,7 +214,7 @@ export async function confirmContactInvitation(
     .from('user_contacts')
     .select('id, status, contact_details')
     .eq('id', contactId)
-    .single();
+    .maybeSingle();
 
   if (contactError || !contact) {
     throw new Error('Invitation not found.');
@@ -205,17 +227,11 @@ export async function confirmContactInvitation(
     };
   }
 
-  if (contact.status !== 'invited') {
+  if (contact.status !== 'prepared' && contact.status !== 'sent') {
     throw new Error('This invitation is no longer active.');
   }
 
-  const contactDetails =
-    contact.contact_details &&
-    typeof contact.contact_details === 'object' &&
-    !Array.isArray(contact.contact_details)
-      ? contact.contact_details
-      : {};
-
+  const contactDetails = getContactDetails(contact.contact_details);
   const storedToken = contactDetails.invitation_token;
 
   if (
@@ -225,24 +241,32 @@ export async function confirmContactInvitation(
     throw new Error('Invalid invitation.');
   }
 
-  const updatedContactDetails = {
+  const updatedContactDetails: UserContactDetails = {
     ...contactDetails,
     invitation_token: null,
     invitation_accepted_at: new Date().toISOString(),
   };
 
-  const { error: updateError } = await supabase
+  const { data: updatedContact, error: updateError } = await supabase
     .from('user_contacts')
     .update({
       status: 'accepted',
       contact_details: updatedContactDetails,
     })
     .eq('id', contactId)
-    .eq('status', 'invited');
+    .eq('status', contact.status)
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     throw new Error(
-      `Failed to confirm invitation: ${updateError.message}`
+      `Failed to confirm invitation: ${updateError.message}`,
+    );
+  }
+
+  if (!updatedContact) {
+    throw new Error(
+      'The invitation could not be confirmed. It may have already changed.',
     );
   }
 
@@ -250,4 +274,36 @@ export async function confirmContactInvitation(
     success: true,
     status: 'accepted' as const,
   };
+}
+
+
+
+/**
+ * Fetch the authenticated user's squad contacts.
+ * The database is the source of truth for contact records.
+ */
+export async function getUserContacts(): Promise<UserContact[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data, error } = await supabase
+    .from('user_contacts')
+    .select('*')
+    .eq('user_id', user.id)
+    .contains('roles', ['squad'])
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load squad contacts: ${error.message}`);
+  }
+
+  return (data ?? []) as unknown as UserContact[];
 }
