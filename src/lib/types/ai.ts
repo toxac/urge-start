@@ -42,3 +42,11 @@ export type RejectionSynthesisResult = {
   headline: string;
   interpretation: string;
 };
+
+export type AskPreparationGuide = {
+  opening: string;
+  wording: string;
+  avoid: string[];
+  ifTheySayNo: string;
+  reminder: string;
+};

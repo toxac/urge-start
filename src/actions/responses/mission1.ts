@@ -8,7 +8,8 @@ import type {
   CommitmentSynthesisResult, 
   FrictionSynthesisResult,
   LearningActionResult,
-  RejectionSynthesisResult
+  RejectionSynthesisResult,
+  AskPreparationGuide
 } from '@/lib/types/ai';
 
 export async function analyzeSituation(
@@ -870,4 +871,122 @@ export async function generateMission1Synthesis(
 
   if (!success || !content) throw new Error(error || 'Failed to generate mission synthesis');
   return content;
+}
+
+
+export async function generateAskPreparationGuide(
+  input: {
+    target: string;
+    intention: string;
+    why: string;
+    prediction: string;
+    difficulty: string;
+    purpose: string;
+    framing: string;
+  },
+  sourceNodeKey: string
+): Promise<AskPreparationGuide> {
+  const systemPrompt = `
+You are Urge, a practical and thoughtful guide helping someone make
+a real-world ask.
+
+Generate a short, personalized field guide using the person's answers.
+
+The guide must contain:
+- opening: a natural way to begin the conversation
+- wording: suggested words for making this specific ask
+- avoid: 2 or 3 specific things to avoid in this situation
+- ifTheySayNo: a respectful way to respond if the person declines
+- reminder: one practical thing to remember before making the ask
+
+RULES:
+- Ground every suggestion in the user's actual situation.
+- Keep the wording natural, direct, and easy to say aloud.
+- Do not make the user sound scripted, pushy, apologetic, or overly formal.
+- Respect the other person's right to say no.
+- Do not assume the user is anxious or afraid.
+- Do not promise that the ask will succeed.
+- Adapt the advice to the experiment's difficulty and purpose.
+- For a low-stakes ask, keep the approach light.
+- For a meaningful or stretch ask, help the user be clear about what they need.
+- Do not change the ask into a different or easier one.
+- Avoid generic motivational advice.
+- Keep each section concise and actionable.
+
+Return ONLY valid JSON matching this schema:
+{
+  "opening": "string",
+  "wording": "string",
+  "avoid": ["string", "string"],
+  "ifTheySayNo": "string",
+  "reminder": "string"
+}
+`;
+
+  const userPrompt = `
+WHO THEY WILL APPROACH:
+${input.target}
+
+WHAT THEY WANT TO ASK:
+${input.intention}
+
+WHY THEY CHOSE THIS PERSON:
+${input.why}
+
+WHAT THEY PREDICT WILL HAPPEN:
+${input.prediction}
+
+EXPERIMENT DIFFICULTY:
+${input.difficulty}
+
+EXPERIMENT PURPOSE:
+${input.purpose}
+
+EXPERIMENT FRAMING:
+${input.framing}
+
+Create a practical guide for this specific ask.
+`;
+
+  const result = await invokeAILight({
+    systemPrompt,
+    userPrompt,
+    componentKey: 'real_world_experiment',
+    sourceNodeKey,
+    purpose: 'generate_ask_preparation_guide',
+    requireJson: true,
+    temperature: 0.3,
+  });
+
+  if (!result.success || !result.content) {
+    throw new Error(
+      result.error || 'Failed to generate ask preparation guide.'
+    );
+  }
+
+  try {
+    const parsed = JSON.parse(result.content);
+
+    if (
+      typeof parsed.opening !== 'string' ||
+      typeof parsed.wording !== 'string' ||
+      !Array.isArray(parsed.avoid) ||
+      !parsed.avoid.every((item: unknown) => typeof item === 'string') ||
+      typeof parsed.ifTheySayNo !== 'string' ||
+      typeof parsed.reminder !== 'string'
+    ) {
+      throw new Error('Invalid preparation guide response.');
+    }
+
+    return {
+      opening: parsed.opening.trim(),
+      wording: parsed.wording.trim(),
+      avoid: parsed.avoid.map((item: string) => item.trim()),
+      ifTheySayNo: parsed.ifTheySayNo.trim(),
+      reminder: parsed.reminder.trim(),
+    };
+  } catch (error) {
+    console.error('[ASK PREPARATION GUIDE]', error);
+    throw new Error('Failed to parse ask preparation guide.');
+  }
 }
