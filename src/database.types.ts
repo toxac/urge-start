@@ -1187,6 +1187,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profile_public: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          currency: string | null
+          display_name: string | null
+          id: string | null
+          social_links: Json | null
+          updated_at: string | null
+          user_id: string | null
+          username: string | null
+          username_key: string | null
+          website_url: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          currency?: string | null
+          display_name?: string | null
+          id?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string | null
+          username_key?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          currency?: string | null
+          display_name?: string | null
+          id?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string | null
+          username_key?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       complete_program_node: {

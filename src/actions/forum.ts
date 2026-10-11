@@ -3,28 +3,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { ForumStream, ForumReactionType, ForumResponseType } from '@/lib/types/forum';
 
-export type ForumStream =
-  | 'for-you'
-  | 'introductions'
-  | 'insight'
-  | 'experiment'
-  | 'question'
-  | 'reflection'
-  | 'milestone';
-
-export type ForumReactionType =
-  | 'helpful'
-  | 'experienced_this'
-  | 'interesting'
-  | 'courage';
-
-export type ForumResponseType =
-  | 'experience'
-  | 'question'
-  | 'perspective'
-  | 'suggestion'
-  | 'answer';
 
 const PAGE_SIZE = 12;
 
@@ -185,9 +165,9 @@ export async function getForumComments(postId: string) {
   const userIds = [...new Set(comments.map((comment) => comment.user_id))];
 
   const { data: profiles, error: profileError } = await supabase
-    .from('user_profile')
-    .select('user_id, username, display_name, avatar_url')
-    .in('user_id', userIds);
+  .from('user_profile_public')
+  .select('user_id, username, display_name, avatar_url')
+  .in('user_id', userIds);
 
   if (profileError) {
     throw new Error(
