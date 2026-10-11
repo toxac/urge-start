@@ -422,14 +422,15 @@ In this quest, you'll explore how you respond when you need to ask for something
           key: 'm1-q4-setup',
           sequence: 1,
           role: 'setup',
-          title: 'What are you afraid will happen?',
-          description:
-            'A no can feel much bigger before you hear it. This is a chance to look closely at what you are afraid will happen instead of letting that fear make the decision for you.',
-          prompt:
-            'What do you imagine will happen if someone says no?',
+          title: 'A no is not the end of the story.',
+          description: `Imagine you finally ask a potential customer to buy, someone you respect for advice, or a person who could open a door for you. You have thought about what to say, worked up the courage, and made the ask. They say no.
+
+It can sting. You might feel embarrassed, question yourself, or wonder whether you should try again. But a rejection is not a verdict on you or your idea. It is information: this person may not need what you offered, the timing may be wrong, or your approach may need to change. You learn by making an ask, hearing the answer, and deciding what to do next.
+
+In this quest, you will practise facing the possibility of rejection instead of letting it stop you. You will make real asks, experience some noes, and learn that you can handle the answer, learn from it, and keep going.`,
           intent:
-            'Help the user name the outcome they are afraid of and understand why it matters to them.',
-          component: 'fear_explorer',
+            'Prepare the user to practise asking despite the possibility of rejection and to treat each response as information they can learn from.',
+          component: 'standard_setup_frame',
           dependencies: ['m1-q3-action'],
         },
 
