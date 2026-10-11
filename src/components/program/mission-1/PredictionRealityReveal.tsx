@@ -1,12 +1,13 @@
+
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $progress } from '@/lib/stores/progress';
-import { useStore } from '@nanostores/react';
 import {
   getQuest3Reflections,
   generateFrictionSynthesis,
@@ -20,13 +21,17 @@ type ExperimentPayload = {
   actionTaken?: string;
   outcome?: string;
   reaction?: string;
-  reflection?: string;
+};
+
+type ReflectionRecord = {
+  title: string;
+  content: string;
+  source_node_key?: string | null;
 };
 
 type FrictionSynthesis = {
   headline: string;
   interpretation: string;
-  confirmed?: boolean;
 };
 
 type RevealPayload = {
@@ -42,126 +47,211 @@ export function PredictionRealityReveal({
 }: NodeComponentProps) {
   const progressState = useStore($progress);
 
-  /*
-   * The experiment evidence lives on the previous node.
-   */
-  const experiment =
-    (progressState.payloads['m1-q3-ask'] ?? {}) as ExperimentPayload;
+  // The experiment's structured answers are stored in the previous node.
+  const experiment = (
+    progressState.payloads['m1-q3-ask'] ?? {}
+  ) as ExperimentPayload;
 
-  /*
-   * This node's own saved progress.
-   */
+  // This reveal node stores its own generated synthesis.
   const saved = (progress.payload ?? {}) as RevealPayload;
+  const savedSynthesis = saved.synthesis ?? null;
 
-  const prediction =
-    typeof experiment.prediction === 'string'
-      ? experiment.prediction
-      : '';
+  const prediction = experiment.prediction ?? '';
+  const actionTaken = experiment.actionTaken ?? '';
+  const outcome = experiment.outcome ?? '';
+  const reaction = experiment.reaction ?? '';
 
-  const outcome =
-    typeof experiment.outcome === 'string'
-      ? experiment.outcome
-      : '';
-
-  const reaction =
-    typeof experiment.reaction === 'string'
-      ? experiment.reaction
-      : '';
-
-  const reflection =
-    typeof experiment.reflection === 'string'
-      ? experiment.reflection
-      : '';
-
-  const savedSynthesis =
-    saved.synthesis &&
-    typeof saved.synthesis === 'object'
-      ? saved.synthesis
-      : null;
+  const [reflection, setReflection] = useState('');
 
   const [headline, setHeadline] = useState(
-    savedSynthesis?.headline ?? ''
+    savedSynthesis?.headline ?? '',
   );
 
   const [interpretation, setInterpretation] = useState(
-    savedSynthesis?.interpretation ?? ''
-  );
-
-  const [confirmed, setConfirmed] = useState(
-    savedSynthesis?.confirmed === true
+    savedSynthesis?.interpretation ?? '',
   );
 
   const [isGenerating, setIsGenerating] = useState(
-    !savedSynthesis
+    !savedSynthesis,
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const hasGeneratedRef = useRef(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (savedSynthesis) return;
-    if (hasGeneratedRef.current) return;
+    if (savedSynthesis) {
+      setIsGenerating(false);
+      return;
+    }
 
-    hasGeneratedRef.current = true;
-    setIsGenerating(true);
-    setError(null);
+    let cancelled = false;
 
     async function generate() {
-      try {
-        const reflections = await getQuest3Reflections();
+      setIsGenerating(true);
+      setError(null);
 
-        if (reflections.length === 0) {
+      try {
+        const observations = await getQuest3Reflections();
+
+        const experimentReflection = observations.find(
+          (item: ReflectionRecord) =>
+            item.source_node_key === 'm1-q3-ask',
+        );
+
+        const finalReflection =
+          experimentReflection?.content?.trim() ?? '';
+
+        if (!finalReflection) {
           throw new Error(
-            'No reflections were found for this experiment.'
+            'Your final reflection could not be found. Please return to the previous step and save your reflection again.',
           );
         }
 
+        if (
+          !prediction.trim() ||
+          !actionTaken.trim() ||
+          !outcome.trim() ||
+          !reaction.trim()
+        ) {
+          throw new Error(
+            'Some experiment answers are missing. Please check that the previous step has been saved.',
+          );
+        }
+
+        const evidence = [
+          {
+            title: 'What I expected',
+            content: prediction,
+          },
+          {
+            title: 'Who I approached and what I asked for',
+            content: [
+              experiment.target
+                ? `Who I approached: ${experiment.target}`
+                : '',
+              experiment.intention
+                ? `What I asked for: ${experiment.intention}`
+                : '',
+              experiment.why
+                ? `Why I chose this person: ${experiment.why}`
+                : '',
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          },
+          {
+            title: 'What I actually did',
+            content: actionTaken,
+          },
+          {
+            title: 'What happened',
+            content: outcome,
+          },
+          {
+            title: 'How I reacted',
+            content: reaction,
+          },
+          {
+            title: 'What I noticed',
+            content: finalReflection,
+          },
+        ].filter((item) => item.content.trim());
+
         const result = await generateFrictionSynthesis(
-          reflections,
-          nodeKey
+          evidence,
+          nodeKey,
         );
 
-        setHeadline(result.headline);
-        setInterpretation(result.interpretation);
-        setConfirmed(false);
-      } catch (err) {
-        console.error('[PREDICTION REALITY REVEAL]', err);
+        if (cancelled) return;
 
-        hasGeneratedRef.current = false;
+        if (
+          !result?.headline?.trim() ||
+          !result?.interpretation?.trim()
+        ) {
+          throw new Error(
+            'The AI returned an incomplete reflection.',
+          );
+        }
+
+        setReflection(finalReflection);
+        setHeadline(result.headline.trim());
+        setInterpretation(result.interpretation.trim());
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error('[PREDICTION REALITY REVEAL]', err);
 
         setError(
           err instanceof Error
             ? err.message
-            : 'Something went wrong while looking at your experience.'
+            : 'Something went wrong while generating your reflection.',
         );
       } finally {
-        setIsGenerating(false);
+        if (!cancelled) {
+          setIsGenerating(false);
+        }
       }
     }
 
-    generate();
-  }, [savedSynthesis, nodeKey]);
+    void generate();
 
-  async function handleConfirm() {
-    if (!headline || !interpretation || isSubmitting) {
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    savedSynthesis,
+    nodeKey,
+    retryCount,
+    prediction,
+    actionTaken,
+    outcome,
+    reaction,
+    experiment.target,
+    experiment.intention,
+    experiment.why,
+  ]);
+
+  function handleRetry() {
+    setError(null);
+    setHeadline('');
+    setInterpretation('');
+    setReflection('');
+    setIsGenerating(true);
+    setRetryCount((count) => count + 1);
+  }
+
+  async function handleContinue() {
+    if (
+      !headline.trim() ||
+      !interpretation.trim() ||
+      isSubmitting
+    ) {
       return;
     }
 
     setIsSubmitting(true);
+    setError(null);
 
     try {
       await onComplete({
         synthesis: {
           headline,
           interpretation,
-          confirmed: true,
         },
         completed: true,
       });
+    } catch (err) {
+      console.error(
+        '[PREDICTION REALITY REVEAL SAVE]',
+        err,
+      );
 
-      setConfirmed(true);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'We could not save your progress. Please try again.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -180,8 +270,9 @@ export function PredictionRealityReveal({
           </h2>
 
           <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You had a prediction. You acted. Now we are looking across
-            what happened to see what the experience itself tells you.
+            You had a prediction. You acted. Now we are looking
+            across what happened to see what the experience itself
+            tells you.
           </p>
         </div>
 
@@ -193,7 +284,7 @@ export function PredictionRealityReveal({
     );
   }
 
-  if (error) {
+  if (error && !headline && !interpretation) {
     return (
       <div className="w-full max-w-4xl space-y-8">
         <div className="space-y-4">
@@ -205,22 +296,13 @@ export function PredictionRealityReveal({
             We could not complete the reflection.
           </h2>
 
-          <p className="text-muted-foreground">
-            {error}
-          </p>
+          <p className="text-muted-foreground">{error}</p>
         </div>
 
         <Button
+          type="button"
           variant="outline"
-          onClick={() => {
-            hasGeneratedRef.current = false;
-            setError(null);
-            setIsGenerating(true);
-
-            // Force the effect to run again by clearing the local state.
-            setHeadline('');
-            setInterpretation('');
-          }}
+          onClick={handleRetry}
         >
           Try again
         </Button>
@@ -275,9 +357,7 @@ export function PredictionRealityReveal({
                 HOW YOU REACTED
               </p>
 
-              <p className="text-lg leading-8">
-                {reaction}
-              </p>
+              <p className="text-lg leading-8">{reaction}</p>
             </div>
           )}
 
@@ -287,16 +367,14 @@ export function PredictionRealityReveal({
                 WHAT YOU NOTICED
               </p>
 
-              <p className="text-lg leading-8">
-                {reflection}
-              </p>
+              <p className="text-lg leading-8">{reflection}</p>
             </div>
           )}
         </div>
       )}
 
       <div className="border-t border-border pt-10">
-        <div className="space-y-6 max-w-3xl">
+        <div className="max-w-3xl space-y-6">
           <p className="text-sm font-medium text-muted-foreground">
             THE CONNECTION WE SEE
           </p>
@@ -311,70 +389,36 @@ export function PredictionRealityReveal({
         </div>
       </div>
 
-      {!confirmed ? (
-        <div className="border-t border-border pt-8 space-y-5">
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
-              Does this feel true to you?
-            </h3>
-
-            <p className="text-muted-foreground">
-              This is an interpretation of what happened, not a
-              conclusion about you. You decide whether it fits.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleConfirm}
-              disabled={isSubmitting}
-              className="h-12 gap-2 rounded-full px-7 text-base"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Yes, that feels right
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setConfirmed(true);
-              }}
-              disabled={isSubmitting}
-              className="h-12 rounded-full px-7 text-base"
-            >
-              Not quite
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex justify-end border-t border-border pt-8">
-          <Button
-            onClick={() =>
-              onComplete({
-                synthesis: {
-                  headline,
-                  interpretation,
-                  confirmed: true,
-                },
-                completed: true,
-              })
-            }
-            className="h-12 gap-2 rounded-full px-8 text-base"
-          >
-            Continue
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
       )}
+
+      <div className="flex justify-end border-t border-border pt-8">
+        <Button
+          type="button"
+          onClick={handleContinue}
+          disabled={
+            !headline.trim() ||
+            !interpretation.trim() ||
+            isSubmitting
+          }
+          className="h-12 gap-2 rounded-full px-8 text-base"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
