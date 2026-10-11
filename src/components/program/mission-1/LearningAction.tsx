@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { ArrowRight, Check, Loader2 } from 'lucide-react';
 
@@ -31,7 +31,6 @@ type RevealPayload = {
   synthesis?: {
     headline?: string;
     interpretation?: string;
-    confirmed?: boolean;
   };
   completed?: boolean;
 };
@@ -88,7 +87,7 @@ export function LearningAction({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasGeneratedRef = useRef(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   /*
    * Generate specific behavioural responses from the Q3 experience.
@@ -99,9 +98,10 @@ export function LearningAction({
    */
   useEffect(() => {
     if (saved.completed) return;
-    if (hasGeneratedRef.current) return;
 
-    if (!headline || !interpretation) {
+    let cancelled = false;
+
+    if (!headline.trim() || !interpretation.trim()) {
       setIsGenerating(false);
       setError(
         'We could not find the learning from the previous step. Please go back and complete it first.'
@@ -109,39 +109,44 @@ export function LearningAction({
       return;
     }
 
-    hasGeneratedRef.current = true;
-    setIsGenerating(true);
-    setError(null);
-
     async function generate() {
+      setIsGenerating(true);
+      setError(null);
+
       try {
         const reflections = await getQuest3Reflections();
 
         const result = await generateLearningActions(
-          {
-            headline,
-            interpretation,
-          },
+          { headline, interpretation },
           reflections,
           nodeKey
         );
 
+        if (cancelled) return;
+
+        if (!Array.isArray(result?.options) || result.options.length === 0) {
+          throw new Error('No practice suggestions were returned.');
+        }
+
         setOptions(result.options);
       } catch (err) {
+        if (cancelled) return;
+
         console.error('[LEARNING ACTION GENERATION ERROR]', err);
-
-        hasGeneratedRef.current = false;
-
         setError(
           'We could not generate the next choices. Please try again.'
         );
       } finally {
-        setIsGenerating(false);
+        if (!cancelled) setIsGenerating(false);
       }
     }
 
-    generate();
-  }, [headline, interpretation, nodeKey, saved.completed]);
+    void generate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [headline, interpretation, nodeKey, saved.completed, retryCount]);
 
   const selectedOption = options.find(
     (option) => option.id === selectedId
@@ -359,41 +364,9 @@ export function LearningAction({
 
         <Button
           onClick={() => {
-            hasGeneratedRef.current = false;
             setError(null);
             setIsGenerating(true);
-
-            /*
-             * Trigger the effect again by changing nothing would not
-             * be reliable, so reload the current generation explicitly.
-             */
-            void (async () => {
-              try {
-                const reflections = await getQuest3Reflections();
-
-                const result = await generateLearningActions(
-                  {
-                    headline,
-                    interpretation,
-                  },
-                  reflections,
-                  nodeKey
-                );
-
-                setOptions(result.options);
-              } catch (err) {
-                console.error(
-                  '[LEARNING ACTION RETRY ERROR]',
-                  err
-                );
-
-                setError(
-                  'We could not generate the choices. Please try again.'
-                );
-              } finally {
-                setIsGenerating(false);
-              }
-            })();
+            setRetryCount((count) => count + 1);
           }}
           className="h-12 rounded-full px-8 text-base"
         >
@@ -415,9 +388,9 @@ export function LearningAction({
         </h2>
 
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You expected one thing. Reality gave you something else.
-          Now decide what you want to do differently the next time
-          you are in a similar situation.
+          You have seen what happened when you made a real ask.
+          Now choose one small behaviour to practise the next time
+          you feel yourself hesitating.
         </p>
       </div>
 
@@ -442,12 +415,12 @@ export function LearningAction({
       <div className="space-y-5">
         <div>
           <h3 className="text-xl font-semibold">
-            What will you do differently next time?
+            What will you practise next time?
           </h3>
 
           <p className="mt-2 text-muted-foreground">
-            Choose the behaviour you want to carry into a similar
-            situation.
+            Choose one specific, repeatable behaviour for the moment
+            when you feel yourself hesitating to ask.
           </p>
         </div>
 
@@ -507,8 +480,8 @@ export function LearningAction({
                 </p>
 
                 <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                  There is something specific from this experience
-                  that I want to carry forward.
+                  Write a small behaviour that you can practise the
+                  next time you feel yourself hesitating.
                 </p>
               </div>
 
@@ -528,15 +501,15 @@ export function LearningAction({
             </h3>
 
             <p className="text-muted-foreground">
-              Make it specific enough that you would recognize
-              yourself doing it.
+              Make it concrete and repeatable. Start with:
+              “When I notice myself hesitating, I will...”
             </p>
           </div>
 
           <Textarea
             value={customResponse}
             onChange={(event) => setCustomResponse(event.target.value)}
-            placeholder="Next time, I will..."
+            placeholder="When I notice myself hesitating, I will..."
             className="min-h-[150px] resize-none text-lg leading-8"
             disabled={isSubmitting}
           />
