@@ -124,6 +124,8 @@ export function RealWorldExperiment({
     setIsSubmitting(true);
     setError(null);
 
+    // This is the complete payload persisted through onComplete
+    // into user_progress.payload.
     const payload: ExperimentPayload = {
       target: target.trim(),
       intention: intention.trim(),
@@ -138,29 +140,27 @@ export function RealWorldExperiment({
     };
 
     try {
+      // Save only the final reflection as a durable observation.
       await saveObservation({
-        title: 'Real-world asking experiment',
+        title: 'Reflection after making a real ask',
         content: payload.reflection,
-        context: [
-          `Who I approached: ${payload.target}`,
-          `What I asked for: ${payload.intention}`,
-          `Why I chose this person: ${payload.why}`,
-          `What I predicted: ${payload.prediction}`,
-          `What I did: ${payload.actionTaken}`,
-          `What happened: ${payload.outcome}`,
-          `How I reacted: ${payload.reaction}`,
-        ].join('\n\n'),
         type: 'experiment',
         domain: 'personal',
         focus: 'asking',
         source_node_key: nodeKey,
       });
 
+      // Persist all experiment fields and complete the progress node.
       await onComplete(payload);
+
       setStage('complete');
     } catch (err) {
       console.error('[REAL WORLD EXPERIMENT]', err);
-      setError('Something went wrong while saving. Please try again.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while saving. Please try again.',
+      );
     } finally {
       setIsSubmitting(false);
     }
