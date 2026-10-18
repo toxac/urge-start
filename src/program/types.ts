@@ -1,4 +1,10 @@
+
 import type { Json } from '@/database.types';
+
+// -----------------------------------------------------------------------------
+// Program structure
+// -----------------------------------------------------------------------------
+
 export type ProgramNodeRole =
   | 'setup'
   | 'investigation'
@@ -12,7 +18,12 @@ export type NodeResource = {
   title: string;
 };
 
-export type NodeMetadata = Record<string, Json>;
+export type ProgramNodePacing = {
+  delay_days: number;
+  isStrict?: boolean;
+};
+
+export type ProgramNodeMetadata = Record<string, Json | undefined>;
 
 export type ProgramNode = {
   key: string;
@@ -21,11 +32,14 @@ export type ProgramNode = {
   title: string;
   intent: string;
   component: string;
-  dependencies?: string[];
-  resources?: NodeResource[];
+
   description?: string;
   prompt?: string;
-  metadata?: NodeMetadata;
+
+  dependencies?: string[];
+  resources?: NodeResource[];
+  pacing?: ProgramNodePacing;
+  metadata?: ProgramNodeMetadata;
 };
 
 export type ProgramQuest = {
@@ -43,31 +57,50 @@ export type ProgramMission = {
   sequence: number;
   question: string;
   description: string;
+
   transformation: {
     from: string;
     to: string;
   };
+
   setup: ProgramNode;
   quests: ProgramQuest[];
   reveal: ProgramNode;
   action?: ProgramNode;
 };
 
+export type ProgramDefinition = {
+  version: number;
+  missions: ProgramMission[];
+};
+
+// -----------------------------------------------------------------------------
+// Node completion and routing
+// -----------------------------------------------------------------------------
+
+// Keep the existing payload shape compatible with current node components.
+// We can tighten this type after checking all completion payloads.
+export type ProgramNodeCompletionPayload = Record<string, any>;
+
+export type ProgramNodeCompletionHandler = (
+  payload?: ProgramNodeCompletionPayload,
+  nextNodeKey?: string,
+) => Promise<void>;
+
+// -----------------------------------------------------------------------------
+// Mission 1: real-world experiment metadata
+// -----------------------------------------------------------------------------
+
 export type RealWorldExperimentMetadata = {
   experiment: {
     type: 'asking';
-
     difficulty: 'low' | 'meaningful' | 'stretch';
-
     purpose:
       | 'practice_asking'
       | 'experience_rejection'
       | 'test_identified_fear';
-
     prompt: string;
-
     framing: string;
-
     scenarioHints: string[];
   };
 };
