@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, Mic, Square } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { Resolver } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,13 +34,10 @@ import { saveObservation } from '@/actions/observations';
 type ObservationLoggerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-
   type?: ObservationType;
   domain?: ObservationDomain;
   focus?: string;
-
   sourceNodeKey?: string;
-
   onSaved?: (observation: UserObservation) => void;
 };
 
@@ -60,7 +58,7 @@ export function ObservationLogger({
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const form = useForm<ObservationFormValues>({
-    resolver: zodResolver(observationSchema),
+    resolver: zodResolver(observationSchema) as Resolver<ObservationFormValues>,
     defaultValues: {
       title: '',
       content: '',

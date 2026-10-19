@@ -1,11 +1,38 @@
+
 'use server';
 
+import type { Json } from '@/database.types';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 import {
   observationSchema,
   type ObservationFormValues,
 } from '@/lib/schemas/observation';
+
+import type {
+  UserObservationInsert,
+  UserObservationUpdate,
+} from '@/lib/types/observations';
+
+import type { ProblemDetails } from '@/lib/types/observations';
+
+function mergeProblemDetails(
+  current: Json | null | undefined,
+  incoming: ProblemDetails,
+): Json {
+  const currentObject =
+    current !== null &&
+    current !== undefined &&
+    typeof current === 'object' &&
+    !Array.isArray(current)
+      ? current
+      : {};
+
+  return {
+    ...currentObject,
+    ...incoming,
+  } as Json;
+}
 
 export async function saveObservation(data: ObservationFormValues) {
   const supabase = await createSupabaseServerClient();
@@ -19,13 +46,19 @@ export async function saveObservation(data: ObservationFormValues) {
     throw new Error('Unauthorized');
   }
 
+  const userId = user.id;
   const parsed = observationSchema.safeParse(data);
 
   if (!parsed.success) {
-    throw new Error('Invalid observation data.');
+    throw new Error(
+      `Invalid observation data: ${parsed.error.issues
+        .map((issue) => issue.message)
+        .join(', ')}`,
+    );
   }
 
   const {
+    observation_id,
     title,
     content,
     context,
@@ -34,32 +67,134 @@ export async function saveObservation(data: ObservationFormValues) {
     domain,
     focus,
     source_node_key,
+    notes,
+    image_url,
+    problem_details,
+    metadata,
   } = parsed.data;
+
+  // Fields omitted from an update remain unchanged.
+  const updatePayload: UserObservationUpdate = {
+    title,
+    content,
+    updated_at: new Date().toISOString(),
+    ...(context !== undefined ? { context } : {}),
+    ...(observed_at !== undefined ? { observed_at } : {}),
+    ...(type != null ? { type } : {}),
+    ...(domain !== undefined ? { domain } : {}),
+    ...(focus !== undefined ? { focus } : {}),
+    ...(source_node_key !== undefined ? { source_node_key } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+    ...(image_url !== undefined ? { image_url } : {}),
+    ...(metadata !== undefined ? { metadata: metadata as Json } : {}),
+  };
+
+  async function updateExistingObservation(id: string) {
+    // Fetch by both ID and owner before merging JSON or updating.
+    const { data: current, error: fetchError } = await supabase
+      .from('user_observations')
+      .select('id, problem_details')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new Error(
+        `Failed to load observation: ${fetchError.message}`,
+      );
+    }
+
+    if (!current) {
+      throw new Error('Observation not found.');
+    }
+
+    const payload: UserObservationUpdate = {
+      ...updatePayload,
+      ...(problem_details !== undefined
+        ? {
+            problem_details: mergeProblemDetails(
+              current.problem_details,
+              problem_details,
+            ),
+          }
+        : {}),
+    };
+
+    const { data: observation, error } = await supabase
+      .from('user_observations')
+      .update(payload)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(
+        `Failed to update observation: ${error.message}`,
+      );
+    }
+
+    return observation;
+  }
+
+  // Explicit edit: update the requested observation.
+  if (observation_id) {
+    const observation = await updateExistingObservation(observation_id);
+
+    return { success: true, observation };
+  }
+
+  // The user's main existing idea is still an ordinary observation.
+  // Re-entry updates it rather than creating a duplicate.
+  if (problem_details?.is_existing === true) {
+    const { data: existing, error: lookupError } = await supabase
+      .from('user_observations')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('problem_details->>is_existing', 'true')
+      .maybeSingle();
+
+    if (lookupError) {
+      throw new Error(
+        `Failed to find existing idea: ${lookupError.message}`,
+      );
+    }
+
+    if (existing) {
+      const observation = await updateExistingObservation(existing.id);
+
+      return { success: true, observation };
+    }
+  }
+
+  // New observation.
+  const insertPayload: UserObservationInsert = {
+    user_id: user.id,
+    title,
+    content,
+    context: context ?? null,
+    observed_at: observed_at ?? new Date().toISOString(),
+    type: type ?? 'observation',
+    domain: domain ?? null,
+    focus: focus ?? null,
+    source_node_key: source_node_key ?? null,
+    ...(notes !== undefined ? { notes } : {}),
+    ...(image_url !== undefined ? { image_url } : {}),
+    ...(problem_details !== undefined
+      ? { problem_details: problem_details as Json }
+      : {}),
+    ...(metadata !== undefined ? { metadata: metadata as Json } : {}),
+  };
 
   const { data: observation, error } = await supabase
     .from('user_observations')
-    .insert({
-      user_id: user.id,
-      title,
-      content,
-      context: context || null,
-      observed_at: observed_at ?? new Date().toISOString(),
-      type: type ?? 'observation',
-      domain: domain ?? null,
-      focus: focus ?? null,
-      source_node_key: source_node_key ?? null,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
   if (error) {
-    throw new Error(
-      `Failed to save observation: ${error.message}`
-    );
+    throw new Error(`Failed to save observation: ${error.message}`);
   }
 
-  return {
-    success: true,
-    observation,
-  };
+  return { success: true, observation };
 }
