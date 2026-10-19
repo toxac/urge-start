@@ -25,9 +25,12 @@ import {
   Mission1Reveal,
   Mission1Action,
 } from '@/components/program/mission-1';
-// We will create this common component next
+import {
+  OpportunitySetup,
+} from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
+
 
 export type NodeComponentProps = {
   node: ProgramNode;
@@ -73,5 +76,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'mission_transformation': Mission1Reveal,
   'mission_transfer_action': Mission1Action,
 
-  // ... (keep the rest mapped to DummyNode for now)
+  //Mission 2
+  'opportunity_starting_point': OpportunitySetup,
+
 };

@@ -10,6 +10,7 @@ import {
 } from '@/lib/schemas/observation';
 
 import type {
+  UserObservation,
   UserObservationInsert,
   UserObservationUpdate,
 } from '@/lib/types/observations';
@@ -32,6 +33,35 @@ function mergeProblemDetails(
     ...currentObject,
     ...incoming,
   } as Json;
+}
+
+/**
+ * Fetch all observations belonging to the authenticated user.
+ * Called by the designated hydration layer, not by individual nodes.
+ */
+export async function getObservations(): Promise<UserObservation[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data, error } = await supabase
+    .from('user_observations')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load observations: ${error.message}`);
+  }
+
+  return data;
 }
 
 export async function saveObservation(data: ObservationFormValues) {
