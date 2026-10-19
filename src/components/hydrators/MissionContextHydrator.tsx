@@ -25,6 +25,10 @@ export function MissionContextHydrator({
       observationsActions.hydrate(
         contextData.observations as UserObservation[],
       );
+      console.log(
+        '[OBSERVATIONS HYDRATED]',
+        observationsActions.getByNode('m2-setup'),
+      );
     }
   }, [contextData]);
 
