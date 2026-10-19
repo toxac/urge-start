@@ -85,3 +85,24 @@ export const OBSERVATION_LINK_ENTITY_TYPES = [
 
 export type ObservationLinkEntityType =
     (typeof OBSERVATION_LINK_ENTITY_TYPES)[number];
+
+
+    export type QualificationAnswer =
+  | 'yes'
+  | 'not_sure'
+  | 'no'
+  | null;
+
+export type ProblemDetails = {
+  is_existing?: boolean | null;
+  who?: string | null;
+  where?: string | null;
+  when?: string | null;
+  can_reach?: boolean | null;
+  workaround?: string | null;
+  why_unsolved?: string | null;
+  current_option?: string | null;
+  understands?: QualificationAnswer;
+  cares?: QualificationAnswer;
+  can_solve?: QualificationAnswer;
+};

@@ -590,8 +590,11 @@ export type Database = {
           domain: string | null
           focus: string | null
           id: string
+          image_url: string | null
           metadata: Json
+          notes: string[]
           observed_at: string | null
+          problem_details: Json
           source_node_key: string | null
           title: string
           type: string
@@ -605,8 +608,11 @@ export type Database = {
           domain?: string | null
           focus?: string | null
           id?: string
+          image_url?: string | null
           metadata?: Json
+          notes?: string[]
           observed_at?: string | null
+          problem_details?: Json
           source_node_key?: string | null
           title: string
           type?: string
@@ -620,8 +626,11 @@ export type Database = {
           domain?: string | null
           focus?: string | null
           id?: string
+          image_url?: string | null
           metadata?: Json
+          notes?: string[]
           observed_at?: string | null
+          problem_details?: Json
           source_node_key?: string | null
           title?: string
           type?: string
@@ -646,6 +655,7 @@ export type Database = {
           hypothesis: string | null
           id: string
           metadata: Json
+          observation_details: Json
           problem: string | null
           status: Database["public"]["Enums"]["opportunity_status"]
           title: string
@@ -659,6 +669,7 @@ export type Database = {
           hypothesis?: string | null
           id?: string
           metadata?: Json
+          observation_details?: Json
           problem?: string | null
           status?: Database["public"]["Enums"]["opportunity_status"]
           title: string
@@ -672,6 +683,7 @@ export type Database = {
           hypothesis?: string | null
           id?: string
           metadata?: Json
+          observation_details?: Json
           problem?: string | null
           status?: Database["public"]["Enums"]["opportunity_status"]
           title?: string
