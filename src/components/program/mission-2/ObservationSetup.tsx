@@ -1,7 +1,15 @@
 
 'use client';
 
-import { ArrowRight, Lightbulb, MapPin, TrendingUp, UserRound, UsersRound } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Lightbulb,
+  MapPin,
+  TrendingUp,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
@@ -35,7 +43,10 @@ const observationAreas = [
 
 export function ObservationSetup({
   onComplete,
+  progress,
 }: NodeComponentProps) {
+  const isCompleted = progress.completed === true;
+
   return (
     <div className="w-full animate-in fade-in duration-500">
       <div className="mx-auto w-full max-w-4xl space-y-10 pb-8">
@@ -85,6 +96,7 @@ export function ObservationSetup({
             <h2 className="text-2xl font-semibold tracking-tight">
               Where should you look?
             </h2>
+
             <p className="text-base leading-7 text-muted-foreground">
               Start with yourself, then look beyond your own experience.
             </p>
@@ -108,6 +120,7 @@ export function ObservationSetup({
 
                   <div className="space-y-1.5">
                     <h3 className="font-semibold">{area.title}</h3>
+
                     <p className="text-sm leading-6 text-muted-foreground">
                       {area.description}
                     </p>
@@ -144,6 +157,7 @@ export function ObservationSetup({
               <div className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-[#FF502F]/15">
                 <span className="size-2 rounded-full bg-[#FF502F]" />
               </div>
+
               <p className="text-sm leading-6 text-muted-foreground">
                 A sentence is enough to start. You can add details as you learn
                 more.
@@ -152,20 +166,34 @@ export function ObservationSetup({
           </div>
         </section>
 
-        {/* Continue */}
+        {/* Completion or continue to the challenge */}
         <footer className="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            You don't need to find the perfect problem. Just start paying
-            attention.
+            {isCompleted
+              ? "You've completed this introduction. You can review these ideas as you begin noticing problems."
+              : "You don't need to find the perfect problem. Just start paying attention."}
           </p>
 
-          <Button
-            onClick={() => onComplete({ completed: true })}
-            className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
-          >
-            Let's begin
-            <ArrowRight className="size-5" />
-          </Button>
+          {isCompleted ? (
+            <div
+              className="flex h-12 shrink-0 items-center gap-2 rounded-full border border-border bg-card px-5 text-sm font-medium text-muted-foreground"
+              role="status"
+            >
+              <CheckCircle2
+                className="size-5 text-[#FF502F]"
+                aria-hidden="true"
+              />
+              Introduction completed
+            </div>
+          ) : (
+            <Button
+              onClick={() => onComplete({ completed: true })}
+              className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
+            >
+              Let's begin
+              <ArrowRight className="size-5" />
+            </Button>
+          )}
         </footer>
       </div>
     </div>

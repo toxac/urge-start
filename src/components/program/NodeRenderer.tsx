@@ -74,6 +74,7 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
     : `Mission ${mission.sequence}`;
 
   const nodeProgress = progressState.payloads?.[nodeKey] || {};
+  const isCompleted = progressState.completedNodes.has(nodeKey);
 
   const handleComplete = async (
     payload?: Record<string, any>,
@@ -119,7 +120,7 @@ export function NodeRenderer({ nodeKey }: NodeRendererProps) {
             <Component
               node={node}
               nodeKey={nodeKey}
-              progress={nodeProgress}
+              progress={{ ...nodeProgress, completed: isCompleted }}
               onComplete={handleComplete}
             />
           </div>
