@@ -61,18 +61,38 @@ export const OBSERVATION_DOMAINS = [
 export type ObservationDomain =
     (typeof OBSERVATION_DOMAINS)[number];
 
+
 export const OBSERVATION_FOCUS_OPTIONS = {
-    problem: [
-        'personal',
-        'people',
-        'zone_of_influence',
-        'changes',
-        'markets',
-    ],
-    experiment: [
-    'asking',
+  problem: [
+    'personal',
+    'zone_of_influence',
+    'market_trends',
+    'lived_experience',
   ],
+  experiment: ['asking'],
 } as const;
+
+export type ProblemObservationFocus =
+  (typeof OBSERVATION_FOCUS_OPTIONS.problem)[number];
+
+export type ExperimentFocus =
+  (typeof OBSERVATION_FOCUS_OPTIONS.experiment)[number];
+
+export type ObservationFocus =
+  | ProblemObservationFocus
+  | ExperimentFocus;
+
+export const OBSERVATION_FOCUS_LABELS: Record<
+  ProblemObservationFocus,
+  string
+> = {
+  personal: 'Your everyday life',
+  zone_of_influence: 'People and places you know',
+  market_trends: "What's changing around you",
+  lived_experience: 'What you know and can do',
+};
+
+
 
 // -----------------------------------------------------------------------------
 // Observation links

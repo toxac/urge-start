@@ -5,7 +5,7 @@ import type { Json } from '@/database.types';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 import {
-  observationSchema,
+  validatedObservationSchema,
   type ObservationFormValues,
 } from '@/lib/schemas/observation';
 
@@ -13,10 +13,15 @@ import type {
   UserObservation,
   UserObservationInsert,
   UserObservationUpdate,
+  ProblemDetails,
 } from '@/lib/types/observations';
 
-import type { ProblemDetails } from '@/lib/types/observations';
-
+/**
+ * Merge incoming problem details with existing details.
+ *
+ * Undefined fields are ignored so partial updates preserve existing values.
+ * Explicit null values are retained, allowing callers to clear a field.
+ */
 function mergeProblemDetails(
   current: Json | null | undefined,
   incoming: ProblemDetails,
@@ -29,9 +34,13 @@ function mergeProblemDetails(
       ? current
       : {};
 
+  const definedIncoming = Object.fromEntries(
+    Object.entries(incoming).filter(([, value]) => value !== undefined),
+  );
+
   return {
     ...currentObject,
-    ...incoming,
+    ...definedIncoming,
   } as Json;
 }
 
@@ -64,6 +73,9 @@ export async function getObservations(): Promise<UserObservation[]> {
   return data;
 }
 
+/**
+ * Create or update an observation belonging to the authenticated user.
+ */
 export async function saveObservation(data: ObservationFormValues) {
   const supabase = await createSupabaseServerClient();
 
@@ -77,7 +89,9 @@ export async function saveObservation(data: ObservationFormValues) {
   }
 
   const userId = user.id;
-  const parsed = observationSchema.safeParse(data);
+
+  // Validate on the server, including problem-focus validation.
+  const parsed = validatedObservationSchema.safeParse(data);
 
   if (!parsed.success) {
     throw new Error(
@@ -119,8 +133,11 @@ export async function saveObservation(data: ObservationFormValues) {
     ...(metadata !== undefined ? { metadata: metadata as Json } : {}),
   };
 
+  /**
+   * Update an existing observation after verifying ownership.
+   * Problem details are merged so partial edits don't erase other answers.
+   */
   async function updateExistingObservation(id: string) {
-    // Fetch by both ID and owner before merging JSON or updating.
     const { data: current, error: fetchError } = await supabase
       .from('user_observations')
       .select('id, problem_details')
@@ -174,13 +191,13 @@ export async function saveObservation(data: ObservationFormValues) {
     return { success: true, observation };
   }
 
-  // The user's main existing idea is still an ordinary observation.
-  // Re-entry updates it rather than creating a duplicate.
+  // The user's main existing idea remains an ordinary observation.
+  // Re-entry updates it instead of creating a duplicate.
   if (problem_details?.is_existing === true) {
     const { data: existing, error: lookupError } = await supabase
       .from('user_observations')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('problem_details->>is_existing', 'true')
       .maybeSingle();
 
@@ -197,9 +214,9 @@ export async function saveObservation(data: ObservationFormValues) {
     }
   }
 
-  // New observation.
+  // Create a new observation.
   const insertPayload: UserObservationInsert = {
-    user_id: user.id,
+    user_id: userId,
     title,
     content,
     context: context ?? null,
