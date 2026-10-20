@@ -40,11 +40,13 @@ export const mission2: ProgramMission = {
     key: 'm2-setup',
     sequence: 1,
     role: 'setup',
-    title: 'Where are you starting from?',
-    description: `Most people who want to start something already have an idea in mind. Or the ghost of one. You don't have to leave it behind. Tell us what it is, and it joins everything else you notice in this mission, to be looked at properly alongside it.
+    title: "Let's find a problem worth solving.",
+    description: `You've already taken the first step. In Mission 1, you explored what drives you, faced some of the fears that hold people back, and started building your capacity to act before you feel ready.
 
-If you don't have one, that's fine too.`,
-    prompt: `Is there an idea you've been carrying?`,
+Now it's time to turn that willingness to act into something you can build on.
+
+Your mission is to find problems worth solving. Not to come up with a brilliant idea out of thin air, but to notice what's broken, frustrating, unnecessarily difficult, or missing in the world around you. That's where opportunities begin.`,
+    prompt: `Do you already have an idea you'd like to explore?`,
     intent:
       'Acknowledge the idea the user arrives with so they do not feel they are giving anything up. If they have one, it is saved as an observation only (metadata.is_existing_idea). It is never created as an opportunity here; it goes through qualification like every other observation and only becomes an opportunity if the user promotes it in Q1. If they have none, show what they said in M1 and move on without writing anything.',
     component: 'opportunity_starting_point',
