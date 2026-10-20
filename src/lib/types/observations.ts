@@ -120,8 +120,10 @@ export type ProblemDetails = {
   when?: string | null;
   can_reach?: boolean | null;
   workaround?: string | null;
-  why_unsolved?: string | null;
   current_option?: string | null;
+  cost?: string | null;
+  frequency?: string | null;
+  why_unsolved?: string | null;
   understands?: QualificationAnswer;
   cares?: QualificationAnswer;
   can_solve?: QualificationAnswer;
