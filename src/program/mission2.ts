@@ -62,20 +62,32 @@ Your mission is to find problems worth solving. Not to come up with a brilliant 
       sequence: 1,
       title: 'Notice Problems',
       description:
-        'Stop trying to come up with ideas. Pay attention to problems that are already happening around you.',
+        'Before you can build a business, you need something worth solving. Start by noticing what is happening around you.',
       nodes: [
         {
           key: 'm2-q1-setup',
           sequence: 1,
           role: 'setup',
-          title: `Notice, don't brainstorm.`,
-          description: `Every business exists because someone has a problem. The best ones often start with someone noticing a problem that was already there.
+          title: 'Start by noticing problems.',
+          description: `A business can start when someone notices a problem that matters to another person—and finds a way to solve it that the person is willing to pay for.
 
-For the next week or so, just pay attention. Everything you notice gets saved as an observation. Don't ask whether it could be a business yet.`,
-          prompt: `What's been bugging you lately?`,
+You don't need to invent a brilliant idea. You need to get better at noticing what is already happening around you.
+
+Start with yourself. What frustrates you, wastes your time, costs you more than it should, or makes something unnecessarily difficult?
+
+Then look beyond yourself:
+• People around you — what do friends, family, colleagues or customers struggle with?
+• Places you know — what could work better in your neighbourhood, workplace or community?
+• Changes you notice — what new habits, technologies or circumstances are creating new needs?
+• Products and services — what do people complain about, work around or still struggle to find?
+
+For now, don't worry about whether any of these could become a business. Don't try to solve them either. Just notice and record them.
+
+Here's your challenge: how many problems can you notice over the next week? You might be surprised by how many are hiding in plain sight.`,
+          prompt: 'How many problems can you notice?',
           intent:
-            'Reframe discovery around noticing rather than inventing. Optional first observation. Introduces the word "observation".',
-          component: 'noticing_setup',
+            'Shift the user from brainstorming ideas to observing existing problems. Explain the commercial relevance of problems without asking the user to validate demand yet. Introduce the five observation lenses and encourage ongoing capture.',
+          component: 'observation_setup',
           dependencies: ['m2-setup'],
         },
         {
@@ -83,12 +95,16 @@ For the next week or so, just pay attention. Everything you notice gets saved as
           sequence: 2,
           role: 'investigation',
           title: 'What are you noticing?',
-          description: `Come back whenever you see, hear or live through something annoying, slow, expensive or broken. A sentence is enough. You can add detail later.
+          description: `Problems are easier to notice when you pay attention over several days instead of trying to think of everything at once.
 
-A couple of the prompts ask you to go and ask someone. Try those.`,
+Capture anything that seems frustrating, slow, expensive, confusing, broken or missing. It can be something you experience yourself or something you notice in other people, places, products or markets.
+
+A sentence is enough to start. Add details whenever you learn more.
+
+Some prompts will ask you to go and ask someone directly. Give those a try. What people tell you can reveal things you would never have noticed on your own.`,
           prompt: 'What frustrated you today?',
           intent:
-            'Lightweight, ongoing capture of observations across five lenses (personal, people, zone_of_influence, changes, markets), including two real asks. Observations can also be added outside this node. Soft target of about 10, no gating beyond a small minimum.',
+            'Support lightweight, ongoing capture of observations across personal, people, zone_of_influence, changes and markets. Include two real-world asks. Keep observations in the user’s own words and allow more detail to be added later. Encourage roughly 10 observations without treating that as a completion requirement.',
           component: 'observation_capture',
           dependencies: ['m2-q1-setup'],
           pacing: { delay_days: 5 },
@@ -98,7 +114,13 @@ A couple of the prompts ask you to go and ask someone. Try those.`,
             observation: {
               type: 'observation',
               domain: 'problem',
-              focuses: ['personal', 'people', 'zone_of_influence', 'changes', 'markets'],
+              focuses: [
+                'personal',
+                'people',
+                'zone_of_influence',
+                'changes',
+                'markets',
+              ],
               minimum_count: 3,
               soft_target: 10,
             },
@@ -108,24 +130,30 @@ A couple of the prompts ask you to go and ask someone. Try those.`,
           key: 'm2-q1-qualify',
           sequence: 3,
           role: 'investigation',
-          title: 'Which of these are worth a closer look?',
-          description: `Not every observation deserves your attention. For each one, answer three questions honestly:
+          title: 'Which problems are worth a closer look?',
+          description: `You may have noticed more problems than you expected. You don't need to investigate all of them.
+
+Take a first pass through your observations. For each one, ask yourself:
 
 Do I understand this problem?
 Could I do something about it?
-Do I care?
+Do I care enough to explore it?
 
-"Not sure" is a fine answer.`,
-          prompt: 'For each observation: do you understand it, could you do something about it, do you care?',
+Be honest. "Not sure" is a perfectly good answer.
+
+You're not deciding whether a problem is a business opportunity yet. You're deciding which ones deserve more of your attention.`,
+          prompt:
+            'Do you understand it, could you do something about it, and do you care?',
           intent:
-            'Quick three-question pass over each observation, one at a time, each answered yes / not sure / no and stored on the observation. Whether the problem is real is deliberately not asked here; talking to people in Q2 answers that. An observation can be skipped as not worth a closer look.',
+            'Run a quick three-question qualification for each observation, storing answers on the observation. This is a personal-fit filter, not a test of whether the problem is real or commercially viable. Allow users to skip observations they do not want to explore.',
           component: 'observation_qualification',
           dependencies: ['m2-q1-observe'],
           metadata: {
-            guidance: 'Go with your gut. You are not committing to anything yet.',
+            guidance:
+              'Go with your gut. You are not committing to anything yet.',
             qualification: {
               questions: ['understand', 'can_solve', 'care'],
-              answers: ['yes', 'maybe', 'no'],
+              answers: ['yes', 'not_sure', 'no'],
             },
           },
         },
@@ -134,9 +162,13 @@ Do I care?
           sequence: 4,
           role: 'reveal',
           title: 'What keeps showing up?',
-          description: `Look across your observations and your answers. Some problems repeat. Some cluster. Some connect to things you already know.`,
+          description: `Step back and look at the problems you've noticed.
+
+Some may repeat. Others may be connected, happen to the same people, or appear in different places for similar reasons. You may also recognise problems that connect with your own experience and strengths.
+
+Look for patterns, but don't force them. A connection is something to investigate, not a conclusion you have to accept.`,
           intent:
-            'Mirror patterns, clusters, cross-lens overlaps and places where the user\'s three answers pull in different directions, using their own words and context from M1. Persisted in ai_logs (purpose observation_patterns) with regenerate. Offers a way back to change qualification answers.',
+            'Reflect patterns, clusters, cross-lens overlaps and tensions in the user’s qualification answers. Use the user’s own observations and relevant context from Mission 1. Do not invent patterns or present interpretations as facts. Persist the AI output in ai_logs with purpose observation_patterns and allow regeneration. Provide a route back to change qualification answers.',
           component: 'observation_patterns_reveal',
           dependencies: ['m2-q1-qualify'],
         },
@@ -144,11 +176,17 @@ Do I care?
           key: 'm2-q1-action',
           sequence: 5,
           role: 'action',
-          title: 'Which three will you look into?',
-          description: `Pick up to three observations to turn into opportunities. An opportunity is an observation you've decided to look into properly. The rest stay as observations, and you can come back to them.`,
-          prompt: 'Which three observations will you take forward?',
+          title: 'Which problems will you investigate?',
+          description: `You don't have to pursue every problem you've noticed.
+
+Choose up to three observations you'd like to understand better. Each one will become an opportunity: a problem you've decided is worth investigating, not a business idea you've committed to building.
+
+The others stay in your observations. You can return to them whenever you like.
+
+In the next quest, you'll start finding out whether the problems you've chosen matter to other people.`,
+          prompt: 'Which problems will you take forward?',
           intent:
-            'Choose up to three observations to promote. Each becomes an opportunity linked to its source observation, with a snapshot of the qualification answers. Hard cap of three.',
+            'Allow the user to promote up to three observations into user_opportunities, preserving a link to each source observation and a snapshot of its qualification answers. Keep all unselected observations available. These are candidates for investigation, not validated business opportunities.',
           component: 'promote_to_opportunities',
           dependencies: ['m2-q1-reveal'],
         },

@@ -25,8 +25,10 @@ import {
   Mission1Reveal,
   Mission1Action,
 } from '@/components/program/mission-1';
+
 import {
   OpportunitySetup,
+  ObservationSetup
 } from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
@@ -78,5 +80,6 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
 
   //Mission 2
   'opportunity_starting_point': OpportunitySetup,
+  "observation_setup": ObservationSetup,
 
 };
