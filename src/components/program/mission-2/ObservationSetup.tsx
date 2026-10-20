@@ -3,7 +3,6 @@
 
 import {
   ArrowRight,
-  CheckCircle2,
   Lightbulb,
   MapPin,
   TrendingUp,
@@ -13,6 +12,8 @@ import {
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+import { getNextNodeKey } from '@/lib/program/navigation';
+import { programStateActions } from '@/lib/stores/program-state';
 
 const observationAreas = [
   {
@@ -42,10 +43,22 @@ const observationAreas = [
 ];
 
 export function ObservationSetup({
-  onComplete,
+  nodeKey,
   progress,
+  onComplete,
 }: NodeComponentProps) {
   const isCompleted = progress.completed === true;
+
+  const handleContinue = () => {
+    const nextNodeKey = getNextNodeKey(nodeKey);
+
+    if (!nextNodeKey) {
+      return;
+    }
+
+    // Navigate locally without changing persisted progress or journey state.
+    programStateActions.setCurrentNode(nextNodeKey);
+  };
 
   return (
     <div className="w-full animate-in fade-in duration-500">
@@ -109,13 +122,10 @@ export function ObservationSetup({
               return (
                 <article
                   key={area.title}
-                  className="flex h-full gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-[#FF502F]/50 sm:p-5"
+                  className="flex gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-[#FF502F]/40"
                 >
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <Icon
-                      className="size-5 text-foreground"
-                      aria-hidden="true"
-                    />
+                    <Icon className="size-5 text-[#FF502F]" />
                   </div>
 
                   <div className="space-y-1.5">
@@ -166,25 +176,21 @@ export function ObservationSetup({
           </div>
         </section>
 
-        {/* Completion or continue to the challenge */}
+        {/* Continue */}
         <footer className="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            {isCompleted
-              ? "You've completed this introduction. You can review these ideas as you begin noticing problems."
-              : "You don't need to find the perfect problem. Just start paying attention."}
+            You don't need to find the perfect problem. Just start paying
+            attention.
           </p>
 
           {isCompleted ? (
-            <div
-              className="flex h-12 shrink-0 items-center gap-2 rounded-full border border-border bg-card px-5 text-sm font-medium text-muted-foreground"
-              role="status"
+            <Button
+              onClick={handleContinue}
+              className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
             >
-              <CheckCircle2
-                className="size-5 text-[#FF502F]"
-                aria-hidden="true"
-              />
-              Introduction completed
-            </div>
+              Continue
+              <ArrowRight className="size-5" />
+            </Button>
           ) : (
             <Button
               onClick={() => onComplete({ completed: true })}
