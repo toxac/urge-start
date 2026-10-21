@@ -3,33 +3,49 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ArrowRight,
-    BookOpen,
-    Check,
-    ChevronDown,
-    CircleHelp,
-    Lightbulb,
-    Plus,
-    Save,
-    Sparkles,
-    X,
+  ArrowRight,
+  BookOpen,
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Lightbulb,
+  Plus,
+  Save,
+  Sparkles,
+  X,
 } from 'lucide-react';
 
-import { getObservations, saveObservation } from '@/actions/observations';
+import { getObservations } from '@/actions/observations';
 import { saveUserTasks } from '@/actions/tasks';
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import type { UserObservation } from '@/lib/types/observations';
+import type {
+    ProblemObservationFocus,
+    UserObservation,
+} from '@/lib/types/observations';
+import { ProblemObservationForm } from '@/components/program/common/ProblemObservationForm';
 import type { CreateUserTaskInput } from '@/lib/types/tasks';
 import { getNextNodeKey } from '@/lib/program/navigation';
 import { programStateActions } from '@/lib/stores/program-state';
 
-type Focus =
-    | 'personal'
-    | 'people'
-    | 'zone_of_influence'
-    | 'changes'
-    | 'markets';
+type Focus = ProblemObservationFocus;
+
+function normalizeFocus(value: string | null | undefined): Focus {
+    switch (value) {
+        case 'people':
+            return 'zone_of_influence';
+        case 'changes':
+        case 'markets':
+            return 'market_trends';
+        case 'personal':
+        case 'zone_of_influence':
+        case 'market_trends':
+        case 'lived_experience':
+            return value;
+        default:
+            return 'personal';
+    }
+}
 
 type PromptCard = {
     id: string;
@@ -59,7 +75,7 @@ const PROMPTS: PromptCard[] = [
     {
         id: 'people-complaints',
         title: 'What did someone around you complain about?',
-        focus: 'people',
+        focus: 'zone_of_influence',
         kind: 'notice',
         resourceSlug: 'listening-for-complaints',
         description:
@@ -77,7 +93,7 @@ const PROMPTS: PromptCard[] = [
     {
         id: 'changes',
         title: "What's changing that might create new problems?",
-        focus: 'changes',
+        focus: 'market_trends',
         kind: 'notice',
         resourceSlug: 'noticing-change',
         description:
@@ -86,7 +102,7 @@ const PROMPTS: PromptCard[] = [
     {
         id: 'markets',
         title: 'What problems are showing up in a place you’re curious about?',
-        focus: 'markets',
+        focus: 'market_trends',
         kind: 'notice',
         resourceSlug: 'noticing-problems-in-markets',
         description:
@@ -95,7 +111,7 @@ const PROMPTS: PromptCard[] = [
     {
         id: 'ask-annoyance',
         title: "Ask someone: what's annoyed you this week?",
-        focus: 'people',
+        focus: 'zone_of_influence',
         kind: 'ask',
         resourceSlug: 'asking-about-frustrations',
         description:
@@ -114,17 +130,15 @@ const PROMPTS: PromptCard[] = [
 
 const FOCUS_LABELS: Record<Focus, string> = {
     personal: 'Your everyday life',
-    people: 'Other people',
     zone_of_influence: 'People and places you know',
-    changes: 'What’s changing',
-    markets: 'Markets you’re curious about',
+    market_trends: 'What’s changing around you',
+    lived_experience: 'What you know and can do',
 };
 
 const labelClass = 'mb-1.5 block text-sm font-medium text-foreground';
 
 const inputClass =
     'w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm text-foreground outline-none transition focus:border-[#FF502F] focus:ring-2 focus:ring-[#FF502F]/15';
-
 
 function getObservationConfig(metadata: unknown): {
     minimum_count: number;
@@ -168,7 +182,6 @@ export function ObservationCapture({
     const [observations, setObservations] = useState<UserObservation[]>([]);
     const [localTasks, setLocalTasks] = useState<LocalTask[]>([]);
     const [loading, setLoading] = useState(true);
-    const [savingObservation, setSavingObservation] = useState(false);
     const [savingTask, setSavingTask] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -182,8 +195,6 @@ export function ObservationCapture({
     const [hintsOpen, setHintsOpen] = useState(false);
     const [showAllPrompts, setShowAllPrompts] = useState(false);
 
-    const [title, setTitle] = useState('');
-    const [content, setContent] = useState('');
     const [focus, setFocus] = useState<Focus>('personal');
 
     const [taskTitle, setTaskTitle] = useState('');
@@ -244,61 +255,12 @@ export function ObservationCapture({
         setNotice(null);
         setActivePrompt(prompt ?? null);
         setEditingObservation(observation ?? null);
-        setTitle(observation?.title ?? '');
-        setContent(observation?.content ?? '');
         setFocus(
-            (observation?.focus as Focus) ??
-            prompt?.focus ??
-            'personal',
+            observation
+                ? normalizeFocus(observation.focus)
+                : prompt?.focus ?? 'personal',
         );
         setCaptureOpen(true);
-    };
-
-    const handleSaveObservation = async () => {
-        if (!title.trim() || !content.trim()) {
-            setError(
-                'Add a short title and describe what you noticed.',
-            );
-            return;
-        }
-
-        setSavingObservation(true);
-        setError(null);
-
-        try {
-            await saveObservation({
-                ...(editingObservation
-                    ? { observation_id: editingObservation.id }
-                    : {}),
-                title: title.trim(),
-                content: content.trim(),
-                focus,
-                type: 'observation',
-                domain: 'problem',
-                source_node_key:
-                    editingObservation?.source_node_key ?? nodeKey,
-                observed_at:
-                    editingObservation?.observed_at ??
-                    new Date().toISOString(),
-            });
-
-            setCaptureOpen(false);
-            setNotice(
-                editingObservation
-                    ? 'Observation updated.'
-                    : 'Observation saved.',
-            );
-
-            await refreshObservations();
-        } catch (e) {
-            setError(
-                e instanceof Error
-                    ? e.message
-                    : 'Could not save this observation.',
-            );
-        } finally {
-            setSavingObservation(false);
-        }
     };
 
     const handleSaveTask = async () => {
@@ -658,9 +620,7 @@ export function ObservationCapture({
                                         </span>
 
                                         <span className="mt-1 inline-flex rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                                            {FOCUS_LABELS[
-                                                (observation.focus as Focus) ?? 'personal'
-                                            ] ?? observation.focus}
+                                            {FOCUS_LABELS[normalizeFocus(observation.focus)]}
                                         </span>
                                     </span>
 
@@ -727,32 +687,22 @@ export function ObservationCapture({
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="observation-dialog-title"
-                        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-border bg-background p-5 shadow-xl sm:rounded-2xl sm:p-6"
+                        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-border bg-background p-5 shadow-xl sm:rounded-2xl sm:p-6"
                     >
                         <div className="mb-5 flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-[#FF502F]">
-                                    {editingObservation
-                                        ? 'EDIT OBSERVATION'
-                                        : 'QUICK CAPTURE'}
+                                    {editingObservation ? 'EDIT OBSERVATION' : 'QUICK CAPTURE'}
                                 </p>
-
-                                <h2
-                                    id="observation-dialog-title"
-                                    className="mt-1 text-xl font-semibold"
-                                >
-                                    {editingObservation
-                                        ? 'Update what you noticed'
-                                        : 'What did you notice?'}
+                                <h2 id="observation-dialog-title" className="mt-1 text-xl font-semibold">
+                                    {editingObservation ? 'Add details to your observation' : 'What did you notice?'}
                                 </h2>
-
                                 {activePrompt && (
                                     <p className="mt-2 text-sm text-muted-foreground">
                                         {activePrompt.title}
                                     </p>
                                 )}
                             </div>
-
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -764,91 +714,29 @@ export function ObservationCapture({
                             </Button>
                         </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    htmlFor="observation-title"
-                                >
-                                    Short title
-                                </label>
-                                <input
-                                    id="observation-title"
-                                    className={inputClass}
-                                    maxLength={120}
-                                    value={title}
-                                    onChange={(event) =>
-                                        setTitle(event.target.value)
-                                    }
-                                    placeholder="e.g. Getting a repair done takes weeks"
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    htmlFor="observation-content"
-                                >
-                                    What did you see, hear, or live through?
-                                </label>
-                                <textarea
-                                    id="observation-content"
-                                    className={`${inputClass} min-h-32 resize-y`}
-                                    value={content}
-                                    onChange={(event) =>
-                                        setContent(event.target.value)
-                                    }
-                                    placeholder="Describe what happened. A sentence is enough."
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    className={labelClass}
-                                    htmlFor="observation-focus"
-                                >
-                                    What lens were you looking through?
-                                </label>
-                                <select
-                                    id="observation-focus"
-                                    className={inputClass}
-                                    value={focus}
-                                    onChange={(event) =>
-                                        setFocus(event.target.value as Focus)
-                                    }
-                                >
-                                    {Object.entries(FOCUS_LABELS).map(
-                                        ([value, label]) => (
-                                            <option key={value} value={value}>
-                                                {label}
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
-                            </div>
-
-                            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setCaptureOpen(false)}
-                                >
-                                    Cancel
-                                </Button>
-
-                                <Button
-                                    type="button"
-                                    disabled={savingObservation}
-                                    onClick={handleSaveObservation}
-                                    className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
-                                >
-                                    <Save className="size-4" />
-                                    {savingObservation
-                                        ? 'Saving…'
-                                        : 'Save observation'}
-                                </Button>
-                            </div>
-                        </div>
+                        <ProblemObservationForm
+                            focus={focus}
+                            observation={editingObservation}
+                            sourceNodeKey={nodeKey}
+                            onCancel={() => setCaptureOpen(false)}
+                            onSaved={(savedObservation) => {
+                                setCaptureOpen(false);
+                                setNotice(
+                                    editingObservation
+                                        ? 'Observation updated.'
+                                        : 'Observation saved.',
+                                );
+                                setEditingObservation(null);
+                                setActivePrompt(null);
+                                setObservations((current) => {
+                                    const withoutSaved = current.filter(
+                                        (item) => item.id !== savedObservation.id,
+                                    );
+                                    return [savedObservation, ...withoutSaved];
+                                });
+                                void refreshObservations();
+                            }}
+                        />
                     </section>
                 </div>
             )}
