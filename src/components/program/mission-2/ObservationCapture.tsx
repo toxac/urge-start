@@ -27,8 +27,6 @@ import type {
 import { ProblemObservationForm } from '@/components/program/common/ProblemObservationForm';
 import { ObservedProblemExtractionForm } from '@/components/program/common/ObservedProblemExtractionForm';
 import type { CreateUserTaskInput } from '@/lib/types/tasks';
-import { getNextNodeKey } from '@/lib/program/navigation';
-import { programStateActions } from '@/lib/stores/program-state';
 
 type Focus = ProblemObservationFocus;
 
@@ -186,6 +184,7 @@ export function ObservationCapture({
     const [observations, setObservations] = useState<UserObservation[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingTask, setSavingTask] = useState(false);
+    const [isContinuing, setIsContinuing] = useState(false);
     const [deletingObservationId, setDeletingObservationId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -346,6 +345,8 @@ export function ObservationCapture({
     };
 
     const handleContinue = async () => {
+        if (isContinuing || loading) return;
+
         if (completeObservationCount < minimumCount) {
             setError(
                 `Complete at least ${minimumCount} observations before continuing. ` +
@@ -354,19 +355,18 @@ export function ObservationCapture({
             return;
         }
 
-        if (isCompleted) {
-            const nextNodeKey = getNextNodeKey(nodeKey);
+        setIsContinuing(true);
+        setError(null);
 
-            if (nextNodeKey) {
-                programStateActions.setCurrentNode(nextNodeKey);
-            }
-
-            return;
+        try {
+            // The shared progress manager owns completion and navigation,
+            // including when this node has already been completed.
+            await onComplete({
+                observation_count: observations.length,
+            });
+        } finally {
+            setIsContinuing(false);
         }
-
-        await onComplete({
-            observation_count: observations.length,
-        });
     };
 
     const openResource = (slug: string) => {
@@ -601,10 +601,10 @@ export function ObservationCapture({
                     <Button
                         type="button"
                         onClick={handleContinue}
-                        disabled={loading || completeObservationCount < minimumCount}
+                        disabled={loading || isContinuing || completeObservationCount < minimumCount}
                         className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
                     >
-                        {isCompleted ? 'Continue' : 'Complete this step'}
+                        {isContinuing ? 'Continuing…' : isCompleted ? 'Continue' : 'Complete this step'}
                         <ArrowRight className="size-4" />
                     </Button>
                 </footer>
