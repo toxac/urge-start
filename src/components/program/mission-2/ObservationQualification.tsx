@@ -5,14 +5,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
-import {
-  saveObservationQualification,
-  
-} from '@/actions/observations';
+import { saveObservationQualification } from '@/actions/observations';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $observations, observationsActions } from '@/lib/stores/observations';
-import type { UserObservation, QualificationAnswer,
-  QualificationAnswers, } from '@/lib/types/observations';
+import type {
+  UserObservation,
+  QualificationAnswer,
+  QualificationAnswers,
+} from '@/lib/types/observations';
 
 const QUESTIONS: {
   key: keyof QualificationAnswers;
@@ -81,10 +81,7 @@ function getSavedQualificationCount(observations: UserObservation[]) {
   return observations.filter(getQualification).length;
 }
 
-export function ObservationQualification({
-  node,
-  onComplete,
-}: NodeComponentProps) {
+export function ObservationQualification({ onComplete }: NodeComponentProps) {
   const state = useStore($observations);
 
   const observations = useMemo(
@@ -114,7 +111,6 @@ export function ObservationQualification({
     can_solve: 'not_sure',
     care: 'not_sure',
   });
-  const [selected, setSelected] = useState<Partial<QualificationAnswers>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +127,6 @@ export function ObservationQualification({
       care: null,
     };
 
-    setSelected(answers);
     setDraft({
       understand: answers.understand ?? 'not_sure',
       can_solve: answers.can_solve ?? 'not_sure',
@@ -145,7 +140,7 @@ export function ObservationQualification({
     observations.length > 0 && qualifiedCount === observations.length;
 
   async function saveAnswers() {
-    if (!observation) return;
+    if (!observation || isSaving || isCompleting) return;
 
     setIsSaving(true);
     setError(null);
@@ -157,7 +152,6 @@ export function ObservationQualification({
       );
 
       observationsActions.upsert(savedObservation);
-      setSelected(draft);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Could not save your answers.',
@@ -168,7 +162,7 @@ export function ObservationQualification({
   }
 
   async function continueNode() {
-    if (!allQualified) return;
+    if (!allQualified || isSaving || isCompleting) return;
 
     setIsCompleting(true);
     setError(null);
@@ -203,11 +197,6 @@ export function ObservationQualification({
       </div>
     );
   }
-
-  const isDraftComplete = QUESTIONS.every(
-    (question) => selected[question.key] !== undefined &&
-      selected[question.key] !== null,
-  );
 
   return (
     <div className="space-y-8">
@@ -277,7 +266,7 @@ export function ObservationQualification({
                       <button
                         key={option.value}
                         type="button"
-                        disabled={isSaving}
+                        disabled={isSaving || isCompleting}
                         onClick={() =>
                           setDraft((current) => ({
                             ...current,
@@ -303,7 +292,7 @@ export function ObservationQualification({
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
             <button
               type="button"
-              disabled={index === 0 || isSaving}
+              disabled={index === 0 || isSaving || isCompleting}
               onClick={() => setIndex((current) => current - 1)}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
             >
@@ -312,7 +301,7 @@ export function ObservationQualification({
 
             <button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || isCompleting}
               onClick={saveAnswers}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
@@ -326,7 +315,7 @@ export function ObservationQualification({
 
             <button
               type="button"
-              disabled={index >= observations.length - 1 || isSaving}
+              disabled={index >= observations.length - 1 || isSaving || isCompleting}
               onClick={() => setIndex((current) => current + 1)}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
             >
