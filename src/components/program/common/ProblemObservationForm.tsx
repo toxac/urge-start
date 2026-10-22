@@ -2,11 +2,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Save, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Save, Sparkles, X } from 'lucide-react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { saveObservation } from '@/actions/observations';
+import { extractProblemDetails } from '@/actions/responses/mission2';
 
 import {
   validatedObservationSchema,
@@ -95,6 +96,9 @@ export function ProblemObservationForm({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
 
   const form = useForm<ObservationFormValues>({
     resolver: zodResolver(validatedObservationSchema) as Resolver<ObservationFormValues>,
@@ -109,6 +113,8 @@ export function ProblemObservationForm({
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isDirty },
   } = form;
 
@@ -117,8 +123,66 @@ export function ProblemObservationForm({
   useEffect(() => {
     reset(getDefaultValues(focus, sourceNodeKey, observation));
     setSaveError(null);
+    setExtractionNotice(null);
+    setExtractionError(null);
     setShowMoreDetails(false);
   }, [focus, sourceNodeKey, observation, reset]);
+
+  async function handleExtractDetails() {
+    const description = watch('content').trim();
+
+    if (!description) {
+      setExtractionError('Add a description first, then we can help organise the details.');
+      return;
+    }
+
+    if (isExtracting) return;
+
+    setIsExtracting(true);
+    setExtractionError(null);
+    setExtractionNotice(null);
+
+    try {
+      const extracted = await extractProblemDetails(
+        description,
+        sourceNodeKey ?? observation?.source_node_key ?? '',
+      );
+
+      if (!extracted || typeof extracted !== 'object') {
+        throw new Error('The details could not be organised this time.');
+      }
+
+      // Suggestions fill gaps only. Anything the user has already entered stays untouched.
+      const fields: ('who' | 'where' | 'when' | 'workaround' | 'current_option' | 'why_unsolved')[] = [
+        'who', 'where', 'when', 'workaround', 'current_option', 'why_unsolved',
+      ];
+      let added = 0;
+
+      for (const field of fields) {
+        const current = watch(`problem_details.${field}` as const);
+        const suggestion = extracted[field];
+        if ((current === '' || current == null) && typeof suggestion === 'string' && suggestion.trim()) {
+          setValue(`problem_details.${field}` as const, suggestion, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+          added += 1;
+        }
+      }
+
+      setShowMoreDetails(true);
+      setExtractionNotice(
+        added > 0
+          ? 'We added some suggestions below. Check them, change anything that feels wrong, then save when you’re ready.'
+          : 'We couldn’t find any new details to add. You can fill in the fields yourself or try again with a little more description.',
+      );
+    } catch (error) {
+      console.error('[PROBLEM OBSERVATION EXTRACTION]', error);
+      setExtractionError('We couldn’t organise the details just now. You can fill them in yourself or try again.');
+    } finally {
+      setIsExtracting(false);
+    }
+  }
 
   async function handleSave(values: ObservationFormValues) {
     if (isSaving) return;
@@ -153,23 +217,22 @@ export function ProblemObservationForm({
     <form onSubmit={handleSubmit(handleSave)} className="space-y-5">
       <div className="space-y-2">
         <p className="text-sm font-medium text-muted-foreground">
-          Problem observation
+          Something you noticed
         </p>
 
         <h2 className="text-xl font-semibold">
-          {observation ? 'Add details to your observation' : 'Record what you noticed'}
+          {observation ? 'Add to what you noticed' : 'Record what you noticed'}
         </h2>
 
         <p className="text-sm text-muted-foreground">
-          Capture what happened in your own words. You don't need to
-          answer every question now. You can return and add details later.
+          Describe it in your own words. You don’t need to answer every question now—you can add more whenever you like.
         </p>
       </div>
 
       {/* Basic observation: keep capture quick and approachable. */}
       <section className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="problem-observation-title">What would you call it?</Label>
+          <Label htmlFor="problem-observation-title">Give it a short title</Label>
           <Input
             id="problem-observation-title"
             placeholder="e.g. Restaurant menus are often out of date"
@@ -183,7 +246,7 @@ export function ProblemObservationForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="problem-observation-content">What happened?</Label>
+          <Label htmlFor="problem-observation-content">What did you notice?</Label>
           <Textarea
             id="problem-observation-content"
             placeholder="Describe what you saw, heard, experienced, or someone told you."
@@ -197,7 +260,7 @@ export function ProblemObservationForm({
 
         <div className="space-y-2">
           <Label htmlFor="problem-observation-context">
-            Where did you encounter this? <span className="font-normal text-muted-foreground">(optional)</span>
+            Where did you notice this? <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <Input
             id="problem-observation-context"
@@ -208,6 +271,21 @@ export function ProblemObservationForm({
             <p className="text-sm text-destructive">{errors.context.message}</p>
           )}
         </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+        <div>
+          <p className="font-medium">Want help filling in the details?</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            We can suggest a few details from your description. You can review and change every suggestion. Your original words will stay as they are.
+          </p>
+        </div>
+        <Button type="button" variant="outline" onClick={handleExtractDetails} disabled={isExtracting || isSaving || !watch('content').trim()} className="gap-2">
+          {isExtracting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          {isExtracting ? 'Looking for details…' : 'Suggest details for me'}
+        </Button>
+        {extractionNotice && <p role="status" className="text-sm text-muted-foreground">{extractionNotice}</p>}
+        {extractionError && <p role="alert" className="text-sm text-destructive">{extractionError}</p>}
       </section>
 
       {/* Optional detail fields stay hidden until the user asks for them. */}
@@ -221,7 +299,7 @@ export function ProblemObservationForm({
             onClick={() => setShowMoreDetails((current) => !current)}
             disabled={isSaving}
           >
-            <span>{showMoreDetails ? 'Hide extra details' : 'Add more details'}</span>
+            <span>{showMoreDetails ? 'Hide extra details' : 'Add a few more details'}</span>
             {showMoreDetails ? (
               <ChevronUp className="ml-2 size-4" aria-hidden="true" />
             ) : (
@@ -236,20 +314,20 @@ export function ProblemObservationForm({
         {showMoreDetails && (
           <div className="space-y-5 rounded-lg border bg-muted/20 p-4">
             <div className="space-y-2">
-              <Label htmlFor="problem-who">Who is affected?</Label>
+              <Label htmlFor="problem-who">Who experiences this?</Label>
               <Textarea
                 id="problem-who"
-                placeholder="The people or businesses experiencing this"
+                placeholder="The people who run into this"
                 rows={2}
                 {...register('problem_details.who')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="problem-where">Where does it happen?</Label>
+              <Label htmlFor="problem-where">Where does this usually happen?</Label>
               <Input
                 id="problem-where"
-                placeholder="A place, situation, industry, or setting"
+                placeholder="A place or situation"
                 {...register('problem_details.where')}
               />
             </div>
@@ -264,27 +342,27 @@ export function ProblemObservationForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="problem-workaround">What do people do about it today?</Label>
+              <Label htmlFor="problem-workaround">How do people deal with it now?</Label>
               <Textarea
                 id="problem-workaround"
-                placeholder="Workarounds, asking for help, or putting up with it"
+                placeholder="Things people try, people they ask, or ways they work around it"
                 rows={2}
                 {...register('problem_details.workaround')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="problem-current-option">Are there existing options or solutions?</Label>
+              <Label htmlFor="problem-current-option">What do people try instead?</Label>
               <Textarea
                 id="problem-current-option"
-                placeholder="Tools, services, alternatives, or existing ways of doing things"
+                placeholder="Anything people already use or do"
                 rows={2}
                 {...register('problem_details.current_option')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="problem-frequency">How often does it happen?</Label>
+              <Label htmlFor="problem-frequency">How often does this come up?</Label>
               <Input
                 id="problem-frequency"
                 placeholder="Daily, weekly, occasionally, every time..."
@@ -293,10 +371,10 @@ export function ProblemObservationForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="problem-cost">What does it cost people?</Label>
+              <Label htmlFor="problem-cost">What does it take from people?</Label>
               <Textarea
                 id="problem-cost"
-                placeholder="Money, time, effort, missed opportunities, or frustration"
+                placeholder="Time, money, effort, missed chances, or frustration"
                 rows={2}
                 {...register('problem_details.cost')}
               />

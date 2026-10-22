@@ -351,7 +351,7 @@ export function ObservationCapture({
             <div className="mx-auto w-full max-w-4xl space-y-8 pb-8">
                 <header className="space-y-3">
                     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#FF502F]">
-                        MISSION 2 · NOTICE PROBLEMS
+                        MISSION 2 · NOTICE WHAT COULD BE BETTER
                     </p>
 
                     <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
@@ -359,9 +359,7 @@ export function ObservationCapture({
                     </h1>
 
                     <p className="max-w-3xl text-lg leading-7 text-muted-foreground">
-                        Come back whenever you see, hear, or live through
-                        something annoying, slow, expensive, or broken. A
-                        sentence is enough. You can add detail later.
+                        Come back whenever you see, hear, or experience something frustrating, slow, expensive, or broken. A sentence is enough. You can add detail later.
                     </p>
 
                     <p className="text-sm text-muted-foreground">
@@ -397,8 +395,7 @@ export function ObservationCapture({
                                 Try one of these prompts
                             </h2>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Choose a lens. Capture something now or plan to
-                                look for it later.
+                                Choose a starting point. Record something now or make a plan to look for it later.
                             </p>
                         </div>
 
@@ -427,7 +424,7 @@ export function ObservationCapture({
 
                                         {prompt.kind === 'ask' && (
                                             <span className="rounded-full bg-[#FF502F]/10 px-2.5 py-1 text-xs font-medium text-[#FF502F]">
-                                                Real-world ask
+                                                Try asking
                                             </span>
                                         )}
                                     </div>
@@ -462,7 +459,7 @@ export function ObservationCapture({
                                         onClick={() => startCapture(prompt)}
                                     >
                                         <Plus className="size-4" />
-                                        Add observation
+                                        Record what you noticed
                                     </Button>
 
                                     <Button
@@ -476,7 +473,7 @@ export function ObservationCapture({
                                             setError(null);
                                         }}
                                     >
-                                        Plan to notice
+                                        Plan for later
                                     </Button>
                                 </div>
                             </article>
@@ -508,11 +505,10 @@ export function ObservationCapture({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h2 className="text-xl font-semibold tracking-tight">
-                                Things I plan to notice
+                                Things I want to look for
                             </h2>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                Save an intention if you can’t investigate it
-                                right now. Come back and record what you notice.
+                                If you can’t look into something right now, make a note to come back to it later.
                             </p>
                         </div>
 
@@ -528,14 +524,13 @@ export function ObservationCapture({
                             }}
                         >
                             <Plus className="size-4" />
-                            Add a plan
+                            Add something to look for
                         </Button>
                     </div>
 
                     {localTasks.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-                            Nothing planned yet. Save something to look for
-                            and return to it later.
+                            Nothing planned yet. Add a small thing you want to pay attention to.
                         </div>
                     ) : (
                         <ul className="space-y-2">
@@ -564,12 +559,10 @@ export function ObservationCapture({
                     <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
                             <h2 className="text-xl font-semibold tracking-tight">
-                                Your observations
+                                What you’ve noticed
                             </h2>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                {observations.length} saved · {minimumCount} to
-                                continue · around {softTarget} gives you more to
-                                compare
+                                {observations.length} saved · {minimumCount} is a helpful starting point · around {softTarget} gives you more to compare
                             </p>
                         </div>
 
@@ -580,7 +573,7 @@ export function ObservationCapture({
                             className="gap-2"
                         >
                             <Plus className="size-4" />
-                            Quick capture
+                            Record something
                         </Button>
                     </div>
 
@@ -592,11 +585,10 @@ export function ObservationCapture({
                         <div className="rounded-2xl border border-dashed border-border p-6 text-center">
                             <Lightbulb className="mx-auto size-7 text-[#FF502F]" />
                             <p className="mt-3 font-medium">
-                                Your observations will collect here.
+                                What you’ve noticed will collect here.
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Start with one small thing you noticed. It
-                                doesn’t need to be a business idea.
+                                Start with one small thing you noticed. It doesn’t need to be a business idea.
                             </p>
                         </div>
                     ) : (
@@ -648,22 +640,14 @@ export function ObservationCapture({
                 <footer className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-muted-foreground">
                         {observations.length < minimumCount
-                            ? `Add ${minimumCount - observations.length
-                            } more observation${minimumCount - observations.length === 1
-                                ? ''
-                                : 's'
-                            } before continuing.`
-                            : 'You have enough to move forward. You can keep noticing after you continue.'}
+                            ? `A few observations are a helpful starting point. You can continue when you’re ready and keep noticing as you go.`
+                            : 'You can keep adding observations after you move on.'}
                     </p>
 
                     <Button
                         type="button"
                         onClick={handleContinue}
-                        disabled={
-                            loading ||
-                            (!isCompleted &&
-                                observations.length < minimumCount)
-                        }
+                        disabled={loading}
                         className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
                     >
                         {isCompleted ? 'Continue' : 'Complete this step'}
@@ -788,7 +772,7 @@ export function ObservationCapture({
                                     className={labelClass}
                                     htmlFor="planned-task-title"
                                 >
-                                    What will you look for?
+                                    What do you want to look for?
                                 </label>
                                 <input
                                     id="planned-task-title"
@@ -828,8 +812,7 @@ export function ObservationCapture({
                             </div>
 
                             <p className="text-sm leading-6 text-muted-foreground">
-                                This saves a task, not an observation. When you
-                                find something, come back and record what happened.
+                                This saves a reminder to look, not an observation. When you notice something, come back and record it.
                             </p>
 
                             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
@@ -848,7 +831,7 @@ export function ObservationCapture({
                                     className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
                                 >
                                     <Save className="size-4" />
-                                    {savingTask ? 'Saving…' : 'Save plan'}
+                                    {savingTask ? 'Saving…' : 'Save for later'}
                                 </Button>
                             </div>
                         </div>
@@ -882,7 +865,7 @@ export function ObservationCapture({
                                     id="hints-dialog-title"
                                     className="mt-1 text-xl font-semibold"
                                 >
-                                    Places you could look
+                                    Places to start
                                 </h2>
                             </div>
 
@@ -898,8 +881,7 @@ export function ObservationCapture({
                         </div>
 
                         <p className="text-sm leading-6 text-muted-foreground">
-                            These are starting points, not conclusions. Personalised
-                            hints and saved hint history will be connected in a later pass.
+                            These are just starting points, not answers. Personalised suggestions will come later.
                         </p>
 
                         <div className="mt-4 space-y-3">
