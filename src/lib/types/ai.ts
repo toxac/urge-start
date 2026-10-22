@@ -1,3 +1,9 @@
+import type { Json } from '@/database.types';
+import type {
+  QualificationAnswers,
+  ProblemDetails,
+} from '@/lib/types/observations';
+
 export type CommitmentSynthesisInput = {
   situation: string;
   barriers: Array<{
@@ -51,3 +57,56 @@ export type AskPreparationGuide = {
   reminder: string;
 };
 
+// reveal observation patterns
+
+export type ObservationPatternsInput = {
+  observations: Array<{
+    id: string;
+    title: string;
+    content: string;
+    context: string | null;
+    focus: string | null;
+    problemDetails: ProblemDetails;
+  }>;
+  userContext: {
+    capabilities: Json;
+    experience: Json;
+    motivations: Json;
+    resources: Json;
+    desiredFuture: Json;
+    networkContext: Json;
+  };
+};
+
+export type ObservationPatternFinding = {
+  title: string;
+  description: string;
+  evidenceObservationIds: string[];
+};
+
+export type ObservationExperienceConnection = {
+  title: string;
+  description: string;
+  contextEvidence: string;
+  evidenceObservationIds: string[];
+};
+
+export type ObservationTension = {
+  title: string;
+  description: string;
+  evidenceObservationIds: string[];
+};
+
+export type ObservationQuestion = {
+  question: string;
+  rationale: string;
+  evidenceObservationIds: string[];
+};
+
+export type ObservationPatternsResult = {
+  patterns: ObservationPatternFinding[];
+  experienceConnections: ObservationExperienceConnection[];
+  tensions: ObservationTension[];
+  questions: ObservationQuestion[];
+  overallReflection: string;
+};
