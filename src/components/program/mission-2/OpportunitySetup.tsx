@@ -65,7 +65,10 @@ export function OpportunitySetup({
   // Restore the user's saved choice when revisiting this node.
   // This does not run extraction.
   useEffect(() => {
-    if (hasRestored) return;
+    // Wait until the shared observations store has finished hydration.
+    // Otherwise an initially empty store could incorrectly restore the
+    // intro stage before the user's saved idea becomes available.
+    if (!observations.isHydrated || hasRestored) return;
 
     if (existingObservation) {
       setSavedObservation(existingObservation);
@@ -83,7 +86,12 @@ export function OpportunitySetup({
     }
 
     setHasRestored(true);
-  }, [existingObservation, savedNoIdea, hasRestored]);
+  }, [
+    observations.isHydrated,
+    existingObservation,
+    savedNoIdea,
+    hasRestored,
+  ]);
 
   function choose(next: Exclude<Choice, null>) {
     setChoice(next);
@@ -125,8 +133,11 @@ export function OpportunitySetup({
     observation: UserObservation,
     failedToExtract = false,
   ) {
-    // The original observation has already been saved by the shared form.
-    // Keep the local store in sync and preserve the original title/content.
+    // The shared form has already persisted the observation.
+    // Keep the shared store in sync before completing this node.
+    if (isSaving) return;
+
+    setIsSaving(true);
     observationsActions.upsert(observation);
     setSavedObservation(observation);
     setChoice('yes');
@@ -144,6 +155,8 @@ export function OpportunitySetup({
         'Your idea is saved, but we could not continue. You can try continuing again.',
       );
       setStage('summary');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -173,7 +186,7 @@ export function OpportunitySetup({
     }
   }
 
-  if (!hasRestored) {
+  if (!observations.isHydrated || !hasRestored) {
     return (
       <div className="py-8 text-sm text-muted-foreground" role="status">
         Loading your progress…
