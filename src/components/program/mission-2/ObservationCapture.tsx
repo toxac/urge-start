@@ -6,16 +6,17 @@ import {
   ArrowRight,
   BookOpen,
   Check,
-  ChevronDown,
-  CircleHelp,
+  CalendarPlus,
+  CheckCircle2,
+  CircleDashed,
   Lightbulb,
-  Plus,
+  PencilLine,
   Save,
-  Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 
-import { getObservations } from '@/actions/observations';
+import { deleteObservation, getObservations } from '@/actions/observations';
 import { saveUserTasks } from '@/actions/tasks';
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
@@ -24,6 +25,7 @@ import type {
     UserObservation,
 } from '@/lib/types/observations';
 import { ProblemObservationForm } from '@/components/program/common/ProblemObservationForm';
+import { ObservedProblemExtractionForm } from '@/components/program/common/ObservedProblemExtractionForm';
 import type { CreateUserTaskInput } from '@/lib/types/tasks';
 import { getNextNodeKey } from '@/lib/program/navigation';
 import { programStateActions } from '@/lib/stores/program-state';
@@ -51,80 +53,42 @@ type PromptCard = {
     id: string;
     title: string;
     focus: Focus;
-    kind: 'notice' | 'ask';
     resourceSlug: string;
     description: string;
 };
 
-type LocalTask = {
-    id: string;
-    title: string;
-    focus: Focus;
-};
-
 const PROMPTS: PromptCard[] = [
     {
-        id: 'personal-frustration',
-        title: 'What frustrated you today?',
+        id: 'personal',
+        title: 'What frustrates you in your everyday life?',
         focus: 'personal',
-        kind: 'notice',
         resourceSlug: 'noticing-your-own-frustrations',
         description:
-            'Notice repeated friction, wasted time, unnecessary effort, or things that cost more than they should.',
+            'Pay attention to things that waste your time, take more effort than they should, cost more than expected, or make a simple task unnecessarily difficult. Notice what keeps happening, even if you have come to accept it as normal.',
     },
     {
-        id: 'people-complaints',
-        title: 'What did someone around you complain about?',
+        id: 'zone-of-influence',
+        title: 'What do people around you struggle with?',
         focus: 'zone_of_influence',
-        kind: 'notice',
         resourceSlug: 'listening-for-complaints',
         description:
-            'Listen for things people bring up repeatedly, especially when they have already tried to fix them.',
+            'Listen when friends, family, colleagues, shopkeepers, or people in your community describe a frustrating experience. Look for repeated workarounds, confusing processes, delays, or tasks that take more effort than they should. When appropriate, ask about a recent experience.',
     },
     {
-        id: 'people-struggle',
-        title: 'What did you see someone struggle with?',
-        focus: 'zone_of_influence',
-        kind: 'notice',
-        resourceSlug: 'spotting-everyday-struggles',
-        description:
-            'Watch where people pause, repeat steps, ask for help, or invent workarounds.',
-    },
-    {
-        id: 'changes',
-        title: "What's changing that might create new problems?",
+        id: 'market-trends',
+        title: "What changes are creating new needs or problems?",
         focus: 'market_trends',
-        kind: 'notice',
         resourceSlug: 'noticing-change',
         description:
-            'Look for new habits, technologies, rules, or expectations that make old ways harder.',
+            'Notice changes in technology, habits, prices, rules, expectations, or the way people live and work. Consider who is affected, what has become more difficult, and what people now have to do differently.',
     },
     {
-        id: 'markets',
-        title: 'What problems are showing up in a place you’re curious about?',
-        focus: 'market_trends',
-        kind: 'notice',
-        resourceSlug: 'noticing-problems-in-markets',
+        id: 'lived-experience',
+        title: 'What can your own experience help you notice?',
+        focus: 'lived_experience',
+        resourceSlug: 'noticing-problems-from-your-experience',
         description:
-            'Choose a field or community you are curious about and pay attention to what repeatedly gets in the way.',
-    },
-    {
-        id: 'ask-annoyance',
-        title: "Ask someone: what's annoyed you this week?",
-        focus: 'zone_of_influence',
-        kind: 'ask',
-        resourceSlug: 'asking-about-frustrations',
-        description:
-            'Ask someone about a recent frustration. Listen to the story before suggesting a solution.',
-    },
-    {
-        id: 'ask-easier',
-        title: 'Ask someone: what do you wish was easier?',
-        focus: 'zone_of_influence',
-        kind: 'ask',
-        resourceSlug: 'asking-what-could-be-easier',
-        description:
-            'Invite someone to describe a task they wish took less time, effort, money, or coordination.',
+            'Think about the work you have done, skills you have developed, communities you understand, and situations you have experienced firsthand. What have you learned to work around? What do you understand because you have been there yourself?',
     },
 ];
 
@@ -134,6 +98,44 @@ const FOCUS_LABELS: Record<Focus, string> = {
     market_trends: 'What’s changing around you',
     lived_experience: 'What you know and can do',
 };
+
+type ObservationReadiness = 'Just noticed' | 'Needs a little more detail' | 'Observation Complete';
+
+function getObservationReadiness(observation: UserObservation): ObservationReadiness {
+    const raw = observation.problem_details;
+    const details = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as Record<string, unknown>
+        : {};
+
+    const detailFields = [
+        'who',
+        'where',
+        'when',
+        'workaround',
+        'current_option',
+        'cost',
+        'frequency',
+        'why_unsolved',
+    ];
+    const answeredCount = detailFields.filter((field) =>
+        typeof details[field] === 'string' && (details[field] as string).trim().length > 0,
+    ).length + (typeof details.can_reach === 'boolean' ? 1 : 0);
+
+    if (answeredCount === 0) return 'Just noticed';
+    if (answeredCount === detailFields.length + 1) return 'Observation Complete';
+    return 'Needs a little more detail';
+}
+
+function getReadinessPresentation(status: ObservationReadiness) {
+    switch (status) {
+        case 'Observation Complete':
+            return { icon: CheckCircle2, className: 'text-emerald-600', label: status };
+        case 'Needs a little more detail':
+            return { icon: PencilLine, className: 'text-amber-600', label: status };
+        default:
+            return { icon: CircleDashed, className: 'text-muted-foreground', label: status };
+    }
+}
 
 const labelClass = 'mb-1.5 block text-sm font-medium text-foreground';
 
@@ -149,7 +151,7 @@ function getObservationConfig(metadata: unknown): {
         metadata === null ||
         Array.isArray(metadata)
     ) {
-        return { minimum_count: 3, soft_target: 10 };
+        return { minimum_count: 5, soft_target: 10 };
     }
 
     const observation = (metadata as Record<string, unknown>).observation;
@@ -159,14 +161,16 @@ function getObservationConfig(metadata: unknown): {
         observation === null ||
         Array.isArray(observation)
     ) {
-        return { minimum_count: 3, soft_target: 10 };
+        return { minimum_count: 5, soft_target: 10 };
     }
 
     const config = observation as Record<string, unknown>;
 
     return {
         minimum_count:
-            typeof config.minimum_count === 'number' ? config.minimum_count : 3,
+            typeof config.minimum_count === 'number'
+                ? Math.max(5, config.minimum_count)
+                : 5,
         soft_target:
             typeof config.soft_target === 'number' ? config.soft_target : 10,
     };
@@ -180,9 +184,9 @@ export function ObservationCapture({
     onComplete,
 }: NodeComponentProps) {
     const [observations, setObservations] = useState<UserObservation[]>([]);
-    const [localTasks, setLocalTasks] = useState<LocalTask[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingTask, setSavingTask] = useState(false);
+    const [deletingObservationId, setDeletingObservationId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
 
@@ -192,8 +196,6 @@ export function ObservationCapture({
 
     const [captureOpen, setCaptureOpen] = useState(false);
     const [taskOpen, setTaskOpen] = useState(false);
-    const [hintsOpen, setHintsOpen] = useState(false);
-    const [showAllPrompts, setShowAllPrompts] = useState(false);
 
     const [focus, setFocus] = useState<Focus>('personal');
 
@@ -247,6 +249,13 @@ export function ObservationCapture({
         [observations],
     );
 
+    const completeObservationCount = useMemo(
+        () => observations.filter(
+            (observation) => getObservationReadiness(observation) === 'Observation Complete',
+        ).length,
+        [observations],
+    );
+
     const startCapture = (
         prompt?: PromptCard,
         observation?: UserObservation,
@@ -277,7 +286,7 @@ export function ObservationCapture({
         try {
             const input: CreateUserTaskInput = {
                 title: taskTitle.trim(),
-                description: `Notice and record a problem. Focus: ${FOCUS_LABELS[taskFocus]}.`,
+                description: `Look for an everyday problem in this area and record what you notice. Focus: ${FOCUS_LABELS[taskFocus]}. This task is a reminder to observe; it is not an observation yet.`,
                 task_type: 'practice',
                 source_node_key: nodeKey,
                 is_nudge_enabled: false,
@@ -288,23 +297,13 @@ export function ObservationCapture({
                 },
             };
 
-            const result = await saveUserTasks([input]);
-            const created = result.tasks?.[0];
-
-            setLocalTasks((current) => [
-                {
-                    id: created?.id ?? `${Date.now()}`,
-                    title: taskTitle.trim(),
-                    focus: taskFocus,
-                },
-                ...current,
-            ]);
+            await saveUserTasks([input]);
 
             setTaskTitle('');
             setTaskOpen(false);
 
             setNotice(
-                'Added to your plan. When you notice something, record it as an observation.',
+                'Added to your tasks. When you notice something, come back and record it as an observation.',
             );
         } catch (e) {
             setError(
@@ -317,7 +316,44 @@ export function ObservationCapture({
         }
     };
 
+    const handleDeleteObservation = async (observation: UserObservation) => {
+        const confirmed = window.confirm(
+            `Delete “${observation.title}”? This cannot be undone.`,
+        );
+        if (!confirmed) return;
+
+        setDeletingObservationId(observation.id);
+        setError(null);
+        setNotice(null);
+
+        try {
+            await deleteObservation(observation.id);
+            setObservations((current) =>
+                current.filter((item) => item.id !== observation.id),
+            );
+            if (editingObservation?.id === observation.id) {
+                setCaptureOpen(false);
+                setEditingObservation(null);
+            }
+            setNotice('Observation deleted.');
+        } catch (e) {
+            setError(
+                e instanceof Error ? e.message : 'Could not delete this observation.',
+            );
+        } finally {
+            setDeletingObservationId(null);
+        }
+    };
+
     const handleContinue = async () => {
+        if (completeObservationCount < minimumCount) {
+            setError(
+                `Complete at least ${minimumCount} observations before continuing. ` +
+                `You have ${completeObservationCount} complete so far. Open any observation marked “Needs a little more detail” and fill in the remaining fields.`,
+            );
+            return;
+        }
+
         if (isCompleted) {
             const nextNodeKey = getNextNodeKey(nodeKey);
 
@@ -342,9 +378,6 @@ export function ObservationCapture({
         );
     };
 
-    const shownPrompts = showAllPrompts
-        ? PROMPTS
-        : PROMPTS.slice(0, 4);
 
     return (
         <div className="w-full animate-in fade-in duration-500">
@@ -363,8 +396,7 @@ export function ObservationCapture({
                     </p>
 
                     <p className="text-sm text-muted-foreground">
-                        Noticing works better over several days than in one
-                        sitting. Most people take about a week.
+                        Noticing works better over time. Give yourself a week or two—or longer if you need it—and come back whenever you notice something worth recording.
                     </p>
                 </header>
 
@@ -387,171 +419,70 @@ export function ObservationCapture({
                     </div>
                 )}
 
-                {/* Prompt cards */}
+                {/* Four observation sources */}
                 <section className="space-y-4">
-                    <div className="flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                            <h2 className="text-xl font-semibold tracking-tight">
-                                Try one of these prompts
-                            </h2>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Choose a starting point. Record something now or make a plan to look for it later.
-                            </p>
-                        </div>
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setHintsOpen(true)}
-                            className="gap-2"
-                        >
-                            <Sparkles className="size-4" />
-                            Get hints
-                        </Button>
+                    <div>
+                        <h2 className="text-xl font-semibold tracking-tight">
+                            Four ways to notice
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Choose the perspective that feels useful. Record something now, or add it to your tasks so you remember to look for it over the coming days or weeks.
+                        </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                        {shownPrompts.map((prompt) => (
+                        {PROMPTS.map((prompt) => (
                             <article
                                 key={prompt.id}
                                 className="flex flex-col justify-between gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5"
                             >
                                 <div className="space-y-2">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                                            {FOCUS_LABELS[prompt.focus]}
-                                        </span>
-
-                                        {prompt.kind === 'ask' && (
-                                            <span className="rounded-full bg-[#FF502F]/10 px-2.5 py-1 text-xs font-medium text-[#FF502F]">
-                                                Try asking
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <h3 className="font-semibold leading-6">
-                                        {prompt.title}
-                                    </h3>
-
+                                    <span className="inline-flex rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                                        {FOCUS_LABELS[prompt.focus]}
+                                    </span>
+                                    <h3 className="font-semibold leading-6">{prompt.title}</h3>
                                     <p className="text-sm leading-6 text-muted-foreground">
                                         {prompt.description}
                                     </p>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                        onClick={() => openResource(prompt.resourceSlug)}
+                                    >
+                                        <BookOpen className="size-3.5" />
+                                        Read the guide
+                                    </button>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                                <div className="flex items-center gap-2 border-t border-border pt-3">
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant="outline"
-                                        className="gap-1.5"
-                                        onClick={() =>
-                                            openResource(prompt.resourceSlug)
-                                        }
-                                    >
-                                        <BookOpen className="size-4" />
-                                        How to
-                                    </Button>
-
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        className="gap-1.5 bg-[#FF502F] text-white hover:bg-[#E94729]"
+                                        className="flex-1 gap-1.5 bg-[#FF502F] text-white hover:bg-[#E94729]"
                                         onClick={() => startCapture(prompt)}
                                     >
-                                        <Plus className="size-4" />
-                                        Record what you noticed
+                                        Record an observation
                                     </Button>
-
                                     <Button
                                         type="button"
-                                        size="sm"
+                                        size="icon"
                                         variant="ghost"
+                                        aria-label={`Add task: ${prompt.title}`}
+                                        title="Add to tasks"
                                         onClick={() => {
                                             setTaskFocus(prompt.focus);
                                             setTaskTitle(prompt.title);
                                             setTaskOpen(true);
                                             setError(null);
+                                            setNotice(null);
                                         }}
                                     >
-                                        Plan for later
+                                        <CalendarPlus className="size-4" />
                                     </Button>
                                 </div>
                             </article>
                         ))}
                     </div>
-
-                    <div className="flex justify-center">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() =>
-                                setShowAllPrompts((value) => !value)
-                            }
-                            className="gap-2 text-muted-foreground"
-                        >
-                            {showAllPrompts
-                                ? 'Show fewer prompts'
-                                : 'Show all seven prompts'}
-                            <ChevronDown
-                                className={`size-4 transition-transform ${showAllPrompts ? 'rotate-180' : ''
-                                    }`}
-                            />
-                        </Button>
-                    </div>
-                </section>
-
-                {/* Planned tasks */}
-                <section className="space-y-4 rounded-2xl border border-border bg-card p-5 sm:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h2 className="text-xl font-semibold tracking-tight">
-                                Things I want to look for
-                            </h2>
-                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                If you can’t look into something right now, make a note to come back to it later.
-                            </p>
-                        </div>
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="gap-2"
-                            onClick={() => {
-                                setTaskTitle('');
-                                setTaskFocus('personal');
-                                setTaskOpen(true);
-                                setError(null);
-                            }}
-                        >
-                            <Plus className="size-4" />
-                            Add something to look for
-                        </Button>
-                    </div>
-
-                    {localTasks.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-                            Nothing planned yet. Add a small thing you want to pay attention to.
-                        </div>
-                    ) : (
-                        <ul className="space-y-2">
-                            {localTasks.map((task) => (
-                                <li
-                                    key={task.id}
-                                    className="flex items-start gap-3 rounded-xl border border-border px-3.5 py-3"
-                                >
-                                    <CircleHelp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium">
-                                            {task.title}
-                                        </p>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {FOCUS_LABELS[task.focus]}
-                                        </p>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
                 </section>
 
                 {/* Observations */}
@@ -562,19 +493,9 @@ export function ObservationCapture({
                                 What you’ve noticed
                             </h2>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                {observations.length} saved · {minimumCount} is a helpful starting point · around {softTarget} gives you more to compare
+                                {observations.length} saved · {completeObservationCount} complete · {minimumCount} complete observations needed to continue
                             </p>
                         </div>
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => startCapture()}
-                            className="gap-2"
-                        >
-                            <Plus className="size-4" />
-                            Record something
-                        </Button>
                     </div>
 
                     {loading ? (
@@ -588,47 +509,78 @@ export function ObservationCapture({
                                 What you’ve noticed will collect here.
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Start with one small thing you noticed. It doesn’t need to be a business idea.
+                                Choose one of the four prompts above and record something you notice. It does not need to be a business idea, and you can add details later.
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-2">
                             {sortedObservations.map((observation) => (
-                                <button
-                                    type="button"
+                                <div
                                     key={observation.id}
-                                    onClick={() =>
-                                        startCapture(undefined, observation)
-                                    }
-                                    className="flex w-full items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 text-left transition hover:border-[#FF502F]/50 hover:bg-muted/20"
+                                    className="flex items-stretch gap-2 rounded-xl border border-border bg-card p-2 transition hover:border-[#FF502F]/50"
                                 >
-                                    <span className="min-w-0 space-y-1">
-                                        <span className="block font-medium">
-                                            {observation.title}
+                                    <button
+                                        type="button"
+                                        onClick={() => startCapture(undefined, observation)}
+                                        className="flex min-w-0 flex-1 items-start justify-between gap-4 rounded-lg p-2 text-left hover:bg-muted/20"
+                                    >
+                                        <span className="min-w-0 flex-1 space-y-2">
+                                            <span className="block font-medium">{observation.title}</span>
+                                            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                <span className="inline-flex rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                                                    {FOCUS_LABELS[normalizeFocus(observation.focus)]}
+                                                </span>
+                                                {(() => {
+                                                    const status = getObservationReadiness(observation);
+                                                    const presentation = getReadinessPresentation(status);
+                                                    const StatusIcon = presentation.icon;
+                                                    return (
+                                                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${presentation.className}`}>
+                                                            <StatusIcon className="size-3.5" />
+                                                            {presentation.label}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </span>
                                         </span>
-
-                                        <span className="block line-clamp-2 text-sm leading-6 text-muted-foreground">
-                                            {observation.content}
+                                        <span className="shrink-0 pt-1 text-xs text-muted-foreground">
+                                            {observation.updated_at || observation.created_at
+                                                ? new Date(observation.updated_at ?? observation.created_at ?? '').toLocaleDateString()
+                                                : ''}
                                         </span>
-
-                                        <span className="mt-1 inline-flex rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                                            {FOCUS_LABELS[normalizeFocus(observation.focus)]}
-                                        </span>
-                                    </span>
-
-                                    <span className="shrink-0 text-xs text-muted-foreground">
-                                        {observation.updated_at
-                                            ? new Date(
-                                                observation.updated_at,
-                                            ).toLocaleDateString()
-                                            : ''}
-                                    </span>
-                                </button>
+                                    </button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => startCapture(undefined, observation)}
+                                        className="mt-1 shrink-0 gap-1.5"
+                                    >
+                                        <PencilLine className="size-3.5" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        aria-label={`Delete observation: ${observation.title}`}
+                                        title="Delete observation"
+                                        disabled={deletingObservationId !== null}
+                                        onClick={() => void handleDeleteObservation(observation)}
+                                        className="mt-1 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                        {deletingObservationId === observation.id ? (
+                                            <span className="text-xs">…</span>
+                                        ) : (
+                                            <Trash2 className="size-4" />
+                                        )}
+                                    </Button>
+                                </div>
                             ))}
                         </div>
                     )}
 
-                    {observations.length >= softTarget && (
+                    {completeObservationCount >= softTarget && (
                         <p className="text-sm text-muted-foreground">
                             You have a good collection to work with. You can
                             keep adding observations after moving on.
@@ -639,15 +591,17 @@ export function ObservationCapture({
                 {/* Completion */}
                 <footer className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-muted-foreground">
-                        {observations.length < minimumCount
-                            ? `A few observations are a helpful starting point. You can continue when you’re ready and keep noticing as you go.`
-                            : 'You can keep adding observations after you move on.'}
+                        {completeObservationCount < minimumCount
+                            ? `Complete ${minimumCount - completeObservationCount} more observation${minimumCount - completeObservationCount === 1 ? '' : 's'} to continue. An observation is complete when all its problem details are filled in.`
+                            : completeObservationCount < softTarget
+                                ? `${completeObservationCount} complete observations so far. Around ${softTarget} gives you more to compare, but you can continue now.`
+                                : 'You have a useful collection to compare. You can keep adding observations after you move on.'}
                     </p>
 
                     <Button
                         type="button"
                         onClick={handleContinue}
-                        disabled={loading}
+                        disabled={loading || completeObservationCount < minimumCount}
                         className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
                     >
                         {isCompleted ? 'Continue' : 'Complete this step'}
@@ -698,29 +652,50 @@ export function ObservationCapture({
                             </Button>
                         </div>
 
-                        <ProblemObservationForm
-                            focus={focus}
-                            observation={editingObservation}
-                            sourceNodeKey={nodeKey}
-                            onCancel={() => setCaptureOpen(false)}
-                            onSaved={(savedObservation) => {
-                                setCaptureOpen(false);
-                                setNotice(
-                                    editingObservation
-                                        ? 'Observation updated.'
-                                        : 'Observation saved.',
-                                );
-                                setEditingObservation(null);
-                                setActivePrompt(null);
-                                setObservations((current) => {
-                                    const withoutSaved = current.filter(
-                                        (item) => item.id !== savedObservation.id,
+                        {editingObservation ? (
+                            <ProblemObservationForm
+                                focus={focus}
+                                observation={editingObservation}
+                                sourceNodeKey={nodeKey}
+                                onCancel={() => setCaptureOpen(false)}
+                                onSaved={(savedObservation) => {
+                                    setCaptureOpen(false);
+                                    setNotice('Observation updated.');
+                                    setEditingObservation(null);
+                                    setActivePrompt(null);
+                                    setObservations((current) => {
+                                        const withoutSaved = current.filter(
+                                            (item) => item.id !== savedObservation.id,
+                                        );
+                                        return [savedObservation, ...withoutSaved];
+                                    });
+                                    void refreshObservations();
+                                }}
+                            />
+                        ) : (
+                            <ObservedProblemExtractionForm
+                                focus={focus}
+                                sourceNodeKey={nodeKey}
+                                onCancel={() => setCaptureOpen(false)}
+                                onSaved={(savedObservation, extractionFailed) => {
+                                    setCaptureOpen(false);
+                                    setNotice(
+                                        extractionFailed
+                                            ? 'Observation saved. You can add structured details later.'
+                                            : 'Observation saved.',
                                     );
-                                    return [savedObservation, ...withoutSaved];
-                                });
-                                void refreshObservations();
-                            }}
-                        />
+                                    setEditingObservation(null);
+                                    setActivePrompt(null);
+                                    setObservations((current) => {
+                                        const withoutSaved = current.filter(
+                                            (item) => item.id !== savedObservation.id,
+                                        );
+                                        return [savedObservation, ...withoutSaved];
+                                    });
+                                    void refreshObservations();
+                                }}
+                            />
+                        )}
                     </section>
                 </div>
             )}
@@ -745,14 +720,17 @@ export function ObservationCapture({
                         <div className="mb-5 flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-[#FF502F]">
-                                    PLAN FOR LATER
+                                    ADD TO YOUR TASKS
                                 </p>
                                 <h2
                                     id="task-dialog-title"
                                     className="mt-1 text-xl font-semibold"
                                 >
-                                    What do you want to notice?
+                                    Come back to this later
                                 </h2>
+                                <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                                    Add this to your tasks so you remember to look for it in everyday life. You might do this over the next week or two, or take longer if you need to.
+                                </p>
                             </div>
 
                             <Button
@@ -812,7 +790,7 @@ export function ObservationCapture({
                             </div>
 
                             <p className="text-sm leading-6 text-muted-foreground">
-                                This saves a reminder to look, not an observation. When you notice something, come back and record it.
+                                This adds a task to your list; it does not record an observation or send a notification. When you notice something, come back here and record it.
                             </p>
 
                             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
@@ -831,7 +809,7 @@ export function ObservationCapture({
                                     className="gap-2 bg-[#FF502F] text-white hover:bg-[#E94729]"
                                 >
                                     <Save className="size-4" />
-                                    {savingTask ? 'Saving…' : 'Save for later'}
+                                    {savingTask ? 'Adding…' : 'Add to my tasks'}
                                 </Button>
                             </div>
                         </div>
@@ -839,95 +817,6 @@ export function ObservationCapture({
                 </div>
             )}
 
-            {/* First-pass hints dialog: static suggestions, no AI or persistence yet */}
-            {hintsOpen && (
-                <div
-                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-                    role="presentation"
-                    onMouseDown={(event) => {
-                        if (event.target === event.currentTarget) {
-                            setHintsOpen(false);
-                        }
-                    }}
-                >
-                    <section
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="hints-dialog-title"
-                        className="w-full max-w-xl rounded-t-2xl border border-border bg-background p-5 shadow-xl sm:rounded-2xl sm:p-6"
-                    >
-                        <div className="mb-5 flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-[#FF502F]">
-                                    A LITTLE DIRECTION
-                                </p>
-                                <h2
-                                    id="hints-dialog-title"
-                                    className="mt-1 text-xl font-semibold"
-                                >
-                                    Places to start
-                                </h2>
-                            </div>
-
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Close"
-                                onClick={() => setHintsOpen(false)}
-                            >
-                                <X className="size-4" />
-                            </Button>
-                        </div>
-
-                        <p className="text-sm leading-6 text-muted-foreground">
-                            These are just starting points, not answers. Personalised suggestions will come later.
-                        </p>
-
-                        <div className="mt-4 space-y-3">
-                            {[
-                                {
-                                    title: 'A routine you repeat',
-                                    body: 'Choose one ordinary task you do every week. Notice where you wait, repeat a step, or depend on someone else.',
-                                },
-                                {
-                                    title: 'A person doing work you know',
-                                    body: 'Watch or ask someone about a task they handle regularly. What takes more effort than it should?',
-                                },
-                                {
-                                    title: 'A place you visit often',
-                                    body: 'Pay attention to a shop, office, service, or community space. What do people have to work around?',
-                                },
-                            ].map((hint) => (
-                                <article
-                                    key={hint.title}
-                                    className="rounded-xl border border-border p-4"
-                                >
-                                    <h3 className="font-medium">{hint.title}</h3>
-                                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                        {hint.body}
-                                    </p>
-
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-3"
-                                        onClick={() => {
-                                            setTaskTitle(hint.title);
-                                            setTaskFocus('personal');
-                                            setHintsOpen(false);
-                                            setTaskOpen(true);
-                                        }}
-                                    >
-                                        Plan to try this
-                                    </Button>
-                                </article>
-                            ))}
-                        </div>
-                    </section>
-                </div>
-            )}
         </div>
     );
 }

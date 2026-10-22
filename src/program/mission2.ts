@@ -104,13 +104,13 @@ A sentence is enough to start. Add details whenever you learn more.
 Some prompts will ask you to go and ask someone directly. Give those a try. What people tell you can reveal things you would never have noticed on your own.`,
           prompt: 'What frustrated you today?',
           intent:
-            'Support lightweight, ongoing capture of observations across personal, people, zone_of_influence, changes and markets. Include two real-world asks. Keep observations in the user’s own words and allow more detail to be added later. Encourage roughly 10 observations without treating that as a completion requirement.',
+            'Support lightweight, ongoing capture of observations across personal, people, zone_of_influence, changes and markets. Include two real-world asks. Keep observations in the user’s own words and allow more detail to be added later. Require at least five complete observations to continue, while encouraging roughly 10 for a richer set to compare.',
           component: 'observation_capture',
           dependencies: ['m2-q1-setup'],
           pacing: { delay_days: 5 },
           metadata: {
             guidance:
-              'Noticing works better over several days than in one sitting. Most people take about a week.',
+              'Noticing works better over several days than in one sitting. Most people take about a week. Try to record as many problems as you can.',
             observation: {
               type: 'observation',
               domain: 'problem',
@@ -121,7 +121,7 @@ Some prompts will ask you to go and ask someone directly. Give those a try. What
                 'changes',
                 'markets',
               ],
-              minimum_count: 3,
+              minimum_count: 5,
               soft_target: 10,
             },
           },
@@ -131,9 +131,9 @@ Some prompts will ask you to go and ask someone directly. Give those a try. What
           sequence: 3,
           role: 'investigation',
           title: 'Which problems are worth a closer look?',
-          description: `You may have noticed more problems than you expected. You don't need to investigate all of them.
+          description: `You've noticed a range of problems. You don't need to pursue all of them.
 
-Take a first pass through your observations. For each one, ask yourself:
+Let's start by looking at each one and asking yourself three simple questions:
 
 Do I understand this problem?
 Could I do something about it?
@@ -141,21 +141,12 @@ Do I care enough to explore it?
 
 Be honest. "Not sure" is a perfectly good answer.
 
-You're not deciding whether a problem is a business opportunity yet. You're deciding which ones deserve more of your attention.`,
-          prompt:
-            'Do you understand it, could you do something about it, and do you care?',
+You're not deciding whether a problem could become a business yet. You're deciding which problems are worth exploring further.`,
+          prompt: 'Which of these problems are worth exploring further?',
           intent:
-            'Run a quick three-question qualification for each observation, storing answers on the observation. This is a personal-fit filter, not a test of whether the problem is real or commercially viable. Allow users to skip observations they do not want to explore.',
+            'Guide the user through a three-question personal-fit assessment of every problem observation: do they understand it, could they do something about it, and do they care enough to explore it? Save all three answers together on each observation, preserve qualification history, and require every observation to be qualified before continuing. This is not a test of market demand or commercial viability.',
           component: 'observation_qualification',
           dependencies: ['m2-q1-observe'],
-          metadata: {
-            guidance:
-              'Go with your gut. You are not committing to anything yet.',
-            qualification: {
-              questions: ['understand', 'can_solve', 'care'],
-              answers: ['yes', 'not_sure', 'no'],
-            },
-          },
         },
         {
           key: 'm2-q1-reveal',

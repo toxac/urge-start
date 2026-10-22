@@ -245,3 +245,34 @@ export async function saveObservation(data: ObservationFormValues) {
 
   return { success: true, observation };
 }
+
+
+/** Delete one observation owned by the authenticated user. Add to src/actions/observations.ts. */
+export async function deleteObservation(observationId: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data, error } = await supabase
+    .from('user_observations')
+    .delete()
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to delete observation: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('Observation not found or you do not have permission to delete it.');
+  }
+}

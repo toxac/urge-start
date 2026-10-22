@@ -18,11 +18,12 @@ type ObservedProblemExtractionFormProps = {
   focus: ProblemObservationFocus;
   isExistingIdea?: boolean;
   onSaved: (
-  observation: UserObservation,
-  extractionFailed?: boolean,
-) => void;
+    observation: UserObservation,
+    extractionFailed?: boolean,
+  ) => void;
   onCancel?: () => void;
 };
+
 
 export function ObservedProblemExtractionForm({
   sourceNodeKey,
@@ -55,6 +56,7 @@ export function ObservedProblemExtractionForm({
     setNotice(null);
 
     let savedObservation: UserObservation | null = null;
+    let extractionFailed = false;
 
     try {
       // Save the user's original title and description first.
@@ -72,10 +74,9 @@ export function ObservedProblemExtractionForm({
       });
 
       savedObservation = result.observation as UserObservation;
-
       observationsActions.upsert(savedObservation);
 
-      // Extraction is attempted only during this initial save.
+      // Attempt initial extraction after the original observation is saved.
       try {
         const extracted = await extractProblemDetails(
           savedObservation.content,
@@ -89,6 +90,13 @@ export function ObservedProblemExtractionForm({
             ? savedObservation.problem_details
             : {};
 
+        const existingMetadata =
+          savedObservation.metadata &&
+          typeof savedObservation.metadata === 'object' &&
+          !Array.isArray(savedObservation.metadata)
+            ? savedObservation.metadata
+            : {};
+
         const enriched = await saveObservation({
           observation_id: savedObservation.id,
           title: savedObservation.title,
@@ -98,22 +106,63 @@ export function ObservedProblemExtractionForm({
             ...extracted,
             ...(isExistingIdea ? { is_existing: true } : {}),
           },
+          metadata: {
+            ...existingMetadata,
+            problem_detail_extraction: {
+              status: 'succeeded',
+              attempted_at: new Date().toISOString(),
+            },
+          },
         });
 
         savedObservation = enriched.observation as UserObservation;
         observationsActions.upsert(savedObservation);
       } catch (extractionError) {
+        extractionFailed = true;
+
         console.error(
           '[OBSERVATION DETAIL EXTRACTION]',
           extractionError,
         );
 
+        // Persist the failed attempt without replacing other metadata.
+        try {
+          const existingMetadata =
+            savedObservation.metadata &&
+            typeof savedObservation.metadata === 'object' &&
+            !Array.isArray(savedObservation.metadata)
+              ? savedObservation.metadata
+              : {};
+
+          const failedResult = await saveObservation({
+            observation_id: savedObservation.id,
+            title: savedObservation.title,
+            content: savedObservation.content,
+            metadata: {
+              ...existingMetadata,
+              problem_detail_extraction: {
+                status: 'failed',
+                attempted_at: new Date().toISOString(),
+              },
+            },
+          });
+
+          savedObservation = failedResult.observation as UserObservation;
+          observationsActions.upsert(savedObservation);
+        } catch (metadataError) {
+          // Keep the original observation even if status persistence fails.
+          console.error(
+            '[OBSERVATION EXTRACTION STATUS SAVE]',
+            metadataError,
+          );
+        }
+
         setNotice(
-          'Your observation is saved, but we could not extract its details. You can open it later to add details or request extraction.',
+          'Your observation is saved, but we couldn’t organise its details. You can edit it later and try again.',
         );
       }
 
-      onSaved(savedObservation);
+      onSaved(savedObservation, extractionFailed);
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -206,3 +255,4 @@ export function ObservedProblemExtractionForm({
     </div>
   );
 }
+
