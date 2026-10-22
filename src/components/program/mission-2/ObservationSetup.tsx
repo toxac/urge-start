@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import {
   ArrowRight,
   Lightbulb,
@@ -12,8 +13,6 @@ import {
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { getNextNodeKey } from '@/lib/program/navigation';
-import { programStateActions } from '@/lib/stores/program-state';
 
 const observationAreas = [
   {
@@ -43,21 +42,22 @@ const observationAreas = [
 ];
 
 export function ObservationSetup({
-  nodeKey,
   progress,
   onComplete,
 }: NodeComponentProps) {
   const isCompleted = progress.completed === true;
+  const [isContinuing, setIsContinuing] = useState(false);
 
-  const handleContinue = () => {
-    const nextNodeKey = getNextNodeKey(nodeKey);
+  const handleContinue = async () => {
+    if (isContinuing) return;
 
-    if (!nextNodeKey) {
-      return;
+    setIsContinuing(true);
+
+    try {
+      await onComplete({ completed: true });
+    } finally {
+      setIsContinuing(false);
     }
-
-    // Navigate locally without changing persisted progress or journey state.
-    programStateActions.setCurrentNode(nextNodeKey);
   };
 
   return (
@@ -183,23 +183,18 @@ export function ObservationSetup({
             attention.
           </p>
 
-          {isCompleted ? (
-            <Button
-              onClick={handleContinue}
-              className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
-            >
-              Continue
-              <ArrowRight className="size-5" />
-            </Button>
-          ) : (
-            <Button
-              onClick={() => onComplete({ completed: true })}
-              className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
-            >
-              Let's begin
-              <ArrowRight className="size-5" />
-            </Button>
-          )}
+          <Button
+            onClick={handleContinue}
+            disabled={isContinuing}
+            className="h-12 shrink-0 gap-2 rounded-full bg-[#FF502F] px-7 text-base text-white shadow-sm hover:bg-[#E94728]"
+          >
+            {isContinuing
+              ? 'Continuing…'
+              : isCompleted
+                ? 'Continue'
+                : "Let's begin"}
+            <ArrowRight className="size-5" />
+          </Button>
         </footer>
       </div>
     </div>
