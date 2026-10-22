@@ -131,20 +131,10 @@ Some prompts will ask you to go and ask someone directly. Give those a try. What
           sequence: 3,
           role: 'investigation',
           title: 'Which problems are worth a closer look?',
-          description: `You've noticed a range of problems. You don't need to pursue all of them.
-
-Let's start by looking at each one and asking yourself three simple questions:
-
-Do I understand this problem?
-Could I do something about it?
-Do I care enough to explore it?
-
-Be honest. "Not sure" is a perfectly good answer.
-
-You're not deciding whether a problem could become a business yet. You're deciding which problems are worth exploring further.`,
+          description: 'Assess your observations to identify which problems are worth exploring further.',
           prompt: 'Which of these problems are worth exploring further?',
           intent:
-            'Guide the user through a three-question personal-fit assessment of every problem observation: do they understand it, could they do something about it, and do they care enough to explore it? Save all three answers together on each observation, preserve qualification history, and require every observation to be qualified before continuing. This is not a test of market demand or commercial viability.',
+            'Help the user assess every observation for personal fit through three questions. Save the three answers together, preserve qualification history, and require all current observations to be qualified before continuing. This is not a test of market demand or commercial viability.',
           component: 'observation_qualification',
           dependencies: ['m2-q1-observe'],
         },

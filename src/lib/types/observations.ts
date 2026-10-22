@@ -128,3 +128,10 @@ export type ProblemDetails = {
   cares?: QualificationAnswer;
   can_solve?: QualificationAnswer;
 };
+
+
+export type QualificationAnswers = {
+  understand: QualificationAnswer;
+  can_solve: QualificationAnswer;
+  care: QualificationAnswer;
+};

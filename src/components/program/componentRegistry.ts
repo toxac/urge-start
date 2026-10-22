@@ -29,7 +29,8 @@ import {
 import {
   OpportunitySetup,
   ObservationSetup,
-  ObservationCapture
+  ObservationCapture,
+  ObservationQualification,
 } from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
@@ -83,5 +84,6 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'opportunity_starting_point': OpportunitySetup,
   'observation_setup': ObservationSetup,
   'observation_capture' : ObservationCapture,
+  'observation_qualification': ObservationQualification,
 
 };

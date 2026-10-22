@@ -14,6 +14,7 @@ import type {
   UserObservationInsert,
   UserObservationUpdate,
   ProblemDetails,
+  QualificationAnswers,
 } from '@/lib/types/observations';
 
 /**
@@ -275,4 +276,101 @@ export async function deleteObservation(observationId: string): Promise<void> {
   if (!data) {
     throw new Error('Observation not found or you do not have permission to delete it.');
   }
+}
+
+export async function saveObservationQualification(
+  observationId: string,
+  answers: QualificationAnswers,
+) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data: observation, error: fetchError } = await supabase
+    .from('user_observations')
+    .select('id, metadata, type, domain')
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new Error(`Failed to load observation: ${fetchError.message}`);
+  }
+
+  if (
+    !observation ||
+    observation.type !== 'observation' ||
+    observation.domain !== 'problem'
+  ) {
+    throw new Error('Problem observation not found.');
+  }
+
+  const metadata =
+    observation.metadata &&
+    typeof observation.metadata === 'object' &&
+    !Array.isArray(observation.metadata)
+      ? (observation.metadata as Record<string, Json>)
+      : {};
+
+  const previous = metadata.qualification;
+  const changed =
+    !previous ||
+    typeof previous !== 'object' ||
+    Array.isArray(previous) ||
+    previous.understand !== answers.understand ||
+    previous.can_solve !== answers.can_solve ||
+    previous.care !== answers.care;
+
+  const qualifiedAt = new Date().toISOString();
+
+  const history = Array.isArray(metadata.qualification_history)
+    ? metadata.qualification_history
+    : [];
+
+  const qualification = {
+    ...answers,
+    qualified_at: qualifiedAt,
+  };
+
+  const nextMetadata: Record<string, Json> = {
+    ...metadata,
+    qualification,
+    ...(changed
+      ? {
+          qualification_history: [
+            ...history,
+            {
+              ...qualification,
+              changed_at: qualifiedAt,
+            },
+          ] as Json,
+        }
+      : {}),
+  };
+
+  const { data: saved, error: saveError } = await supabase
+    .from('user_observations')
+    .update({
+      metadata: nextMetadata,
+      updated_at: qualifiedAt,
+    })
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (saveError) {
+    throw new Error(
+      `Failed to save qualification: ${saveError.message}`,
+    );
+  }
+
+  return saved;
 }
