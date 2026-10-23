@@ -32,6 +32,7 @@ import {
   ObservationCapture,
   ObservationQualification,
   ObservationPatternsReveal,
+  PromoteToOpportunities
 } from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
@@ -83,10 +84,11 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
 
   //Mission 2
   'opportunity_starting_point': OpportunitySetup,
+  // M2Q1
   'observation_setup': ObservationSetup,
   'observation_capture' : ObservationCapture,
   'observation_qualification': ObservationQualification,
   'observation_patterns_reveal': ObservationPatternsReveal,
-  'promote_to_opportunities': StandardSetupFrame,
+  'promote_to_opportunities': PromoteToOpportunities,
 
 };
