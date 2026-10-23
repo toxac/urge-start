@@ -32,7 +32,11 @@ import {
   ObservationCapture,
   ObservationQualification,
   ObservationPatternsReveal,
-  PromoteToOpportunities
+  PromoteToOpportunities,
+  ConversationAction,
+  ConversationReflection,
+  CustomerConversations,
+  ConversationSetup,
 } from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
@@ -90,5 +94,10 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'observation_qualification': ObservationQualification,
   'observation_patterns_reveal': ObservationPatternsReveal,
   'promote_to_opportunities': PromoteToOpportunities,
-
+  // M2Q2
+  'conversation_setup': ConversationSetup,
+  'customer_conversations': CustomerConversations,
+  'conversations_reveal': ConversationReflection,
+  'conversation_action': ConversationAction,
+  
 };

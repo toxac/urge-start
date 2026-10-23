@@ -4,3 +4,7 @@ export { ObservationCapture } from './ObservationCapture';
 export { ObservationQualification } from './ObservationQualification';
 export {ObservationPatternsReveal} from './ObservationPatternsReveal';
 export {PromoteToOpportunities} from './PromoteToOpportunities';
+export {ConversationAction} from './ConversationAction';
+export {ConversationReflection} from './ConversationReflection';
+export {CustomerConversations} from './CustomerConversations';  
+export {ConversationSetup} from './ConversationSetup';
