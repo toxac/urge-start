@@ -113,15 +113,6 @@ function buildInput(
         context: item.context,
         focus: item.focus,
         problemDetails,
-
-        // Keep this mapping if ObservationPatternsInput in your current
-        // src/lib/types/ai.ts still requires the qualification property.
-        // Both representations derive from problem_details, not metadata.
-        qualification: {
-          understand: problemDetails.understands ?? null,
-          can_solve: problemDetails.can_solve ?? null,
-          care: problemDetails.cares ?? null,
-        },
       };
     }),
     userContext: {
