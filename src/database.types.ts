@@ -1282,7 +1282,7 @@ export type Database = {
     }
     Enums: {
       content_status: "draft" | "published"
-      opportunity_status: "added" | "shortlisted" | "testing"
+      opportunity_status: "added" | "archived" | "testing"
       program_node_role: "setup" | "investigation" | "reveal" | "action"
     }
     CompositeTypes: {
@@ -1412,7 +1412,7 @@ export const Constants = {
   public: {
     Enums: {
       content_status: ["draft", "published"],
-      opportunity_status: ["added", "shortlisted", "testing"],
+      opportunity_status: ["added", "archived", "testing"],
       program_node_role: ["setup", "investigation", "reveal", "action"],
     },
   },

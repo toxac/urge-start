@@ -4,25 +4,15 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { ContextResource } from '@/lib/context/requirements';
 
-// TODO: Move these to their own domain action files later.
-async function fetchContacts(userId: string) {
-  return [];
-}
-
-async function fetchProjects(userId: string) {
-  return [];
-}
-
-async function fetchOffers(userId: string) {
-  return [];
-}
+import type { ProblemDetails } from '@/lib/types/observations';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
   missionKey: string,
 ) {
   const supabase = await createSupabaseServerClient();
-  const contextData: Partial<Record<ContextResource, any>> = {};
+
+  const contextData: Record<string, unknown> = {};
 
   if (requirements.includes('resources')) {
     const { data: resources, error } = await supabase
@@ -31,13 +21,18 @@ export async function fetchMissionContext(
       .eq('mission_key', missionKey);
 
     if (error) {
-      throw new Error(`Failed to fetch mission resources: ${error.message}`);
+      throw new Error(
+        `Failed to fetch mission resources: ${error.message}`,
+      );
     }
 
     contextData.resources = resources ?? [];
   }
 
-  if (requirements.includes('observations')) {
+  const needsObservations = requirements.includes('observations');
+  const needsOpportunities = requirements.includes('opportunities');
+
+  if (needsObservations || needsOpportunities) {
     const {
       data: { user },
       error: authError,
@@ -47,21 +42,46 @@ export async function fetchMissionContext(
       throw new Error('Unauthorized');
     }
 
-    const { data: observations, error } = await supabase
-      .from('user_observations')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('domain', 'problem')
-      .order('updated_at', { ascending: false });
+    if (needsObservations) {
+      const { data: observations, error } = await supabase
+        .from('user_observations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('domain', 'problem')
+        .order('updated_at', { ascending: false });
 
-    if (error) {
-      throw new Error(`Failed to fetch observations: ${error.message}`);
+      if (error) {
+        throw new Error(
+          `Failed to fetch observations: ${error.message}`,
+        );
+      }
+
+      contextData.observations = observations ?? [];
     }
 
-    contextData.observations = observations ?? [];
-  }
+    if (needsOpportunities) {
+      const { data: opportunities, error } = await supabase
+        .from('user_opportunities')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-  // Other resources can be added here when their fetchers are ready.
+      if (error) {
+        throw new Error(
+          `Failed to fetch opportunities: ${error.message}`,
+        );
+      }
+
+      contextData.opportunities = (opportunities ?? []).map(
+        (opportunity) => ({
+          ...opportunity,
+          problem_details:
+            opportunity.problem_details as ProblemDetails,
+        }),
+      );
+    }
+  }
 
   return contextData;
 }
+

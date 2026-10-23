@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 import { problemDetailsSchema } from '@/lib/schemas/observation';
@@ -17,7 +18,7 @@ export const userOpportunitySchema = z.object({
   problem_details: problemDetailsSchema.optional(),
   problem_observation_source_id: z.string().uuid().nullable().optional(),
 
-  status: z.enum(['added', 'shortlisted', 'testing']).optional(),
+  status: z.enum(['added', 'testing', 'archived']).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
