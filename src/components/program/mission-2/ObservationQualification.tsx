@@ -19,25 +19,25 @@ const QUESTIONS: {
   title: string;
   helper: string;
 }[] = [
-  {
-    key: 'understand',
-    title: 'Do I understand this problem?',
-    helper:
-      'Have you seen it up close? Could you say who has it and what they do about it now?',
-  },
-  {
-    key: 'can_solve',
-    title: 'Could I do something about it?',
-    helper:
-      "Do you know how you'd go about solving it, or how you'd find out?",
-  },
-  {
-    key: 'care',
-    title: 'Do I care?',
-    helper:
-      'Would you still want to think about this if no one paid you?',
-  },
-];
+    {
+      key: 'understands',
+      title: 'Do I understand this problem?',
+      helper:
+        'Have you seen it up close? Could you say who has it and what they do about it now?',
+    },
+    {
+      key: 'can_solve',
+      title: 'Could I do something about it?',
+      helper:
+        "Do you know how you'd go about solving it, or how you'd find out?",
+    },
+    {
+      key: 'cares',
+      title: 'Do I care?',
+      helper:
+        'Would you still want to think about this if no one paid you?',
+    },
+  ];
 
 const OPTIONS: { value: QualificationAnswer; label: string }[] = [
   { value: 'yes', label: 'Yes' },
@@ -48,32 +48,26 @@ const OPTIONS: { value: QualificationAnswer; label: string }[] = [
 function getQualification(
   observation: UserObservation,
 ): QualificationAnswers | null {
-  const metadata = observation.metadata;
+  const details = observation.problem_details;
 
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
     return null;
   }
 
-  const qualification = (metadata as Record<string, unknown>).qualification;
-
-  if (!qualification || typeof qualification !== 'object') {
-    return null;
-  }
-
-  const value = qualification as Record<string, unknown>;
+  const value = details as Record<string, unknown>;
 
   if (
-    !OPTIONS.some((option) => option.value === value.understand) ||
+    !OPTIONS.some((option) => option.value === value.understands) ||
     !OPTIONS.some((option) => option.value === value.can_solve) ||
-    !OPTIONS.some((option) => option.value === value.care)
+    !OPTIONS.some((option) => option.value === value.cares)
   ) {
     return null;
   }
 
   return {
-    understand: value.understand as QualificationAnswer,
+    understands: value.understands as QualificationAnswer,
     can_solve: value.can_solve as QualificationAnswer,
-    care: value.care as QualificationAnswer,
+    cares: value.cares as QualificationAnswer,
   };
 }
 
@@ -107,9 +101,9 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
 
   const [index, setIndex] = useState(0);
   const [draft, setDraft] = useState<QualificationAnswers>({
-    understand: 'not_sure',
+    understands: 'not_sure',
     can_solve: 'not_sure',
-    care: 'not_sure',
+    cares: 'not_sure',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -122,15 +116,15 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
     if (!observation) return;
 
     const answers = getQualification(observation) ?? {
-      understand: null,
+      understands: null,
       can_solve: null,
-      care: null,
+      cares: null,
     };
 
     setDraft({
-      understand: answers.understand ?? 'not_sure',
+      understands: answers.understands ?? 'not_sure',
       can_solve: answers.can_solve ?? 'not_sure',
-      care: answers.care ?? 'not_sure',
+      cares: answers.cares ?? 'not_sure',
     });
     setError(null);
   }, [observation?.id, observation?.updated_at]);
@@ -274,11 +268,10 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
                           }))
                         }
                         aria-pressed={active}
-                        className={`rounded-lg border px-3 py-3 text-sm font-medium transition ${
-                          active
+                        className={`rounded-lg border px-3 py-3 text-sm font-medium transition ${active
                             ? 'border-primary bg-primary/10 text-foreground'
                             : 'border-border hover:border-primary/50'
-                        }`}
+                          }`}
                       >
                         {option.label}
                       </button>

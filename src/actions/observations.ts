@@ -295,7 +295,7 @@ export async function saveObservationQualification(
 
   const { data: observation, error: fetchError } = await supabase
     .from('user_observations')
-    .select('id, metadata, type, domain')
+    .select('id, problem_details, type, domain')
     .eq('id', observationId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -312,54 +312,25 @@ export async function saveObservationQualification(
     throw new Error('Problem observation not found.');
   }
 
-  const metadata =
-    observation.metadata &&
-    typeof observation.metadata === 'object' &&
-    !Array.isArray(observation.metadata)
-      ? (observation.metadata as Record<string, Json>)
+  const problemDetails: ProblemDetails =
+    observation.problem_details &&
+    typeof observation.problem_details === 'object' &&
+    !Array.isArray(observation.problem_details)
+      ? (observation.problem_details as ProblemDetails)
       : {};
 
-  const previous = metadata.qualification;
-  const changed =
-    !previous ||
-    typeof previous !== 'object' ||
-    Array.isArray(previous) ||
-    previous.understand !== answers.understand ||
-    previous.can_solve !== answers.can_solve ||
-    previous.care !== answers.care;
-
-  const qualifiedAt = new Date().toISOString();
-
-  const history = Array.isArray(metadata.qualification_history)
-    ? metadata.qualification_history
-    : [];
-
-  const qualification = {
-    ...answers,
-    qualified_at: qualifiedAt,
-  };
-
-  const nextMetadata: Record<string, Json> = {
-    ...metadata,
-    qualification,
-    ...(changed
-      ? {
-          qualification_history: [
-            ...history,
-            {
-              ...qualification,
-              changed_at: qualifiedAt,
-            },
-          ] as Json,
-        }
-      : {}),
+  const updatedProblemDetails: ProblemDetails = {
+    ...problemDetails,
+    understands: answers.understands,
+    can_solve: answers.can_solve,
+    cares: answers.cares,
   };
 
   const { data: saved, error: saveError } = await supabase
     .from('user_observations')
     .update({
-      metadata: nextMetadata,
-      updated_at: qualifiedAt,
+      problem_details: updatedProblemDetails as Json,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', observationId)
     .eq('user_id', user.id)

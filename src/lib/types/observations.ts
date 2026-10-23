@@ -131,7 +131,7 @@ export type ProblemDetails = {
 
 
 export type QualificationAnswers = {
-  understand: QualificationAnswer;
+  understands: QualificationAnswer;
   can_solve: QualificationAnswer;
-  care: QualificationAnswer;
+  cares: QualificationAnswer;
 };
