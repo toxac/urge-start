@@ -655,8 +655,9 @@ export type Database = {
           hypothesis: string | null
           id: string
           metadata: Json
-          observation_details: Json
           problem: string | null
+          problem_details: Json
+          problem_observation_source_id: string | null
           status: Database["public"]["Enums"]["opportunity_status"]
           title: string
           updated_at: string
@@ -669,8 +670,9 @@ export type Database = {
           hypothesis?: string | null
           id?: string
           metadata?: Json
-          observation_details?: Json
           problem?: string | null
+          problem_details?: Json
+          problem_observation_source_id?: string | null
           status?: Database["public"]["Enums"]["opportunity_status"]
           title: string
           updated_at?: string
@@ -683,14 +685,23 @@ export type Database = {
           hypothesis?: string | null
           id?: string
           metadata?: Json
-          observation_details?: Json
           problem?: string | null
+          problem_details?: Json
+          problem_observation_source_id?: string | null
           status?: Database["public"]["Enums"]["opportunity_status"]
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_opportunities_problem_observation_source_fk"
+            columns: ["problem_observation_source_id"]
+            isOneToOne: false
+            referencedRelation: "user_observations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profile: {
         Row: {
