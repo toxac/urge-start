@@ -265,29 +265,8 @@ You don't need to be an expert. You need to know what you'd have to learn, who y
           dependencies: ['m2-q2-action'],
         },
         {
-          key: 'm2-q3-assessment',
-          sequence: 2,
-          role: 'investigation',
-          title: 'What would it take?',
-          description: `One opportunity at a time, a few questions, one at a time. At the end you'll get a short summary in your own words to correct.`,
-          prompt: 'What would it take?',
-          intent:
-            'Guided conversation per remaining opportunity covering what they know, what they would need to learn and how long, who they would need, who already does something about it (prefilled from their conversations), the smallest version they could do for one person in two weeks, and what they would need to hear to stop. Ends in an editable summary. One feasibility observation per opportunity. The smallest-version step can be skipped, which is flagged in the reveal.',
-          component: 'path_assessment',
-          dependencies: ['m2-q3-setup'],
-          pacing: { delay_days: 1 },
-          metadata: {
-            guidance: 'Take your time with each one. There is no rush.',
-            observation: {
-              type: 'research',
-              domain: 'problem',
-              focus: 'feasibility',
-            },
-          },
-        },
-        {
           key: 'm2-q3-approach',
-          sequence: 3,
+          sequence: 2,
           role: 'investigation',
           title: 'How could you help?',
           description: `There's rarely only one way to help someone with a problem. You could do it for them, give them a tool, connect them with someone, or teach them how.
@@ -312,6 +291,28 @@ Look at all four for each opportunity, then choose the one that's closest to wha
             ],
           },
         },
+        {
+          key: 'm2-q3-assessment',
+          sequence: 3,
+          role: 'investigation',
+          title: 'What would it take?',
+          description: `One opportunity at a time, a few questions, one at a time. At the end you'll get a short summary in your own words to correct.`,
+          prompt: 'What would it take?',
+          intent:
+            'Guided conversation per remaining opportunity covering what they know, what they would need to learn and how long, who they would need, who already does something about it (prefilled from their conversations), the smallest version they could do for one person in two weeks, and what they would need to hear to stop. Ends in an editable summary. One feasibility observation per opportunity. The smallest-version step can be skipped, which is flagged in the reveal.',
+          component: 'path_assessment',
+          dependencies: ['m2-q3-setup'],
+          pacing: { delay_days: 1 },
+          metadata: {
+            guidance: 'Take your time with each one. There is no rush.',
+            observation: {
+              type: 'research',
+              domain: 'problem',
+              focus: 'feasibility',
+            },
+          },
+        },
+        
         {
           key: 'm2-q3-reveal',
           sequence: 4,
