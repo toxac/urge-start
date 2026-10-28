@@ -6,6 +6,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 import {
   validatedObservationSchema,
+  observationSchema,
+  problemDetailsSchema,
   type ObservationFormValues,
 } from '@/lib/schemas/observation';
 
@@ -74,8 +76,103 @@ export async function getObservations(): Promise<UserObservation[]> {
   return data;
 }
 
+
+/** Create a new observation. This action never updates an existing row. */
+export async function createObservation(
+  data: Omit<ObservationFormValues, 'observation_id'>,
+) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Unauthorized');
+
+  const parsed = validatedObservationSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(`Invalid observation data: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`);
+  }
+  const value = parsed.data;
+  const payload: UserObservationInsert = {
+    user_id: user.id,
+    title: value.title,
+    content: value.content,
+    context: value.context ?? null,
+    observed_at: value.observed_at ?? new Date().toISOString(),
+    type: value.type ?? 'observation',
+    domain: value.domain ?? null,
+    focus: value.focus ?? null,
+    source_node_key: value.source_node_key ?? null,
+    ...(value.notes !== undefined ? { notes: value.notes } : {}),
+    ...(value.image_url !== undefined ? { image_url: value.image_url } : {}),
+    ...(value.problem_details !== undefined ? { problem_details: value.problem_details as Json } : {}),
+    ...(value.metadata !== undefined ? { metadata: value.metadata as Json } : {}),
+  };
+  const { data: observation, error } = await supabase.from('user_observations').insert(payload).select('*').single();
+  if (error) throw new Error(`Failed to create observation: ${error.message}`);
+  return { success: true as const, observation };
+}
+
+/** Update only the original observation fields; problem_details are untouched. */
+export async function updateObservation(
+  observationId: string,
+  data: Pick<ObservationFormValues, 'title' | 'content'> & Pick<ObservationFormValues, 'context'>,
+) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Unauthorized');
+
+  const parsed = observationSchema.pick({ title: true, content: true, context: true }).safeParse(data);
+  if (!parsed.success) {
+    throw new Error(`Invalid observation data: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`);
+  }
+  const { data: observation, error } = await supabase
+    .from('user_observations')
+    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .select('*')
+    .maybeSingle();
+  if (error) throw new Error(`Failed to update observation: ${error.message}`);
+  if (!observation) throw new Error('Observation not found.');
+  return { success: true as const, observation };
+}
+
+/** Update only supplied problem detail keys; undefined keys remain unchanged. */
+export async function updateProblemDetails(
+  observationId: string,
+  details: Partial<ProblemDetails>,
+) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Unauthorized');
+
+  const parsed = problemDetailsSchema.safeParse(details);
+  if (!parsed.success) {
+    throw new Error(`Invalid problem details: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`);
+  }
+  const { data: current, error: fetchError } = await supabase
+    .from('user_observations')
+    .select('id, problem_details, type, domain')
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (fetchError) throw new Error(`Failed to load observation: ${fetchError.message}`);
+  if (!current || current.type !== 'observation' || current.domain !== 'problem') {
+    throw new Error('Problem observation not found.');
+  }
+
+  const merged = mergeProblemDetails(current.problem_details, parsed.data);
+  const { data: observation, error } = await supabase
+    .from('user_observations')
+    .update({ problem_details: merged, updated_at: new Date().toISOString() })
+    .eq('id', observationId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+  if (error) throw new Error(`Failed to update problem details: ${error.message}`);
+  return { success: true as const, observation };
+}
+
 /**
- * Create or update an observation belonging to the authenticated user.
+ * Legacy compatibility action. Prefer createObservation, updateObservation, or updateProblemDetails.
  */
 export async function saveObservation(data: ObservationFormValues) {
   const supabase = await createSupabaseServerClient();
@@ -344,4 +441,8 @@ export async function saveObservationQualification(
   }
 
   return saved;
+}
+/** Preferred name for the qualification step; preserves other problem details. */
+export async function qualifyProblem(observationId: string, answers: QualificationAnswers) {
+  return saveObservationQualification(observationId, answers);
 }

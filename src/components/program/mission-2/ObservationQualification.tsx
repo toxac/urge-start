@@ -3,41 +3,34 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from 'lucide-react';
 
-import { saveObservationQualification } from '@/actions/observations';
+import {
+  updateProblemDetails,
+  qualifyProblem,
+} from '@/actions/observations';
+
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-import { $observations, observationsActions } from '@/lib/stores/observations';
+import {
+  $observations,
+  observationsActions,
+} from '@/lib/stores/observations';
+
 import type {
   UserObservation,
+  ProblemDetails,
   QualificationAnswer,
   QualificationAnswers,
 } from '@/lib/types/observations';
 
-const QUESTIONS: {
-  key: keyof QualificationAnswers;
-  title: string;
-  helper: string;
-}[] = [
-    {
-      key: 'understands',
-      title: 'Do I understand this problem?',
-      helper:
-        'Have you seen it up close? Could you say who has it and what they do about it now?',
-    },
-    {
-      key: 'can_solve',
-      title: 'Could I do something about it?',
-      helper:
-        "Do you know how you'd go about solving it, or how you'd find out?",
-    },
-    {
-      key: 'cares',
-      title: 'Do I care?',
-      helper:
-        'Would you still want to think about this if no one paid you?',
-    },
-  ];
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const OPTIONS: { value: QualificationAnswer; label: string }[] = [
   { value: 'yes', label: 'Yes' },
@@ -45,29 +38,82 @@ const OPTIONS: { value: QualificationAnswer; label: string }[] = [
   { value: 'no', label: 'No' },
 ];
 
+type DetailDraft = {
+  workaround: string;
+  current_option: string;
+  frequency: string;
+  cost: string;
+  why_unsolved: string;
+  can_reach: '' | 'true' | 'false';
+};
+
+const EMPTY_DETAILS: DetailDraft = {
+  workaround: '',
+  current_option: '',
+  frequency: '',
+  cost: '',
+  why_unsolved: '',
+  can_reach: '',
+};
+
+const EMPTY_QUALIFICATION: QualificationAnswers = {
+  understands: null,
+  cares: null,
+  can_solve: null,
+};
+
+function getDetails(observation: UserObservation): ProblemDetails {
+  const details = observation.problem_details;
+
+  if (
+    details &&
+    typeof details === 'object' &&
+    !Array.isArray(details)
+  ) {
+    return details as ProblemDetails;
+  }
+
+  return {};
+}
+
 function getQualification(
   observation: UserObservation,
 ): QualificationAnswers | null {
-  const details = observation.problem_details;
+  const details = getDetails(observation);
 
-  if (!details || typeof details !== 'object' || Array.isArray(details)) {
-    return null;
-  }
-
-  const value = details as Record<string, unknown>;
+  const valid = (value: unknown) =>
+    OPTIONS.some((option) => option.value === value);
 
   if (
-    !OPTIONS.some((option) => option.value === value.understands) ||
-    !OPTIONS.some((option) => option.value === value.can_solve) ||
-    !OPTIONS.some((option) => option.value === value.cares)
+    !valid(details.understands) ||
+    !valid(details.cares) ||
+    !valid(details.can_solve)
   ) {
     return null;
   }
 
   return {
-    understands: value.understands as QualificationAnswer,
-    can_solve: value.can_solve as QualificationAnswer,
-    cares: value.cares as QualificationAnswer,
+    understands: details.understands as QualificationAnswer,
+    cares: details.cares as QualificationAnswer,
+    can_solve: details.can_solve as QualificationAnswer,
+  };
+}
+
+function getSavedDetailDraft(observation: UserObservation): DetailDraft {
+  const details = getDetails(observation);
+
+  return {
+    workaround: details.workaround ?? '',
+    current_option: details.current_option ?? '',
+    frequency: details.frequency ?? '',
+    cost: details.cost ?? '',
+    why_unsolved: details.why_unsolved ?? '',
+    can_reach:
+      details.can_reach === true
+        ? 'true'
+        : details.can_reach === false
+          ? 'false'
+          : '',
   };
 }
 
@@ -75,7 +121,39 @@ function getSavedQualificationCount(observations: UserObservation[]) {
   return observations.filter(getQualification).length;
 }
 
-export function ObservationQualification({ onComplete }: NodeComponentProps) {
+function TextField({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+      <Textarea
+        id={id}
+        rows={2}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+export function ObservationQualification({
+  onComplete,
+}: NodeComponentProps) {
   const state = useStore($observations);
 
   const observations = useMemo(
@@ -83,7 +161,8 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
       Object.values(state.byId)
         .filter(
           (item) =>
-            item.type === 'observation' && item.domain === 'problem',
+            item.type === 'observation' &&
+            item.domain === 'problem',
         )
         .sort((a, b) => {
           const aDone = getQualification(a) !== null;
@@ -100,55 +179,98 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
   );
 
   const [index, setIndex] = useState(0);
-  const [draft, setDraft] = useState<QualificationAnswers>({
-    understands: 'not_sure',
-    can_solve: 'not_sure',
-    cares: 'not_sure',
-  });
+  const [detailDraft, setDetailDraft] = useState<DetailDraft>(EMPTY_DETAILS);
+  const [qualificationDraft, setQualificationDraft] =
+    useState<QualificationAnswers>(EMPTY_QUALIFICATION);
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const observation = observations[index];
-  const saved = observation ? getQualification(observation) : null;
+  const savedQualification = observation
+    ? getQualification(observation)
+    : null;
 
   useEffect(() => {
     if (!observation) return;
 
-    const answers = getQualification(observation) ?? {
-      understands: null,
-      can_solve: null,
-      cares: null,
-    };
-
-    setDraft({
-      understands: answers.understands ?? 'not_sure',
-      can_solve: answers.can_solve ?? 'not_sure',
-      cares: answers.cares ?? 'not_sure',
-    });
+    setDetailDraft(getSavedDetailDraft(observation));
+    setQualificationDraft(
+      getQualification(observation) ?? EMPTY_QUALIFICATION,
+    );
     setError(null);
+    setNotice(null);
   }, [observation?.id, observation?.updated_at]);
 
   const qualifiedCount = getSavedQualificationCount(observations);
   const allQualified =
-    observations.length > 0 && qualifiedCount === observations.length;
+    observations.length > 0 &&
+    qualifiedCount === observations.length;
+
+  function updateDetail<K extends keyof DetailDraft>(
+    key: K,
+    value: DetailDraft[K],
+  ) {
+    setDetailDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateQualification(
+    key: keyof QualificationAnswers,
+    value: QualificationAnswer,
+  ) {
+    setQualificationDraft((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
 
   async function saveAnswers() {
     if (!observation || isSaving || isCompleting) return;
 
     setIsSaving(true);
     setError(null);
+    setNotice(null);
 
     try {
-      const savedObservation = await saveObservationQualification(
+      const detailsToSave: Partial<ProblemDetails> = {
+        workaround: detailDraft.workaround.trim() || null,
+        current_option: detailDraft.current_option.trim() || null,
+        frequency: detailDraft.frequency.trim() || null,
+        cost: detailDraft.cost.trim() || null,
+        why_unsolved: detailDraft.why_unsolved.trim() || null,
+        can_reach:
+          detailDraft.can_reach === ''
+            ? null
+            : detailDraft.can_reach === 'true',
+      };
+
+      const detailsResult = await updateProblemDetails(
         observation.id,
-        draft,
+        detailsToSave,
       );
 
-      observationsActions.upsert(savedObservation);
+      observationsActions.upsert(
+        detailsResult.observation as UserObservation,
+      );
+
+      // Keep qualification judgements separate from descriptive details.
+      const qualificationResult = await qualifyProblem(
+        observation.id,
+        qualificationDraft,
+      );
+
+      observationsActions.upsert(
+        qualificationResult as UserObservation,
+      );
+
+      setNotice('Your problem details and qualification have been saved.');
     } catch (err) {
+      console.error('[OBSERVATION QUALIFICATION] Save failed', err);
       setError(
-        err instanceof Error ? err.message : 'Could not save your answers.',
+        err instanceof Error
+          ? err.message
+          : 'Could not save your answers. Please try again.',
       );
     } finally {
       setIsSaving(false);
@@ -178,7 +300,11 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
   }
 
   if (!state.isHydrated) {
-    return <p className="text-sm text-muted-foreground">Loading your observations…</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Loading your observations…
+      </p>
+    );
   }
 
   if (observations.length === 0) {
@@ -192,14 +318,20 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
     );
   }
 
+  const details = observation ? getDetails(observation) : {};
+
   return (
     <div className="space-y-8">
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Observation {index + 1} of {observations.length}
-          {' · '}
-          {qualifiedCount} qualified
-        </p>
+      <header className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Observation {index + 1} of {observations.length}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {qualifiedCount} of {observations.length} qualified
+          </p>
+        </div>
+
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-primary transition-all"
@@ -208,133 +340,228 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
             }}
           />
         </div>
-      </div>
+      </header>
 
       {observation && (
-        <article className="space-y-6">
-          <div className="space-y-3">
-            <h2 className="text-2xl font-semibold">{observation.title}</h2>
+        <article className="space-y-8">
+          <section className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              The observation
+            </p>
+            <h2 className="text-2xl font-semibold">
+              {observation.title}
+            </h2>
             <p className="whitespace-pre-wrap text-muted-foreground">
               {observation.content}
             </p>
 
-            {(() => {
-              const details = observation.problem_details;
+            {observation.context && (
+              <p className="text-sm text-muted-foreground">
+                {observation.context}
+              </p>
+            )}
 
-              if (!details || typeof details !== 'object' || Array.isArray(details)) {
-                return null;
-              }
+            {(details.who || details.where || details.when) && (
+              <div className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
+                {details.who && <p><strong>Who:</strong> {details.who}</p>}
+                {details.where && <p><strong>Where:</strong> {details.where}</p>}
+                {details.when && <p><strong>When:</strong> {details.when}</p>}
+              </div>
+            )}
+          </section>
 
-              const values = details as Record<string, unknown>;
+          <section className="space-y-5">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">
+                1. Do I understand the problem?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Think about what people experience and what they do about it today.
+                It's okay if you don't know all the answers yet.
+              </p>
+            </div>
 
-              return (
-                <div className="space-y-2 text-sm">
-                  {typeof values.who === 'string' && values.who && (
-                    <p><strong>Who:</strong> {values.who}</p>
-                  )}
-                  {typeof values.workaround === 'string' && values.workaround && (
-                    <p><strong>What they do today:</strong> {values.workaround}</p>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+            <TextField
+              id="workaround"
+              label="How do people deal with this today?"
+              value={detailDraft.workaround}
+              onChange={(value) => updateDetail('workaround', value)}
+              placeholder="Describe workarounds or what people do when the problem occurs."
+            />
 
-          <div className="space-y-6">
-            {QUESTIONS.map((question, questionIndex) => (
-              <section key={question.key} className="space-y-3">
-                <div>
-                  <h3 className="font-medium">
-                    {questionIndex + 1}. {question.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {question.helper}
-                  </p>
-                </div>
+            <TextField
+              id="current-option"
+              label="What alternatives do they use?"
+              value={detailDraft.current_option}
+              onChange={(value) => updateDetail('current_option', value)}
+              placeholder="Existing products, services, or other ways they handle it."
+            />
 
-                <div className="grid grid-cols-3 gap-2">
-                  {OPTIONS.map((option) => {
-                    const active = draft[question.key] === option.value;
+            <TextField
+              id="frequency"
+              label="How often does it happen?"
+              value={detailDraft.frequency}
+              onChange={(value) => updateDetail('frequency', value)}
+              placeholder="e.g. Every day, once a month, or only in certain situations."
+            />
 
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        disabled={isSaving || isCompleting}
-                        onClick={() =>
-                          setDraft((current) => ({
-                            ...current,
-                            [question.key]: option.value,
-                          }))
-                        }
-                        aria-pressed={active}
-                        className={`rounded-lg border px-3 py-3 text-sm font-medium transition ${active
-                            ? 'border-primary bg-primary/10 text-foreground'
-                            : 'border-border hover:border-primary/50'
-                          }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+            <QualificationQuestion
+              title="Do I understand this problem well enough?"
+              helper="Consider what you know about who experiences it, when it happens, and how they deal with it."
+              value={qualificationDraft.understands}
+              onChange={(value) => updateQualification('understands', value)}
+            />
+          </section>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-            <button
-              type="button"
-              disabled={index === 0 || isSaving || isCompleting}
-              onClick={() => setIndex((current) => current - 1)}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
-            >
-              <ChevronLeft size={16} /> Previous
-            </button>
+          <section className="space-y-5 border-t pt-6">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">
+                2. Do people care about this problem?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Look for signs that this problem matters to the people experiencing it.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              disabled={isSaving || isCompleting}
-              onClick={saveAnswers}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {isSaving ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Check size={16} />
-              )}
-              Save answers
-            </button>
+            <TextField
+              id="cost"
+              label="What does the problem cost people?"
+              hint="Consider money, time, effort, lost opportunities, or frustration."
+              value={detailDraft.cost}
+              onChange={(value) => updateDetail('cost', value)}
+              placeholder="What consequences does the problem create?"
+            />
 
-            <button
-              type="button"
-              disabled={index >= observations.length - 1 || isSaving || isCompleting}
-              onClick={() => setIndex((current) => current + 1)}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
-            >
-              Next <ChevronRight size={16} />
-            </button>
-          </div>
+            <TextField
+              id="why-unsolved"
+              label="Why might existing solutions be inadequate?"
+              value={detailDraft.why_unsolved}
+              onChange={(value) => updateDetail('why_unsolved', value)}
+              placeholder="What seems to be missing or not working well enough?"
+            />
 
-          {saved && (
-            <p className="text-sm text-muted-foreground">
-              Your saved answers are loaded. Save again if you make changes.
-            </p>
-          )}
+            <QualificationQuestion
+              title="Do I have reason to believe people care?"
+              helper="Separate what you have observed or heard from what you are assuming."
+              value={qualificationDraft.cares}
+              onChange={(value) => updateQualification('cares', value)}
+            />
+          </section>
+
+          <section className="space-y-5 border-t pt-6">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">
+                3. Could I do something about it?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                You don't need a complete solution yet. Consider whether you can
+                reach the people affected and imagine a useful way forward.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="can-reach">
+                Can I reach the people experiencing this?
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Choose “Not sure yet” if you haven't established access.
+              </p>
+              <select
+                id="can-reach"
+                value={detailDraft.can_reach}
+                onChange={(event) =>
+                  updateDetail(
+                    'can_reach',
+                    event.target.value as DetailDraft['can_reach'],
+                  )
+                }
+                disabled={isSaving || isCompleting}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Not sure yet</option>
+                <option value="true">Yes, I can reach them</option>
+                <option value="false">No, not currently</option>
+              </select>
+            </div>
+
+            <QualificationQuestion
+              title="Do I see a plausible way to help?"
+              helper="You can have an early idea, or know what you need to learn to find a solution. You don't need to have built it."
+              value={qualificationDraft.can_solve}
+              onChange={(value) => updateQualification('can_solve', value)}
+            />
+          </section>
+
+          <footer className="space-y-4 border-t pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                disabled={index === 0 || isSaving || isCompleting}
+                onClick={() => setIndex((current) => current - 1)}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
+              >
+                <ChevronLeft size={16} />
+                Previous
+              </button>
+
+              <button
+                type="button"
+                disabled={isSaving || isCompleting}
+                onClick={saveAnswers}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Check size={16} />
+                )}
+                {isSaving ? 'Saving…' : 'Save qualification'}
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  index >= observations.length - 1 ||
+                  isSaving ||
+                  isCompleting
+                }
+                onClick={() => setIndex((current) => current + 1)}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
+              >
+                Next
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {savedQualification && (
+              <p className="text-sm text-muted-foreground">
+                Your qualification judgements are saved. Save again if you change them.
+              </p>
+            )}
+          </footer>
         </article>
       )}
 
+      {notice && (
+        <p className="rounded-md bg-muted p-3 text-sm" role="status">
+          {notice}
+        </p>
+      )}
+
       {error && (
-        <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
           {error}
         </p>
       )}
 
-      <div className="space-y-3 border-t pt-6">
+      <section className="space-y-3 border-t pt-6">
         <p className="text-sm text-muted-foreground">
           {allQualified
-            ? 'Every observation has been qualified. You can continue.'
-            : `${observations.length - qualifiedCount} observation(s) still need answers saved.`}
+            ? 'Every observation has saved qualification judgements.'
+            : `${observations.length - qualifiedCount} observation(s) still need qualification judgements saved.`}
         </p>
 
         <button
@@ -345,7 +572,50 @@ export function ObservationQualification({ onComplete }: NodeComponentProps) {
         >
           {isCompleting ? 'Saving progress…' : 'Continue'}
         </button>
-      </div>
+      </section>
     </div>
+  );
+}
+
+function QualificationQuestion({
+  title,
+  helper,
+  value,
+  onChange,
+}: {
+  title: string;
+  helper: string;
+  value: QualificationAnswer | null;
+  onChange: (value: QualificationAnswer) => void;
+}) {
+  return (
+    <section className="space-y-3 rounded-lg border p-4">
+      <div className="space-y-1">
+        <h4 className="font-medium">{title}</h4>
+        <p className="text-sm text-muted-foreground">{helper}</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {OPTIONS.map((option) => {
+          const active = value === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              aria-pressed={active}
+              className={`rounded-lg border px-3 py-3 text-sm font-medium transition ${
+                active
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

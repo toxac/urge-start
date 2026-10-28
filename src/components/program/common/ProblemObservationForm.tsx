@@ -2,12 +2,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Edit3, Loader2, Save, Sparkles, X } from 'lucide-react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Edit3, Loader2, Save, X } from 'lucide-react';
 
-import { saveObservation } from '@/actions/observations';
-import { extractProblemDetails } from '@/actions/responses/mission2';
+import {
+  createObservation,
+  updateObservation,
+} from '@/actions/observations';
 
 import {
   validatedObservationSchema,
@@ -16,23 +18,16 @@ import {
 
 import type {
   ObservationType,
-  ProblemDetails,
   ProblemObservationFocus,
   UserObservation,
 } from '@/lib/types/observations';
-
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-type ExtractionMetadata = {
-  status: 'failed' | 'succeeded';
-  attempted_at: string;
-};
-
-type ProblemObservationFormProps = {
+type Props = {
   focus: ProblemObservationFocus;
   observation?: UserObservation | null;
   sourceNodeKey?: string;
@@ -40,69 +35,19 @@ type ProblemObservationFormProps = {
   onCancel?: () => void;
 };
 
-const qualificationOptions = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'not_sure', label: 'Not sure yet' },
-  { value: 'no', label: 'No' },
-] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  );
-}
-
-function getProblemDetails(
-  observation?: UserObservation | null,
-): ProblemDetails {
-  const details = observation?.problem_details;
-  return isRecord(details) ? (details as ProblemDetails) : {};
-}
-
-function getMetadata(
-  observation?: UserObservation | null,
-): Record<string, unknown> {
-  return isRecord(observation?.metadata) ? observation.metadata : {};
-}
-
-function getExtractionMetadata(
-  observation?: UserObservation | null,
-): ExtractionMetadata | null {
-  const extraction = getMetadata(observation).problem_detail_extraction;
-
-  if (
-    isRecord(extraction) &&
-    (extraction.status === 'failed' ||
-      extraction.status === 'succeeded') &&
-    typeof extraction.attempted_at === 'string'
-  ) {
-    return extraction as ExtractionMetadata;
-  }
-
-  return null;
-}
-
-function withExtractionStatus(
-  observation: UserObservation | null | undefined,
-  status: ExtractionMetadata['status'],
-): Record<string, unknown> {
-  return {
-    ...getMetadata(observation),
-    problem_detail_extraction: {
-      status,
-      attempted_at: new Date().toISOString(),
-    },
-  };
-}
-
-function getDefaultValues(
+function getDefaults(
   focus: ProblemObservationFocus,
   sourceNodeKey?: string,
   observation?: UserObservation | null,
 ): ObservationFormValues {
-  const details = getProblemDetails(observation);
+  const details = observation?.problem_details;
+
+  const problemDetails =
+    details &&
+    typeof details === 'object' &&
+    !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : {};
 
   return {
     ...(observation ? { observation_id: observation.id } : {}),
@@ -116,29 +61,17 @@ function getDefaultValues(
     source_node_key:
       observation?.source_node_key ?? sourceNodeKey ?? null,
     problem_details: {
-      is_existing: details.is_existing ?? null,
-      who: details.who ?? '',
-      where: details.where ?? '',
-      when: details.when ?? '',
-      can_reach: details.can_reach ?? null,
-      workaround: details.workaround ?? '',
-      current_option: details.current_option ?? '',
-      cost: details.cost ?? '',
-      frequency: details.frequency ?? '',
-      why_unsolved: details.why_unsolved ?? '',
-      understands: details.understands ?? null,
-      cares: details.cares ?? null,
-      can_solve: details.can_solve ?? null,
+      who: typeof problemDetails.who === 'string'
+        ? problemDetails.who
+        : '',
+      where: typeof problemDetails.where === 'string'
+        ? problemDetails.where
+        : '',
+      when: typeof problemDetails.when === 'string'
+        ? problemDetails.when
+        : '',
     },
   };
-}
-
-function toBooleanSelectValue(
-  value: boolean | null | undefined,
-): string {
-  if (value === true) return 'true';
-  if (value === false) return 'false';
-  return '';
 }
 
 export function ProblemObservationForm({
@@ -147,178 +80,30 @@ export function ProblemObservationForm({
   sourceNodeKey,
   onSaved,
   onCancel,
-}: ProblemObservationFormProps) {
+}: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(!observation);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
-  const [extractionError, setExtractionError] = useState<string | null>(null);
-  const [extractionStatus, setExtractionStatus] =
-    useState<ExtractionMetadata | null>(() => getExtractionMetadata(observation));
 
   const form = useForm<ObservationFormValues>({
     resolver: zodResolver(
       validatedObservationSchema,
     ) as Resolver<ObservationFormValues>,
-    defaultValues: getDefaultValues(focus, sourceNodeKey, observation),
+    defaultValues: getDefaults(focus, sourceNodeKey, observation),
   });
 
   const {
     register,
     handleSubmit,
     reset,
-    watch,
-    setValue,
     formState: { errors, isDirty },
   } = form;
 
-  const details = watch('problem_details');
-  const content = watch('content');
-  const isExistingValue = toBooleanSelectValue(details?.is_existing);
-  const canReachValue = toBooleanSelectValue(details?.can_reach);
-
   useEffect(() => {
-    reset(getDefaultValues(focus, sourceNodeKey, observation));
+    reset(getDefaults(focus, sourceNodeKey, observation));
     setSaveError(null);
-    setExtractionNotice(null);
-    setExtractionError(null);
-    setExtractionStatus(getExtractionMetadata(observation));
     setIsEditing(!observation);
   }, [focus, sourceNodeKey, observation, reset]);
-
-  function updateBoolean(
-    field: 'is_existing' | 'can_reach',
-    value: string,
-  ) {
-    setValue(
-      `problem_details.${field}`,
-      value === '' ? null : value === 'true',
-      { shouldDirty: true, shouldValidate: true },
-    );
-  }
-
-  function updateQualification(
-    field: 'understands' | 'cares' | 'can_solve',
-    value: string,
-  ) {
-    setValue(
-      `problem_details.${field}`,
-      value === ''
-        ? null
-        : (value as 'yes' | 'not_sure' | 'no'),
-      { shouldDirty: true, shouldValidate: true },
-    );
-  }
-
-  async function handleExtractDetails() {
-    const narrative = content?.trim();
-
-    if (!narrative) {
-      setExtractionError(
-        'Add a description first, then we can help organise the details.',
-      );
-      return;
-    }
-
-    if (isExtracting || isSaving) return;
-
-    setIsExtracting(true);
-    setExtractionError(null);
-    setExtractionNotice(null);
-
-    try {
-      const extracted = await extractProblemDetails(
-        narrative,
-        sourceNodeKey ?? observation?.source_node_key ?? '',
-      );
-
-      const fields = [
-        'who',
-        'where',
-        'when',
-        'workaround',
-        'current_option',
-        'why_unsolved',
-      ] as const;
-
-      let added = 0;
-
-      for (const field of fields) {
-        const current = watch(`problem_details.${field}`);
-        const suggestion = extracted[field];
-
-        if (
-          (current === '' || current == null) &&
-          typeof suggestion === 'string' &&
-          suggestion.trim()
-        ) {
-          setValue(`problem_details.${field}`, suggestion, {
-            shouldDirty: true,
-            shouldValidate: true,
-          });
-          added += 1;
-        }
-      }
-
-      // Record the successful attempt immediately. The form save below
-      // will also save the updated problem details and metadata together.
-      setExtractionStatus({
-        status: 'succeeded',
-        attempted_at: new Date().toISOString(),
-      });
-
-      setValue(
-        'metadata',
-        withExtractionStatus(observation, 'succeeded'),
-        { shouldDirty: true },
-      );
-
-      setExtractionNotice(
-        added > 0
-          ? 'Suggestions added. Review them, change anything that feels wrong, then save.'
-          : 'No new details were found. You can fill in the fields yourself.',
-      );
-    } catch (error) {
-      console.error('[PROBLEM OBSERVATION EXTRACTION]', error);
-
-      const failedAt = new Date().toISOString();
-      setExtractionStatus({ status: 'failed', attempted_at: failedAt });
-      setExtractionError(
-        'We couldn’t organise the details just now. Your description is safe; you can try again or fill in the fields yourself.',
-      );
-
-      // Persist the failure so it remains available after a refresh.
-      if (observation) {
-        try {
-          const result = await saveObservation({
-            observation_id: observation.id,
-            title: observation.title,
-            content: observation.content,
-            metadata: {
-              ...getMetadata(observation),
-              problem_detail_extraction: {
-                status: 'failed',
-                attempted_at: new Date().toISOString(),
-              },
-            },
-          });
-
-          onSaved?.(result.observation as UserObservation);
-        } catch (metadataError) {
-          console.error(
-            '[PROBLEM OBSERVATION EXTRACTION STATUS]',
-            metadataError,
-          );
-          setExtractionError(
-            'Extraction failed, but we couldn’t save its status. Your observation remains available; try saving your changes.',
-          );
-        }
-      }
-    } finally {
-      setIsExtracting(false);
-    }
-  }
 
   async function handleSave(values: ObservationFormValues) {
     if (isSaving) return;
@@ -327,22 +112,40 @@ export function ProblemObservationForm({
     setSaveError(null);
 
     try {
-      const result = await saveObservation({
-        ...values,
-        domain: 'problem',
-        focus,
-        source_node_key:
-          values.source_node_key ?? sourceNodeKey ?? null,
-      });
+      const result = observation
+        ? await updateObservation(observation.id, {
+            title: values.title,
+            content: values.content,
+            context: values.context,
+          })
+        : await createObservation({
+            title: values.title,
+            content: values.content,
+            context: values.context,
+            observed_at: values.observed_at,
+            type: 'observation',
+            domain: 'problem',
+            focus,
+            source_node_key:
+              values.source_node_key ?? sourceNodeKey ?? null,
+            problem_details: {
+              who: values.problem_details?.who || null,
+              where: values.problem_details?.where || null,
+              when: values.problem_details?.when || null,
+            },
+          });
 
-      const saved = result.observation as UserObservation;
-      reset(getDefaultValues(focus, sourceNodeKey, saved));
-      setExtractionStatus(getExtractionMetadata(saved));
-      onSaved?.(saved);
+      const savedObservation = result.observation as UserObservation;
 
-      if (observation) setIsEditing(false);
+      reset(getDefaults(focus, sourceNodeKey, savedObservation));
+      onSaved?.(savedObservation);
+
+      if (observation) {
+        setIsEditing(false);
+      }
     } catch (error) {
-      console.error('[PROBLEM OBSERVATION FORM]', error);
+      console.error('[PROBLEM OBSERVATION FORM] Save failed', error);
+
       setSaveError(
         error instanceof Error
           ? error.message
@@ -354,29 +157,16 @@ export function ProblemObservationForm({
   }
 
   if (observation && !isEditing) {
-    const savedDetails = getProblemDetails(observation);
-
-    const detailRows: [string, string | boolean | null | undefined][] = [
-      ['Who experiences this?', savedDetails.who],
-      ['Where does it happen?', savedDetails.where],
-      ['When does it happen?', savedDetails.when],
-      [
-        'Can you reach them?',
-        savedDetails.can_reach == null
-          ? ''
-          : savedDetails.can_reach
-            ? 'Yes'
-            : 'No / not yet',
-      ],
-      ['How do they deal with it now?', savedDetails.workaround],
-      ['What do they try instead?', savedDetails.current_option],
-      ['How often does it happen?', savedDetails.frequency],
-      ['What does it cost them?', savedDetails.cost],
-      ['Why hasn’t it been solved?', savedDetails.why_unsolved],
-    ];
+    const details = observation.problem_details;
+    const values =
+      details &&
+      typeof details === 'object' &&
+      !Array.isArray(details)
+        ? (details as Record<string, unknown>)
+        : {};
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <header className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">
             Something you noticed
@@ -388,49 +178,42 @@ export function ProblemObservationForm({
           <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
             {observation.content}
           </p>
+
           {observation.context && (
             <p className="text-sm text-muted-foreground">
               Context: {observation.context}
             </p>
           )}
+
+          {Boolean(values.who || values.where || values.when) &&(
+            <div className="space-y-1 border-t pt-3 text-sm">
+              {typeof values.who === 'string' && values.who && (
+                <p><strong>Who:</strong> {values.who}</p>
+              )}
+              {typeof values.where === 'string' && values.where && (
+                <p><strong>Where:</strong> {values.where}</p>
+              )}
+              {typeof values.when === 'string' && values.when && (
+                <p><strong>When:</strong> {values.when}</p>
+              )}
+            </div>
+          )}
         </header>
 
-        <section className="space-y-3 border-t pt-5">
-          <h3 className="font-semibold">Details about the problem</h3>
-          {detailRows.some(([, value]) => value !== '' && value != null) ? (
-            detailRows
-              .filter(([, value]) => value !== '' && value != null)
-              .map(([label, value]) => (
-                <div key={label} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {label}
-                  </p>
-                  <p className="whitespace-pre-wrap text-sm">
-                    {String(value)}
-                  </p>
-                </div>
-              ))
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No problem details added yet.
-            </p>
-          )}
-        </section>
-
-        {extractionStatus?.status === 'failed' && (
-          <p className="text-sm text-muted-foreground">
-            Automatic detail extraction previously failed. Choose Edit
-            to retry or add the details yourself.
+        {saveError && (
+          <p role="alert" className="text-sm text-destructive">
+            {saveError}
           </p>
         )}
 
-        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+        <div className="flex justify-end gap-2 border-t pt-4">
           {onCancel && (
             <Button type="button" variant="ghost" onClick={onCancel}>
               <X className="mr-2 size-4" />
               Close
             </Button>
           )}
+
           <Button
             type="button"
             onClick={() => setIsEditing(true)}
@@ -445,27 +228,41 @@ export function ProblemObservationForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(handleSave)} className="space-y-5">
+    <form
+      onSubmit={handleSubmit(
+        handleSave,
+        (validationErrors) => {
+          console.error(
+            '[PROBLEM OBSERVATION FORM] Validation failed',
+            validationErrors,
+          );
+          setSaveError(
+            'Please check the highlighted fields before saving.',
+          );
+        },
+      )}
+      className="space-y-5"
+    >
       <header className="space-y-2">
         <p className="text-sm font-medium text-muted-foreground">
           Something you noticed
         </p>
         <h2 className="text-xl font-semibold">
-          {observation ? 'Edit Observation' : 'Record what you noticed'}
+          {observation ? 'Edit observation' : 'Record what you noticed'}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Keep your original observation in your own words. Add details
-          when you know them; it’s fine to leave uncertain answers blank.
+          Capture what you noticed in your own words. You don't need to
+          understand the whole problem yet.
         </p>
       </header>
 
-      <section className="space-y-5">
+      <section className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="problem-observation-title">Short title</Label>
           <Input
             id="problem-observation-title"
-            placeholder="e.g. Restaurant menus are often out of date"
             maxLength={120}
+            placeholder="e.g. Restaurant menus are often out of date"
             {...register('title')}
           />
           {errors.title && (
@@ -493,13 +290,42 @@ export function ProblemObservationForm({
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="problem-observation-who">Who is affected?</Label>
+          <Input
+            id="problem-observation-who"
+            placeholder="e.g. Restaurant owners and their customers"
+            {...register('problem_details.who')}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="problem-observation-where">Where does it happen?</Label>
+          <Input
+            id="problem-observation-where"
+            placeholder="e.g. Independent restaurants"
+            {...register('problem_details.where')}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="problem-observation-when">
+            When does it happen?
+          </Label>
+          <Input
+            id="problem-observation-when"
+            placeholder="e.g. When prices or dishes change"
+            {...register('problem_details.when')}
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="problem-observation-context">
-            Extra context <span className="font-normal text-muted-foreground">(optional)</span>
+            Additional context <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <Textarea
             id="problem-observation-context"
             rows={2}
-            placeholder="Anything that will help you remember the situation"
+            placeholder="Anything else you want to remember about this observation."
             {...register('context')}
           />
           {errors.context && (
@@ -510,215 +336,11 @@ export function ProblemObservationForm({
         </div>
       </section>
 
-      {extractionStatus?.status === 'failed' && observation && (
-        <section className="rounded-lg border border-border bg-muted/20 p-4">
-          <p className="text-sm text-muted-foreground">
-            We couldn’t organise the details last time. You can try again;
-            any details you’ve already entered will be preserved.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleExtractDetails}
-            disabled={isExtracting || isSaving || !content?.trim()}
-            className="mt-3 gap-2"
-          >
-            {isExtracting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Sparkles className="size-4" />
-            )}
-            {isExtracting ? 'Looking for details…' : 'Try extraction again'}
-          </Button>
-          {extractionNotice && (
-            <p role="status" className="mt-2 text-sm text-muted-foreground">
-              {extractionNotice}
-            </p>
-          )}
-          {extractionError && (
-            <p role="alert" className="mt-2 text-sm text-destructive">
-              {extractionError}
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className="space-y-5 border-t pt-5">
-        <div>
-          <h3 className="font-semibold">Details about the problem</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add what you know. These details help you decide whether this
-            is a problem you can investigate and reach people about.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-who">Who experiences this?</Label>
-          <Textarea
-            id="problem-who"
-            placeholder="Me, my family, people I work with, a particular group…"
-            rows={2}
-            {...register('problem_details.who')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-where">Where does it happen?</Label>
-          <Input
-            id="problem-where"
-            placeholder="A place, situation, industry, or setting"
-            {...register('problem_details.where')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-when">When does it happen?</Label>
-          <Input
-            id="problem-when"
-            placeholder="When or under what circumstances?"
-            {...register('problem_details.when')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-is-existing">
-            Is this a problem you personally experience?
-          </Label>
-          <select
-            id="problem-is-existing"
-            value={isExistingValue}
-            onChange={(event) => updateBoolean('is_existing', event.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Not answered</option>
-            <option value="true">Yes</option>
-            <option value="false">No</option>
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-can-reach">
-            Can you reach or talk to the people affected?
-          </Label>
-          <select
-            id="problem-can-reach"
-            value={canReachValue}
-            onChange={(event) => updateBoolean('can_reach', event.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Not answered</option>
-            <option value="true">Yes</option>
-            <option value="false">No / not yet</option>
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-workaround">
-            How do people deal with it now?
-          </Label>
-          <Textarea
-            id="problem-workaround"
-            rows={2}
-            placeholder="Things people try, people they ask, or ways they work around it"
-            {...register('problem_details.workaround')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-current-option">
-            What options or solutions already exist?
-          </Label>
-          <Textarea
-            id="problem-current-option"
-            rows={2}
-            placeholder="Tools, services, alternatives, or existing ways of doing things"
-            {...register('problem_details.current_option')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-frequency">
-            How often does it happen?
-          </Label>
-          <Input
-            id="problem-frequency"
-            placeholder="Daily, weekly, occasionally, every time…"
-            {...register('problem_details.frequency')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-cost">
-            What does it cost people?
-          </Label>
-          <Textarea
-            id="problem-cost"
-            rows={2}
-            placeholder="Money, time, effort, missed opportunities, or frustration"
-            {...register('problem_details.cost')}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="problem-why-unsolved">
-            Why might it still be a problem?
-          </Label>
-          <Textarea
-            id="problem-why-unsolved"
-            rows={2}
-            placeholder="What makes it difficult to solve or change?"
-            {...register('problem_details.why_unsolved')}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-5 border-t pt-5">
-        <div>
-          <h3 className="font-semibold">Your current understanding</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            These are early reflections, not a test. It’s fine to choose
-            “Not sure yet.”
-          </p>
-        </div>
-
-        {(
-          [
-            { field: 'understands', label: 'Do you understand this problem well?' },
-            { field: 'cares', label: 'Does solving this problem matter to you?' },
-            { field: 'can_solve', label: 'Could you imagine helping solve it?' },
-          ] as const
-        ).map(({ field, label }) => (
-          <div key={field} className="space-y-2">
-            <Label htmlFor={`problem-${field}`}>{label}</Label>
-            <select
-              id={`problem-${field}`}
-              value={details?.[field] ?? ''}
-              onChange={(event) => updateQualification(field, event.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Not answered</option>
-              {qualificationOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </section>
-
-      {extractionNotice && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {extractionNotice}
-        </p>
-      )}
-      {extractionError && (
-        <p role="alert" className="text-sm text-destructive">
-          {extractionError}
-        </p>
-      )}
       {saveError && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+        >
           {saveError}
         </p>
       )}
@@ -737,22 +359,22 @@ export function ProblemObservationForm({
             <Button
               type="button"
               variant="ghost"
+              disabled={isSaving}
               onClick={() => {
                 if (observation) {
-                  reset(getDefaultValues(focus, sourceNodeKey, observation));
+                  reset(getDefaults(focus, sourceNodeKey, observation));
                   setSaveError(null);
                   setIsEditing(false);
                 }
                 onCancel();
               }}
-              disabled={isSaving || isExtracting}
             >
               <X className="mr-2 size-4" />
               Cancel
             </Button>
           )}
 
-          <Button type="submit" disabled={isSaving || isExtracting}>
+          <Button type="submit" disabled={isSaving}>
             {isSaving ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
