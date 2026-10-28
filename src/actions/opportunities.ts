@@ -201,3 +201,94 @@ export async function promoteObservationsToOpportunities(
     })),
   };
 }
+
+
+export async function updateOpportunityApproach(
+  opportunityId: string,
+  approach: {
+    type: 'do_for_them' | 'tool' | 'connect' | 'teach';
+    description: string;
+    rationale?: string;
+  },
+): Promise<UserOpportunity> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Unauthorized');
+
+  const { data: current, error: fetchErr } = await supabase
+    .from('user_opportunities')
+    .select('metadata')
+    .eq('id', opportunityId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (fetchErr || !current) throw new Error('Opportunity not found');
+
+  const metadata = (current.metadata && typeof current.metadata === 'object' && !Array.isArray(current.metadata))
+    ? current.metadata as Record<string, Json>
+    : {};
+
+  const updatedMetadata = { ...metadata, approach };
+
+  const { data, error } = await supabase
+    .from('user_opportunities')
+    .update({
+      metadata: updatedMetadata,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', opportunityId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to update approach: ${error.message}`);
+  return data as unknown as UserOpportunity;
+}
+
+export async function updateOpportunityFeasibility(
+  opportunityId: string,
+  feasibility: {
+    hasSkills: 'yes' | 'partial' | 'no';
+    skillsNotes: string;
+    hasCollaborators: boolean;
+    collaboratorNotes?: string;
+    timeCommitment: string;
+    hasTime: boolean;
+    capitalRequirement: 'minimal' | 'moderate' | 'significant';
+    capitalNotes?: string;
+    regulatoryNotes?: string;
+  },
+): Promise<UserOpportunity> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Unauthorized');
+
+  const { data: current, error: fetchErr } = await supabase
+    .from('user_opportunities')
+    .select('metadata')
+    .eq('id', opportunityId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (fetchErr || !current) throw new Error('Opportunity not found');
+
+  const metadata = (current.metadata && typeof current.metadata === 'object' && !Array.isArray(current.metadata))
+    ? current.metadata as Record<string, Json>
+    : {};
+
+  const updatedMetadata = { ...metadata, feasibility };
+
+  const { data, error } = await supabase
+    .from('user_opportunities')
+    .update({
+      metadata: updatedMetadata,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', opportunityId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to update feasibility: ${error.message}`);
+  return data as unknown as UserOpportunity;
+}
