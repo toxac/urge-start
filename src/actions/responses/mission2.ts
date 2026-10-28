@@ -463,3 +463,112 @@ RULES:
     );
   }
 }
+
+
+export async function checkRegulatoryFactors(params: {
+  opportunityTitle: string;
+  problemDescription: string;
+  approachType: string;
+  approachDescription: string;
+  nodeKey: string;
+}): Promise<string[]> {
+  const systemPrompt = `
+You are Urge, acting as a cautious, pragmatic peer for a first-time entrepreneur.
+The user is considering a solution to a problem.
+Identify 2 to 4 practical regulatory, licensing, safety, liability, or compliance boundaries they should be aware of.
+Be matter-of-fact and realistic. Do not give formal legal advice. Keep each point to 1-2 direct sentences.
+Return ONLY valid JSON:
+{
+  "factors": ["string"]
+}
+`;
+
+  const userPrompt = JSON.stringify(params);
+
+  const result = await invokeAILight({
+    systemPrompt,
+    userPrompt,
+    componentKey: 'path_assessment',
+    sourceNodeKey: params.nodeKey,
+    purpose: 'regulatory_check',
+    requireJson: true,
+    temperature: 0.2,
+  });
+
+  if (!result.success || !result.content) {
+    return [
+      'Standard business registration and local tax requirements will apply.',
+      'Consider basic terms of service, client liability, and privacy handling if collecting personal data.',
+    ];
+  }
+
+  try {
+    const parsed = JSON.parse(result.content);
+    return Array.isArray(parsed.factors) && parsed.factors.length > 0
+      ? parsed.factors
+      : ['No specific unusual regulations flagged. Verify standard local business and tax compliance.'];
+  } catch {
+    return ['Verify standard local business licensing and customer liability terms.'];
+  }
+}
+
+export interface FeasibilityAssessmentResult {
+  overallReflection: string;
+  opportunityNotes: {
+    id: string;
+    strengths: string;
+    blindSpots: string;
+    timeMoneyTension: string;
+  }[];
+  questionsToConsider: string[];
+}
+
+export async function generateFeasibilityAssessment(params: {
+  opportunities: Array<{
+    id: string;
+    title: string;
+    approach: any;
+    feasibility: any;
+  }>;
+  userContext: any;
+  nodeKey: string;
+}): Promise<FeasibilityAssessmentResult> {
+  const systemPrompt = `
+You are Urge, helping a first-time founder review what doing something about their opportunities would actually take.
+You are a mirror, not an oracle. Do NOT rank them, pick a winner, or calculate an algorithm score.
+Focus on:
+1. Alignment with founder's reported capabilities, time, and constraints.
+2. Real-world tensions between time commitment and required capital.
+3. 2-3 honest questions the founder should reflect on before deciding.
+
+Return ONLY valid JSON:
+{
+  "overallReflection": "string",
+  "opportunityNotes": [
+    {
+      "id": "string",
+      "strengths": "string",
+      "blindSpots": "string",
+      "timeMoneyTension": "string"
+    }
+  ],
+  "questionsToConsider": ["string"]
+}
+`;
+
+  const result = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: JSON.stringify(params),
+    componentKey: 'path_reveal',
+    sourceNodeKey: params.nodeKey,
+    purpose: 'feasibility_assessment',
+    requireJson: true,
+    temperature: 0.3,
+  });
+
+  if (!result.success || !result.content) {
+    throw new Error(result.error || 'Could not analyze feasibility.');
+  }
+
+  return JSON.parse(result.content) as FeasibilityAssessmentResult;
+}
