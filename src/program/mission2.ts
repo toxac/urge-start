@@ -354,7 +354,7 @@ You're not marrying it. You'll test it with real people next, and you can come b
     title: 'How you got here.',
     intent:
       'Show the story of how the user reached the chosen opportunity: what they noticed, which three they chose, who they talked to, what they set aside and why, what they said it would take, and how they decided to help. Includes what happened to the idea they arrived with, if any. Ends with the transformation in the user\'s own words.',
-    component: 'mission_transformation_synthesis',
+    component: 'opportunity_synthesis',
     dependencies: ['m2-q3-action'],
   },
 
@@ -367,7 +367,7 @@ You're not marrying it. You'll test it with real people next, and you can come b
     prompt: 'What do you most want to find out next?',
     intent:
       'Confirm the project and capture the one question the user carries into Mission 3. Advances to m3-setup.',
-    component: 'mission_transfer_action',
+    component: 'opportunity_action',
     dependencies: ['m2-reveal'],
   },
 };

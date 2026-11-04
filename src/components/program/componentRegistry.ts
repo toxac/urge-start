@@ -33,10 +33,17 @@ import {
   ObservationQualification,
   ObservationPatternsReveal,
   PromoteToOpportunities,
-  ConversationAction,
-  ConversationReflection,
-  CustomerConversations,
   ConversationSetup,
+  CustomerConversations,
+  ConversationReflection,
+  ConversationAction,
+  PathSetup,
+  HelpApproach,
+  PathAssessment,
+  PathReveal,
+  ChooseOpportunity,
+  Mission2Reveal,
+  Mission2Action,
 } from '@/components/program/mission-2';
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
@@ -99,5 +106,14 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'customer_conversations': CustomerConversations,
   'conversations_reveal': ConversationReflection,
   'conversation_action': ConversationAction,
+
+  // Mission 2: Quest 3 & Close
+  'path_setup': PathSetup,
+  'help_approach': HelpApproach,
+  'path_assessment': PathAssessment,
+  'path_reveal': PathReveal,
+  'choose_opportunity': ChooseOpportunity,
+  'opportunity_synthesis': Mission2Reveal,
+  'opportunity_action': Mission2Action,
   
 };
