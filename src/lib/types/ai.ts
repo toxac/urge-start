@@ -13,6 +13,7 @@ export type SynthesisReflectiveItem = {
 };
 
 export type CommitmentSynthesisInput = {
+  userName?: string;
   situation: string;
   barriers: SynthesisReflectiveItem[];
   motivations: SynthesisReflectiveItem[];

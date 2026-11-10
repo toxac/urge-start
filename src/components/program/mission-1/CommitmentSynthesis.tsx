@@ -1,4 +1,4 @@
-
+// src/components/program/mission-1/CommitmentSynthesis.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -14,53 +14,13 @@ import {
   $userContext,
   userContextActions,
 } from '@/lib/stores/user-context';
+import { getNodeAILogs } from '@/actions/ai-logs';
 import { generateCommitmentSynthesis } from '@/actions/responses/mission1';
-
-type Barrier = {
-  id: string;
-  title: string;
-  reflection: string;
-};
-
-type Motivation = {
-  id: string;
-  title: string;
-  reflection: string;
-};
-
-type QuitCondition = {
-  id: string;
-  title: string;
-  reflection: string;
-};
-
-type MotivationsContext = {
-  motivations: Motivation[];
-};
-
-type BarriersContext = {
-  barriers: Barrier[];
-};
-
-type DesiredFutureContext = {
-  reflection?: string;
-  elaboration?: string;
-  [key: string]: unknown;
-};
-
-type QuitConditionsContext = {
-  conditions: QuitCondition[];
-};
+import type { SynthesisReflectiveItem } from '@/lib/types/ai';
 
 type Synthesis = {
   headline: string;
   interpretation: string;
-  confirmed?: boolean;
-};
-
-type CommitmentSynthesisPayload = {
-  synthesis?: Synthesis;
-  completed?: boolean;
 };
 
 type MindsetAssessmentAddition = {
@@ -82,6 +42,44 @@ function getAdditionalAssessment(value: unknown): AdditionalAssessment {
   return value as AdditionalAssessment;
 }
 
+function parseSavedLog(log: any): Synthesis | null {
+  if (log.purpose !== 'reveal_m1_q1_pattern') return null;
+
+  try {
+    let res = log.response;
+    if (typeof res === 'string') {
+      try {
+        res = JSON.parse(res);
+      } catch {}
+    }
+
+    if (res && typeof res === 'object' && res.content) {
+      let content = res.content;
+      if (typeof content === 'string') {
+        try {
+          content = JSON.parse(content);
+        } catch {}
+      }
+      res = content;
+    }
+
+    if (
+      res &&
+      typeof res.headline === 'string' &&
+      typeof res.interpretation === 'string'
+    ) {
+      return {
+        headline: res.headline.trim(),
+        interpretation: res.interpretation.trim(),
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function CommitmentSynthesis({
   node,
   nodeKey,
@@ -90,43 +88,28 @@ export function CommitmentSynthesis({
 }: NodeComponentProps) {
   const rawContext = useStore($userContext);
   const context = rawContext.userContext;
-  const hasGeneratedRef = useRef(false);
-
-  const saved = (progress.payload ?? {}) as CommitmentSynthesisPayload;
-
-  const savedSynthesis =
-    saved.synthesis && typeof saved.synthesis === 'object'
-      ? saved.synthesis
-      : null;
+  const profile = rawContext.profile;
+  const hasInitialized = useRef(false);
 
   const situation =
     typeof context?.start_drive === 'string' ? context.start_drive : '';
 
-  const barriersContext = context?.perceived_barriers as
-    | BarriersContext
-    | null
-    | undefined;
-  const motivationsContext = context?.motivations as
-    | MotivationsContext
-    | null
-    | undefined;
-  const futureContext = context?.desired_future as
-    | DesiredFutureContext
-    | null
-    | undefined;
-  const quitConditionsContext = context?.quit_conditions as
-    | QuitConditionsContext
-    | null
-    | undefined;
+  // Extract structured reflective arrays
+  const barriersContext = context?.perceived_barriers as Record<string, any> | undefined;
+  const motivationsContext = context?.motivations as Record<string, any> | undefined;
+  const futureContext = context?.desired_future as Record<string, any> | undefined;
+  const quitConditionsContext = context?.quit_conditions as Record<string, any> | undefined;
 
-  const barriers: Barrier[] = Array.isArray(barriersContext?.barriers)
+  const barriers: SynthesisReflectiveItem[] = Array.isArray(barriersContext?.barriers)
     ? barriersContext.barriers
     : [];
 
-  const motivations: Motivation[] = Array.isArray(
-    motivationsContext?.motivations,
-  )
+  const motivations: SynthesisReflectiveItem[] = Array.isArray(motivationsContext?.motivations)
     ? motivationsContext.motivations
+    : [];
+
+  const futureChanges: SynthesisReflectiveItem[] = Array.isArray(futureContext?.changes)
+    ? futureContext.changes
     : [];
 
   const future =
@@ -136,71 +119,86 @@ export function CommitmentSynthesis({
         ? futureContext.elaboration
         : '';
 
-  const quitConditions: QuitCondition[] = Array.isArray(
-    quitConditionsContext?.conditions,
-  )
+  const quitConditions: SynthesisReflectiveItem[] = Array.isArray(quitConditionsContext?.conditions)
     ? quitConditionsContext.conditions
     : [];
 
   const additionalAssessment = getAdditionalAssessment(
     context?.additional_assessment,
   );
-
   const mindsetAddition = isRecord(additionalAssessment.mindset)
     ? (additionalAssessment.mindset as MindsetAssessmentAddition)
     : {};
-
   const savedAdditionalNotes =
     typeof mindsetAddition.additional_notes === 'string'
       ? mindsetAddition.additional_notes
       : '';
 
-  const [headline, setHeadline] = useState(savedSynthesis?.headline ?? '');
-  const [interpretation, setInterpretation] = useState(
-    savedSynthesis?.interpretation ?? '',
-  );
-  const [additionalNotes, setAdditionalNotes] = useState(
-    savedAdditionalNotes,
-  );
+  const [headline, setHeadline] = useState('');
+  const [interpretation, setInterpretation] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState(savedAdditionalNotes);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [generationAttempt, setGenerationAttempt] = useState(0);
-  const [mode, setMode] = useState<'generating' | 'review'>(
-    savedSynthesis ? 'review' : 'generating',
-  );
-
+  const [mode, setMode] = useState<'generating' | 'review'>('generating');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setAdditionalNotes(savedAdditionalNotes);
   }, [savedAdditionalNotes]);
 
+  // Load saved reflection from ai_logs (or progress) before generating
   useEffect(() => {
-    if (savedSynthesis) {
-      setHeadline(savedSynthesis.headline ?? '');
-      setInterpretation(savedSynthesis.interpretation ?? '');
-      setMode('review');
-    }
-  }, [savedSynthesis]);
+    if (!rawContext.isHydrated || hasInitialized.current) return;
+    hasInitialized.current = true;
 
-  useEffect(() => {
-    if (savedSynthesis || !rawContext.isHydrated) return;
-    if (hasGeneratedRef.current) return;
+    async function loadLogsOrGenerate() {
+      setIsGenerating(true);
+      setMode('generating');
+      setError(null);
 
-    hasGeneratedRef.current = true;
-    setIsGenerating(true);
-    setError(null);
-    setMode('generating');
+      // 1. Check progress payload first
+      const progressSynthesis = (progress.payload as Record<string, any>)?.synthesis as Synthesis | undefined;
+      if (progressSynthesis?.headline && progressSynthesis?.interpretation) {
+        setHeadline(progressSynthesis.headline);
+        setInterpretation(progressSynthesis.interpretation);
+        setMode('review');
+        setIsGenerating(false);
+        return;
+      }
 
-    async function generate() {
+      // 2. Check ai_logs table for previous successful generation
       try {
+        const logs = await getNodeAILogs(nodeKey);
+        const savedLog = logs.find((log) => parseSavedLog(log) !== null);
+
+        if (savedLog) {
+          const parsed = parseSavedLog(savedLog);
+          if (parsed) {
+            setHeadline(parsed.headline);
+            setInterpretation(parsed.interpretation);
+            setMode('review');
+            setIsGenerating(false);
+            return;
+          }
+        }
+      } catch (logErr) {
+        console.error('[COMMITMENT SYNTHESIS LOG CHECK]', logErr);
+      }
+
+      // 3. Generate only once if no saved record exists
+      try {
+        const userName =
+          profile?.display_name?.trim() || profile?.username?.trim() || undefined;
+
         const result = await generateCommitmentSynthesis(
           {
+            userName,
             situation,
             barriers,
             motivations,
             future,
+            futureChanges,
             quitConditions,
           },
           nodeKey,
@@ -210,10 +208,7 @@ export function CommitmentSynthesis({
         setInterpretation(result.interpretation);
         setMode('review');
       } catch (err) {
-        console.error('[COMMITMENT SYNTHESIS]', err);
-
-        hasGeneratedRef.current = false;
-
+        console.error('[COMMITMENT SYNTHESIS GENERATE]', err);
         setError(
           err instanceof Error
             ? err.message
@@ -224,13 +219,8 @@ export function CommitmentSynthesis({
       }
     }
 
-    void generate();
-  }, [
-    rawContext.isHydrated,
-    savedSynthesis,
-    nodeKey,
-    generationAttempt,
-  ]);
+    void loadLogsOrGenerate();
+  }, [rawContext.isHydrated, nodeKey, progress.payload]);
 
   async function handleSubmit() {
     if (!headline.trim() || !interpretation.trim() || isSubmitting) return;
@@ -242,14 +232,12 @@ export function CommitmentSynthesis({
       const existingAssessment = getAdditionalAssessment(
         context?.additional_assessment,
       );
-
       const existingMindset = isRecord(existingAssessment.mindset)
         ? existingAssessment.mindset
         : {};
 
       const trimmedNotes = additionalNotes.trim();
 
-      // Preserve other assessment areas and existing mindset fields.
       const nextAssessment: AdditionalAssessment = {
         ...existingAssessment,
         mindset: {
@@ -260,8 +248,6 @@ export function CommitmentSynthesis({
         },
       };
 
-      // Avoid writing an undefined value to JSON. If the notes are blank,
-      // remove only this field while preserving all other mindset data.
       if (!trimmedNotes) {
         const nextMindset = { ...existingMindset };
         delete nextMindset.additional_notes;
@@ -289,7 +275,6 @@ export function CommitmentSynthesis({
       });
     } catch (err) {
       console.error('[COMMITMENT SYNTHESIS COMPLETE]', err);
-
       setError(
         err instanceof Error
           ? err.message
@@ -302,9 +287,9 @@ export function CommitmentSynthesis({
 
   if (mode === 'generating') {
     return (
-      <div className="w-full max-w-3xl space-y-8">
+      <div className="w-full max-w-3xl space-y-8 animate-in fade-in duration-300">
         <div className="space-y-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             What we notice
           </p>
 
@@ -313,45 +298,30 @@ export function CommitmentSynthesis({
           </h2>
 
           <p className="text-lg leading-8 text-muted-foreground">
-            You explored different parts of your journey. Now we're
-            looking at them together to see whether there's a connection
-            you may not have noticed yet.
+            You explored different parts of your journey. Now we&apos;re
+            looking at them together to surface the tension between what pulls you
+            forward and what holds you back.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border bg-muted/30 p-6 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Taking a closer look...</span>
+        <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-6 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span>Connecting your core motivations and barriers...</span>
         </div>
 
         {error && (
-          <div className="space-y-4">
-            <p role="alert" className="text-sm leading-6 text-destructive">
-              {error}
-            </p>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setError(null);
-                hasGeneratedRef.current = false;
-                setGenerationAttempt((attempt) => attempt + 1);
-              }}
-              disabled={isGenerating}
-            >
-              Try again
-            </Button>
-          </div>
+          <p role="alert" className="text-sm leading-6 text-destructive">
+            {error}
+          </p>
         )}
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-3xl space-y-10">
+    <div className="w-full max-w-3xl space-y-10 animate-in fade-in duration-300">
       <div className="space-y-4">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           What we notice
         </p>
 
@@ -361,62 +331,61 @@ export function CommitmentSynthesis({
 
         <p className="text-lg leading-8 text-muted-foreground">
           You answered each question separately. Looking at them together
-          reveals something different.
+          reveals the central tension beneath your desire to start.
         </p>
       </div>
 
-      {/* AI synthesis: presented as an interpretation, not a verdict. */}
+      {/* AI synthesis reflection */}
       <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
         <div className="space-y-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             The connection we see
           </p>
 
-          <h3 className="font-heading text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">
+          <h3 className="font-heading text-2xl font-semibold leading-snug tracking-tight sm:text-3xl text-foreground">
             {headline}
           </h3>
 
           <div className="border-t border-border pt-5">
-            <p className="text-base leading-7 text-foreground sm:text-lg sm:leading-8">
+            <p className="text-base leading-7 text-foreground/90 sm:text-lg sm:leading-8">
               {interpretation}
             </p>
           </div>
         </div>
       </section>
 
-      {/* Why this matters: shorter and visually distinct from the synthesis. */}
+      {/* Why this matters */}
       <section className="space-y-3 border-t border-border pt-7">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Why we start here
         </p>
 
         <h3 className="font-heading text-xl font-semibold leading-snug sm:text-2xl">
-          Before we build the business, we're building your capacity to start.
+          Before we build the business, we&apos;re building your capacity to start.
         </h3>
 
         <p className="leading-7 text-muted-foreground">
           Starting a business means acting, learning from what happens,
-          dealing with uncertainty, and keeping moving when things don't
-          go as planned. The business comes later. First, we're working
+          dealing with uncertainty, and keeping moving when things don&apos;t
+          go as planned. The business comes later. First, we&apos;re working
           on your ability to take that first step.
         </p>
       </section>
 
-      {/* User contribution: add context without editing the AI synthesis. */}
+      {/* User notes */}
       <section className="space-y-4 border-t border-border pt-7">
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Your reflection
           </p>
 
           <h3 className="font-heading text-xl font-semibold leading-snug sm:text-2xl">
-            Is there something important we're missing?
+            Is there something important we&apos;re missing?
           </h3>
 
           <p className="leading-7 text-muted-foreground">
-            This is one way of connecting what you've shared. You may have
-            other thoughts, experiences, or concerns that would complete
-            the picture.
+            This is one way of connecting what you&apos;ve shared. You may have
+            other thoughts, experiences, or concerns that complete the picture.
           </p>
         </div>
 
@@ -425,7 +394,7 @@ export function CommitmentSynthesis({
             htmlFor="mindset-additional-notes"
             className="text-sm font-medium text-foreground"
           >
-            Anything else you'd like us to know?
+            Anything else you&apos;d like us to know?
             <span className="ml-2 font-normal text-muted-foreground">
               (Optional)
             </span>
@@ -442,8 +411,7 @@ export function CommitmentSynthesis({
           />
 
           <p className="text-sm leading-6 text-muted-foreground">
-            You can leave this blank if nothing else comes to mind.
-            You can add to it later.
+            You can leave this blank if nothing else comes to mind. You can add to it later.
           </p>
         </div>
       </section>
@@ -458,12 +426,8 @@ export function CommitmentSynthesis({
         <Button
           type="button"
           onClick={handleSubmit}
-          disabled={
-            !headline.trim() ||
-            !interpretation.trim() ||
-            isSubmitting
-          }
-          className="h-12 gap-2 rounded-full px-8 text-base"
+          disabled={!headline.trim() || !interpretation.trim() || isSubmitting}
+          className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
         >
           {isSubmitting ? (
             <>

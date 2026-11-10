@@ -5,12 +5,35 @@ import { saveObservation } from '@/actions/observations'; // Assuming you create
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { 
   CommitmentSynthesisInput, 
+  SynthesisReflectiveItem,
   CommitmentSynthesisResult, 
   FrictionSynthesisResult,
   LearningActionResult,
   RejectionSynthesisResult,
   AskPreparationGuide
 } from '@/lib/types/ai';
+
+// HELPER FUNCTIONS
+function extractPrimary(
+  items: SynthesisReflectiveItem[],
+): { primary?: SynthesisReflectiveItem; others: SynthesisReflectiveItem[] } {
+  if (!items || items.length === 0) return { others: [] };
+  const primaryIndex = items.findIndex((item) => item.isPrimary);
+  const selectedIndex = primaryIndex >= 0 ? primaryIndex : 0;
+  return {
+    primary: items[selectedIndex],
+    others: items.filter((_, idx) => idx !== selectedIndex),
+  };
+}
+
+function formatItemsList(items: SynthesisReflectiveItem[]): string {
+  if (!items || items.length === 0) return 'None provided.';
+  return items
+    .map((item) => `• "${item.title}": ${item.reflection}`)
+    .join('\n');
+}
+
+
 
 export async function analyzeSituation(
   situation: string,
@@ -108,76 +131,103 @@ Respond ONLY with valid JSON matching this schema:
 
 export async function generateCommitmentSynthesis(
   input: CommitmentSynthesisInput,
-  sourceNodeKey: string
+  sourceNodeKey: string,
 ): Promise<CommitmentSynthesisResult> {
+  const { primary: primaryBarrier, others: otherBarriers } = extractPrimary(
+    input.barriers,
+  );
+  const { primary: primaryMotivation, others: otherMotivations } = extractPrimary(
+    input.motivations,
+  );
+  const { primary: primaryQuit, others: otherQuitConditions } = extractPrimary(
+    input.quitConditions,
+  );
+
+  const primaryFutureChange = input.futureChanges
+    ? extractPrimary(input.futureChanges).primary
+    : undefined;
+
+  const founderNameClause = input.userName
+    ? `The founder's name is ${input.userName}. You may use their name once naturally if appropriate, but maintain a calm, direct, and grounded tone—never patronising, corporate, or like an overexcited motivational speaker.`
+    : `Maintain a calm, direct, and grounded tone—never patronising, corporate, or like an overexcited motivational speaker.`;
+
   const systemPrompt = `
 You are helping Urge, a program for first-time entrepreneurs.
 
 Urge does not tell people what their answers mean. It helps them see
-connections they may not have noticed themselves.
+connections and tensions they may not have noticed themselves.
 
-The person has just reflected on:
-- what brought them to Urge
-- what has been stopping them
-- what keeps pulling them back
-- what they want to change
-- what might make them quit
+The person has reflected on what brought them here, what has been stopping them,
+what keeps pulling them forward, what they want to change, and what might make them quit.
+Crucially, they have designated their PRIMARY focus in each area.
 
-Your job is to find ONE meaningful pattern, tension, relationship, or
-trade-off across those answers.
+Your job is to find the central tension, relationship, or trade-off across their answers.
+Focus especially on how their CORE MOTIVATION clashes with, is challenged by, or coexists with
+their BIGGEST BARRIER and their TOP QUIT RISK.
 
 This is a REVEAL, not a summary.
 
+${founderNameClause}
+
 DO:
-- Connect different parts of what the person said.
-- Look for tension between what pulls them forward and what holds them back.
-- Notice contradictions or recurring patterns.
-- Notice what seems to make action difficult.
-- Ground the interpretation directly in their answers.
+- Focus on the primary items as the anchor of the tension, using supporting reflections for context.
+- Look for the tension between what pulls them forward and what holds them back.
+- Ground the interpretation directly in their own words and reflections.
 - Help them see something that was not obvious when answering each question separately.
-- Use tentative language such as "I notice...", "There seems to be...",
-  or "Your answers suggest..." when appropriate.
+- Use tentative, grounded language such as "I notice...", "There seems to be a tension between...",
+  or "Your answers suggest...".
 - Be specific to this person.
 
 DO NOT:
 - Simply list or repeat their answers.
-- Diagnose them.
-- Tell them what their "real problem" is.
-- Assume fear, perfectionism, confidence, or any other psychological cause
-  unless the person explicitly described it.
+- Diagnose them or tell them what their "real problem" is.
+- Assume psychological causes (fear, perfectionism, lack of confidence) unless they explicitly described it.
 - Give advice or prescribe an action.
-- Turn difficult personal circumstances into an inspirational story.
-- Invent information that the person did not provide.
+- Turn difficult personal circumstances into an inspirational speech.
 - Mention AI, the prompt, or this instruction.
 
-The headline should be short and memorable — ideally one sentence.
-
-The interpretation should be 2–4 sentences. It should explain the
-connection you noticed and why it matters to their journey.
+The headline should be short and memorable — one single sentence capturing the core tension.
+The interpretation should be 2–4 sentences explaining the connection and why it matters to their journey.
 
 Return ONLY valid JSON:
-
 {
-  "headline": "Short statement of the pattern",
+  "headline": "Short statement of the core pattern or tension",
   "interpretation": "A grounded explanation of the connection you noticed."
 }
 `;
 
   const userPrompt = `
-WHAT BROUGHT THEM HERE:
-${input.situation}
+FOUNDER: ${input.userName || 'Not specified'}
 
-WHAT HAS BEEN STOPPING THEM:
-${JSON.stringify(input.barriers, null, 2)}
+WHAT BROUGHT THEM HERE INITIALLY:
+"${input.situation || 'Not specified'}"
 
-WHAT KEEPS PULLING THEM BACK:
-${JSON.stringify(input.motivations, null, 2)}
+PRIMARY FOCUSES (What the founder identified as mattering most):
+- CORE MOTIVATION: "${primaryMotivation?.title || 'None selected'}"
+  Their reflection: "${primaryMotivation?.reflection || 'No reflection provided'}"
 
-WHAT THEY WANT TO CHANGE:
-${input.future}
+- BIGGEST BARRIER: "${primaryBarrier?.title || 'None selected'}"
+  Their reflection: "${primaryBarrier?.reflection || 'No reflection provided'}"
 
-WHAT COULD MAKE THEM QUIT:
-${JSON.stringify(input.quitConditions, null, 2)}
+- MOST MEANINGFUL FUTURE CHANGE:
+  ${
+    primaryFutureChange
+      ? `"${primaryFutureChange.title}": ${primaryFutureChange.reflection}`
+      : `"${input.future || 'No reflection provided'}"`
+  }
+
+- TOP RISK TO QUITTING: "${primaryQuit?.title || 'None selected'}"
+  Their reflection: "${primaryQuit?.reflection || 'No reflection provided'}"
+
+ADDITIONAL SUPPORTING CONTEXT:
+Other barriers they identified:
+${formatItemsList(otherBarriers)}
+
+Other motivations pulling them:
+${formatItemsList(otherMotivations)}
+
+Other stop conditions:
+${formatItemsList(otherQuitConditions)}
 `;
 
   const result = await invokeAILight({
@@ -192,7 +242,7 @@ ${JSON.stringify(input.quitConditions, null, 2)}
 
   if (!result.success || !result.content) {
     throw new Error(
-      result.error || 'Failed to generate commitment synthesis.'
+      result.error || 'Failed to generate commitment synthesis.',
     );
   }
 
@@ -203,7 +253,7 @@ ${JSON.stringify(input.quitConditions, null, 2)}
       typeof parsed.headline !== 'string' ||
       typeof parsed.interpretation !== 'string'
     ) {
-      throw new Error('Invalid synthesis response.');
+      throw new Error('Invalid synthesis response structure.');
     }
 
     return {
@@ -211,8 +261,8 @@ ${JSON.stringify(input.quitConditions, null, 2)}
       interpretation: parsed.interpretation.trim(),
     };
   } catch (error) {
-    console.error('[COMMITMENT SYNTHESIS]', error);
-    throw new Error('Failed to understand the synthesis response.');
+    console.error('[COMMITMENT SYNTHESIS PARSING]', error);
+    throw new Error('Failed to interpret the synthesis response.');
   }
 }
 
