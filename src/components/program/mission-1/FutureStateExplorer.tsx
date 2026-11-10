@@ -1,25 +1,72 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  ArrowRight,
-  Loader2,
-} from 'lucide-react';
 import { useStore } from '@nanostores/react';
-
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Loader2 } from 'lucide-react';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
-
-import { updateUserProgramContext } from '@/actions/user-context';
 import {
-  $userContext,
-  userContextActions,
-} from '@/lib/stores/user-context';
+  ReflectiveOptionGrid,
+  type ReflectiveItem,
+  type ReflectiveOptionPreset,
+} from '@/components/program/helpers/ReflectiveOptionGrid';
+import { updateUserProgramContext } from '@/actions/user-context';
+import { $userContext, userContextActions } from '@/lib/stores/user-context';
 
-type DesiredFutureContext = {
-  reflection?: string;
-};
+const futurePresets: ReflectiveOptionPreset[] = [
+  {
+    id: 'time_control',
+    title: 'I have control over my time and schedule.',
+    description:
+      'Deciding when, where, and how you work rather than living by someone else’s calendar.',
+    reflectionPrompt:
+      'What would having genuine control over your schedule change about your daily life?',
+    placeholder: 'If I controlled my time, my ordinary days would look like...',
+  },
+  {
+    id: 'meaningful_work',
+    title: 'I spend my energy on work that matters to me.',
+    description:
+      'Working on problems, ideas, or a craft that you care about, rather than executing someone else’s agenda.',
+    reflectionPrompt:
+      'What kind of work would you choose to spend your energy on if you had the choice?',
+    placeholder: 'I want my working hours to be filled with...',
+  },
+  {
+    id: 'financial_upside',
+    title: 'My earnings reflect what I build, not a fixed salary.',
+    description:
+      'Removing the ceiling on your income and building equity or an asset that belongs to you.',
+    reflectionPrompt:
+      'What would uncapped earnings or building equity unlock for you?',
+    placeholder: 'Earning directly from the value I create would mean...',
+  },
+  {
+    id: 'presence_family',
+    title: 'I am more present for the people in my life.',
+    description:
+      'Being able to show up for your family, partner, children, or friends without work constantly draining your energy.',
+    reflectionPrompt:
+      'Who in your life do you want more focus, presence, and energy for?',
+    placeholder: 'I want to be able to show up consistently for...',
+  },
+  {
+    id: 'creative_pride',
+    title: 'I have the pride of building something real.',
+    description:
+      'Taking an idea out of your head and creating something in the world that people actually use and value.',
+    reflectionPrompt:
+      'What would having something you built out in the real world mean to you?',
+    placeholder: 'Having something I built in the world would prove to me that...',
+  },
+  {
+    id: 'energy_fulfillment',
+    title: 'I end the day feeling energized instead of depleted.',
+    description:
+      'Finishing work with momentum and accomplishment rather than exhaustion and frustration.',
+    reflectionPrompt:
+      'What do you want to feel when you step away from work at the end of the day?',
+    placeholder: 'I want to finish a day of work feeling...',
+  },
+];
 
 export function FutureStateExplorer({
   node,
@@ -28,249 +75,89 @@ export function FutureStateExplorer({
 }: NodeComponentProps) {
   const contextState = useStore($userContext);
 
-  const savedContext =
-    contextState.userContext?.desired_future as
-      | DesiredFutureContext
-      | null
-      | undefined;
-
-  const progressPayload = progress.payload ?? {};
-
-  const [reflection, setReflection] = useState('');
-  const [mode, setMode] = useState<'write' | 'review'>('write');
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!contextState.isHydrated) return;
-
-    if (savedContext?.reflection) {
-      setReflection(savedContext.reflection);
-      setMode('review');
-      return;
-    }
-
-    if (
-      typeof progressPayload.reflection === 'string' &&
-      progressPayload.reflection.trim()
-    ) {
-      setReflection(progressPayload.reflection);
-    }
-  }, [
-    contextState.isHydrated,
-    contextState.userContext?.desired_future,
-  ]);
-
-  const canContinue = reflection.trim().length >= 20;
-
-  async function saveFuture() {
-    if (!canContinue || isSaving) return;
-
-    setIsSaving(true);
-    setError(null);
-
-    const value = reflection.trim();
-
-    try {
-      const result = await updateUserProgramContext({
-        desired_future: {
-          reflection: value,
-        },
-      });
-
-      userContextActions.updateContextLocally(
-        result.userContext
-      );
-
-      setReflection(value);
-      setMode('review');
-
-      await onComplete({
-        reflection: value,
-        completed: true,
-      });
-    } catch (err) {
-      console.error('[FUTURE STATE EXPLORER]', err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Something went wrong saving your reflection.'
-      );
-    } finally {
-      setIsSaving(false);
-    }
+  if (!contextState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your responses...</span>
+      </div>
+    );
   }
 
-  async function handleContinue() {
-    if (isCompleting) return;
+  // 1. Restore saved items, with backward compatibility for legacy free-text reflection
+  const desiredFutureData = contextState.userContext?.desired_future as Record<string, any> | undefined;
+  const legacyText = desiredFutureData?.reflection ?? (progress.payload?.reflection as string | undefined);
+  const structuredChanges = (desiredFutureData?.changes as ReflectiveItem[] | undefined) ?? (progress.payload?.changes as ReflectiveItem[] | undefined);
 
-    setIsCompleting(true);
-    setError(null);
+  let initialItems: ReflectiveItem[] = [];
 
-    try {
-      await onComplete({
-        reflection: reflection.trim(),
-        completed: true,
-      });
-    } catch (err) {
-      console.error(
-        '[FUTURE STATE EXPLORER COMPLETE]',
-        err
-      );
+  if (Array.isArray(structuredChanges) && structuredChanges.length > 0) {
+    initialItems = structuredChanges;
+  } else if (typeof legacyText === 'string' && legacyText.trim().length > 0) {
+    initialItems = [
+      {
+        id: 'custom_legacy',
+        title: 'What will change in my life',
+        reflection: legacyText.trim(),
+        isPrimary: true,
+        isCustom: true,
+      },
+    ];
+  }
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Something went wrong completing this step.'
-      );
-    } finally {
-      setIsCompleting(false);
-    }
+  const isCompleted = progress.completed === true || initialItems.length > 0;
+
+  // 2. Action submission handler
+  async function handleSubmit(items: ReflectiveItem[]) {
+    const primaryItem = items.find((i) => i.isPrimary) ?? items[0];
+    const primaryReflection = primaryItem?.reflection ?? '';
+
+    // Persist both the structured array and the primary reflection for downstream components
+    const result = await updateUserProgramContext({
+      desired_future: {
+        changes: items,
+        reflection: primaryReflection,
+      },
+    });
+
+    userContextActions.updateContextLocally(result.userContext);
+
+    await onComplete({
+      changes: items,
+      reflection: primaryReflection,
+      completed: true,
+    });
+  }
+
+  // 3. Quick continue when revisiting without modifications
+  async function handleContinueWithoutChanges() {
+    const primaryItem = initialItems.find((i) => i.isPrimary) ?? initialItems[0];
+    await onComplete({
+      changes: initialItems,
+      reflection: primaryItem?.reflection ?? '',
+      completed: true,
+    });
   }
 
   return (
-    <div className="w-full space-y-10 pb-12">
-      {mode === 'write' && (
-        <>
-          <div className="max-w-3xl space-y-5">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              {node.title}
-            </h1>
-
-            <p className="text-lg leading-8 text-muted-foreground">
-              You have looked at what gets in your way and what keeps bringing you back. Now imagine that, somehow, you've taken the first steps. You've started something of your own. It's no longer just an idea you've been thinking about — it's becoming part of your life.
-            </p>
-
-            <p className="text-lg leading-8 text-muted-foreground">
-              Picture an ordinary day a little further down the road. Think about how you spend your time, the choices you get to make, the people you work with, and the things you feel at the end of the day.
-            </p>
-
-          </div>
-
-          <div className="max-w-3xl space-y-5">
-            <label className="text-lg font-medium text-foreground">
-              If you make this happen, what would change in your life?
-            </label>
-
-            <Textarea
-              value={reflection}
-              onChange={(event) =>
-                setReflection(event.target.value)
-              }
-              placeholder={
-                'My life or work would be different because...'
-              }
-              rows={10}
-              autoFocus
-              disabled={isSaving}
-              className="resize-none text-base leading-7 mt-2"
-            />
-
-            <div className="space-y-2">
-              <p className="text-sm leading-6 text-muted-foreground">
-                Think beyond the idea itself. What would
-                change about your work, your time, your choices,
-                the people you help, or how you feel about
-                yourself?
-              </p>
-
-              <p className="text-sm leading-6 text-muted-foreground">
-                Write what you actually want, not what you
-                think you are supposed to want.
-              </p>
-            </div>
-
-            {error && (
-              <p className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-
-            <div className="flex justify-end">
-              <Button
-                onClick={saveFuture}
-                disabled={!canContinue || isSaving}
-                className="h-12 gap-2 rounded-full px-8 text-base"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="h-5 w-5" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {mode === 'review' && (
-        <>
-          <div className="max-w-3xl space-y-5">
-            <p className="text-sm font-medium uppercase tracking-[0.16em] text-primary">
-              What would be different
-            </p>
-
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              This is the change you are trying to create.
-            </h1>
-
-            <p className="text-lg leading-8 text-muted-foreground">
-              Keep this in your own words. You don't need to
-              turn it into a plan yet.
-            </p>
-          </div>
-
-          <div className="max-w-3xl rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <p className="whitespace-pre-wrap text-lg leading-8 text-foreground">
-              {reflection}
-            </p>
-          </div>
-
-          {error && (
-            <p className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex max-w-3xl items-center justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setMode('write')}
-              disabled={isCompleting}
-            >
-              Edit
-            </Button>
-
-            <Button
-              onClick={handleContinue}
-              disabled={isCompleting}
-              className="h-12 gap-2 rounded-full px-8 text-base"
-            >
-              {isCompleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Continuing...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="h-5 w-5" />
-                </>
-              )}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+    <ReflectiveOptionGrid
+      title={node.title}
+      introParagraphs={[
+        "You have looked at what gets in your way and what keeps pulling you back. Now imagine that you've started something of your own.",
+        "Picture an ordinary day a little further down the road. What will be different about how you spend your time, who you work with, and how you feel at the end of the day?",
+        'Choose any statements that reflect the changes you actually want, or describe your own in your own words.',
+      ]}
+      options={futurePresets}
+      initialItems={initialItems}
+      isCompleted={isCompleted}
+      entityLabel="change"
+      primaryBadgeLabel="Most meaningful change"
+      prioritizePrompt="Which of these changes matters most to you?"
+      prioritizeSubtext="If your business works, many things will shift. But choose the single outcome that would make all the effort and uncertainty feel worthwhile."
+      customPromptLabel="What else would be different for you?"
+      customPromptPlaceholder="e.g. I want to build a business that lets my partner leave their job..."
+      onSubmit={handleSubmit}
+      onContinueWithoutChanges={handleContinueWithoutChanges}
+    />
   );
 }
