@@ -1,10 +1,9 @@
-
 'use client';
 
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { ArrowRight, Bell, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Bell, Check, Loader2, Pencil } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
@@ -14,29 +13,12 @@ import { HABITS, getHabitById } from '@/lib/constants/habits';
 import type { HabitDefinition } from '@/lib/constants/habits';
 import { $progress } from '@/lib/stores/progress';
 import { $userContext } from '@/lib/stores/user-context';
-
-type Barrier = {
-  id: string;
-  title: string;
-  reflection: string;
-};
-
-type Motivation = {
-  id: string;
-  title: string;
-  reflection: string;
-};
-
-type QuitCondition = {
-  id: string;
-  title: string;
-  reflection: string;
-};
+import type { SynthesisReflectiveItem } from '@/lib/types/ai';
 
 type RevealSynthesis = {
   headline: string;
   interpretation: string;
-  confirmed: boolean;
+  confirmed?: boolean;
 };
 
 type RevealPayload = {
@@ -45,36 +27,34 @@ type RevealPayload = {
 };
 
 type PracticeContext = {
-  barriers: Barrier[];
-  motivations: Motivation[];
+  barriers: SynthesisReflectiveItem[];
+  motivations: SynthesisReflectiveItem[];
   future: string;
-  quitConditions: QuitCondition[];
+  quitConditions: SynthesisReflectiveItem[];
   reveal: RevealSynthesis;
 };
 
 const MAX_SELECTED_HABITS = 3;
 
 function getRecommendedHabits(context: PracticeContext): HabitDefinition[] {
-  const barrierText = context.barriers
-    .map((item) => `${item.id} ${item.title} ${item.reflection}`)
+  // Separate primary items from secondary items to weight them more heavily
+  const primaryBarrier = context.barriers.find((b) => b.isPrimary);
+  const primaryMotivation = context.motivations.find((m) => m.isPrimary);
+  const primaryQuit = context.quitConditions.find((q) => q.isPrimary);
+
+  const primaryText = [
+    primaryBarrier ? `${primaryBarrier.title} ${primaryBarrier.reflection}` : '',
+    primaryMotivation ? `${primaryMotivation.title} ${primaryMotivation.reflection}` : '',
+    primaryQuit ? `${primaryQuit.title} ${primaryQuit.reflection}` : '',
+  ]
     .join(' ')
     .toLowerCase();
 
-  const motivationText = context.motivations
-    .map((item) => `${item.id} ${item.title} ${item.reflection}`)
-    .join(' ')
-    .toLowerCase();
-
-  const quitText = context.quitConditions
-    .map((item) => `${item.id} ${item.title} ${item.reflection}`)
-    .join(' ')
-    .toLowerCase();
-
-  const allText = [
-    barrierText,
-    motivationText,
+  const supportingText = [
+    context.barriers.map((b) => `${b.title} ${b.reflection}`).join(' '),
+    context.motivations.map((m) => `${m.title} ${m.reflection}`).join(' '),
     context.future,
-    quitText,
+    context.quitConditions.map((q) => `${q.title} ${q.reflection}`).join(' '),
     context.reveal.headline,
     context.reveal.interpretation,
   ]
@@ -83,46 +63,29 @@ function getRecommendedHabits(context: PracticeContext): HabitDefinition[] {
 
   const scores = new Map<string, number>();
 
-  function addScore(ids: string[], score: number) {
-    ids.forEach((id) => scores.set(id, (scores.get(id) ?? 0) + score));
+  function addScore(ids: string[], baseWeight: number, regex: RegExp) {
+    let multiplier = 0;
+    if (regex.test(primaryText)) multiplier += 2; // Primary matches get double weight
+    if (regex.test(supportingText)) multiplier += 1;
+
+    if (multiplier > 0) {
+      ids.forEach((id) =>
+        scores.set(id, (scores.get(id) ?? 0) + baseWeight * multiplier)
+      );
+    }
   }
 
-  // Use structured reflections to suggest habits.
-  // These rules suggest options; the founder makes the choice.
-  if (/fear|reject|rejection|ask|embarrass|judg|nervous/.test(allText)) {
-    addScore(['fear_to_step', 'ask_for_help', 'self_compassion_pause'], 3);
-  }
+  // Suggest habits targeted at specific friction points
+  addScore(['fear_to_step', 'ask_for_help', 'self_compassion_pause'], 3, /fear|reject|rejection|ask|embarrass|judg|nervous/);
+  addScore(['two_minute_start', 'one_sentence_intention', 'learn_and_apply'], 3, /overthink|perfection|ready|uncertain|certainty|not ready/);
+  addScore(['evidence_log', 'self_compassion_pause', 'celebrate_completion'], 3, /confidence|doubt|failure|fail|shame|worth|capable|believ/);
+  addScore(['one_sentence_intention', 'comparison_pause', 'celebrate_completion'], 2, /motivat|purpose|meaning|future|freedom|independ|impact|why/);
+  addScore(['one_customer_touch', 'ask_for_help'], 3, /customer|people|problem|market|conversation|alone|isolat|help/);
+  addScore(['self_compassion_pause', 'evidence_log', 'two_minute_start'], 3, /quit|give up|setback|discourag|lose interest|overwhelm|stuck/);
+  addScore(['two_minute_start', 'top_one_shutdown', 'one_sentence_intention'], 2, /distract|procrastinat|follow through|consisten|routine|time|busy/);
+  addScore(['learn_and_apply', 'two_minute_start'], 2, /learn|research|plan|read|watch|prepare|analysis/);
 
-  if (/overthink|perfection|ready|uncertain|certainty|not ready/.test(allText)) {
-    addScore(['two_minute_start', 'one_sentence_intention', 'learn_and_apply'], 3);
-  }
-
-  if (/confidence|doubt|failure|fail|shame|worth|capable|believ/.test(allText)) {
-    addScore(['evidence_log', 'self_compassion_pause', 'celebrate_completion'], 3);
-  }
-
-  if (/motivat|purpose|meaning|future|freedom|independ|impact|why/.test(motivationText + ' ' + context.future.toLowerCase())) {
-    addScore(['one_sentence_intention', 'comparison_pause', 'celebrate_completion'], 2);
-  }
-
-  if (/customer|people|problem|market|conversation|alone|isolat|help/.test(allText)) {
-    addScore(['one_customer_touch', 'ask_for_help'], 3);
-  }
-
-  if (/quit|give up|setback|discourag|lose interest|overwhelm|stuck/.test(quitText + ' ' + barrierText)) {
-    addScore(['self_compassion_pause', 'evidence_log', 'two_minute_start'], 3);
-  }
-
-  if (/distract|procrastinat|follow through|consisten|routine|time|busy/.test(allText)) {
-    addScore(['two_minute_start', 'top_one_shutdown', 'one_sentence_intention'], 2);
-  }
-
-  if (/learn|research|plan|read|watch|prepare|analysis/.test(allText)) {
-    addScore(['learn_and_apply', 'two_minute_start'], 2);
-  }
-
-  // Always include a small set of broadly useful habits, but let the
-  // user's reflections influence which habits appear first.
+  // Baseline fallbacks
   const baselineScores: Record<string, number> = {
     one_sentence_intention: 1,
     fear_to_step: 1,
@@ -137,13 +100,12 @@ function getRecommendedHabits(context: PracticeContext): HabitDefinition[] {
 
   return [...HABITS]
     .sort((a, b) => {
-      const scoreDifference =
-        (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0);
-
-      if (scoreDifference !== 0) return scoreDifference;
-
-      return HABITS.findIndex((habit) => habit.id === a.id) -
-        HABITS.findIndex((habit) => habit.id === b.id);
+      const scoreDiff = (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (
+        HABITS.findIndex((habit) => habit.id === a.id) -
+        HABITS.findIndex((habit) => habit.id === b.id)
+      );
     })
     .slice(0, 5);
 }
@@ -157,43 +119,32 @@ export function CommitmentBuilder({
   const progressState = useStore($progress);
   const contextState = useStore($userContext);
 
-  const saved = progress.payload ?? {};
+  const saved = (progress.payload ?? {}) as Record<string, any>;
   const revealProgress = progressState.payloads?.['m1-q1-reveal'] ?? {};
   const revealPayload = revealProgress as RevealPayload;
 
   const reveal =
-    revealPayload.synthesis &&
-    typeof revealPayload.synthesis === 'object'
+    revealPayload.synthesis && typeof revealPayload.synthesis === 'object'
       ? revealPayload.synthesis
       : null;
 
   const context = contextState.userContext;
+  const profile = contextState.profile;
 
-  const barriersContext = context?.perceived_barriers as
-    | { barriers: Barrier[] }
-    | null
-    | undefined;
+  // Retrieve user's preferred name for personal touch
+  const founderName =
+    profile?.display_name?.trim() || profile?.username?.trim() || null;
 
-  const motivationsContext = context?.motivations as
-    | { motivations: Motivation[] }
-    | null
-    | undefined;
+  const barriersContext = context?.perceived_barriers as Record<string, any> | undefined;
+  const motivationsContext = context?.motivations as Record<string, any> | undefined;
+  const futureContext = context?.desired_future as Record<string, any> | undefined;
+  const quitConditionsContext = context?.quit_conditions as Record<string, any> | undefined;
 
-  const futureContext = context?.desired_future as
-    | { reflection: string }
-    | null
-    | undefined;
-
-  const quitConditionsContext = context?.quit_conditions as
-    | { conditions: QuitCondition[] }
-    | null
-    | undefined;
-
-  const barriers = Array.isArray(barriersContext?.barriers)
+  const barriers: SynthesisReflectiveItem[] = Array.isArray(barriersContext?.barriers)
     ? barriersContext.barriers
     : [];
 
-  const motivations = Array.isArray(motivationsContext?.motivations)
+  const motivations: SynthesisReflectiveItem[] = Array.isArray(motivationsContext?.motivations)
     ? motivationsContext.motivations
     : [];
 
@@ -202,17 +153,18 @@ export function CommitmentBuilder({
       ? futureContext.reflection
       : '';
 
-  const quitConditions = Array.isArray(quitConditionsContext?.conditions)
+  const quitConditions: SynthesisReflectiveItem[] = Array.isArray(quitConditionsContext?.conditions)
     ? quitConditionsContext.conditions
     : [];
 
-  const practiceContext = reveal
-    ? { barriers, motivations, future, quitConditions, reveal }
-    : null;
+  const practiceContext = useMemo(
+    () => (reveal ? { barriers, motivations, future, quitConditions, reveal } : null),
+    [reveal, barriers, motivations, future, quitConditions]
+  );
 
   const recommendedHabits = useMemo(
     () => (practiceContext ? getRecommendedHabits(practiceContext) : []),
-    [reveal, barriers, motivations, future, quitConditions],
+    [practiceContext]
   );
 
   const savedHabitIds = Array.isArray(saved.habitIds)
@@ -221,20 +173,19 @@ export function CommitmentBuilder({
       ? saved.practiceIds.filter((id): id is string => typeof id === 'string')
       : [];
 
-  const [selectedHabitIds, setSelectedHabitIds] =
-    useState<string[]>(savedHabitIds);
-
+  const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>(savedHabitIds);
   const [nudges, setNudges] = useState<Record<string, boolean>>(
     typeof saved.nudges === 'object' && saved.nudges !== null
       ? (saved.nudges as Record<string, boolean>)
-      : {},
+      : {}
   );
 
+  const [isEditingAfterCompletion, setIsEditingAfterCompletion] = useState(false);
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const completed = saved.completed === true;
+  const completed = saved.completed === true && !isEditingAfterCompletion;
 
   const selectedHabits = selectedHabitIds
     .map((id) => getHabitById(id))
@@ -249,9 +200,7 @@ export function CommitmentBuilder({
       if (current.includes(habitId)) {
         return current.filter((id) => id !== habitId);
       }
-
       if (current.length >= MAX_SELECTED_HABITS) return current;
-
       return [...current, habitId];
     });
   }
@@ -300,6 +249,8 @@ export function CommitmentBuilder({
         tasks: result.tasks,
         completed: true,
       });
+
+      setIsEditingAfterCompletion(false);
     } catch (err) {
       console.error('[COMMITMENT BUILDER]', err);
       setError('Something went wrong while saving your choices. Please try again.');
@@ -307,15 +258,26 @@ export function CommitmentBuilder({
     }
   }
 
+  // 1. Guard against layout flash while stores hydrate
+  if (!progressState.isHydrated || !contextState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your reflection...</span>
+      </div>
+    );
+  }
+
+  // 2. Guard against missing previous reveal
   if (!reveal) {
     return (
       <div className="w-full max-w-3xl space-y-6">
         <div className="space-y-3">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
             CARRY THIS FORWARD
           </p>
-          <h2 className="text-3xl font-semibold tracking-tight">
-            {node.title || 'Build small habits'}
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            Build small habits
           </h2>
           <p className="text-lg leading-8 text-muted-foreground">
             Before choosing what to practise, we need to look at what you
@@ -329,43 +291,43 @@ export function CommitmentBuilder({
     );
   }
 
+  // 3. Completed review state
   if (completed) {
     return (
-      <div className="w-full max-w-4xl space-y-8">
+      <div className="w-full max-w-4xl space-y-8 animate-in fade-in duration-300">
         <div className="space-y-3">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            YOUR HABITS
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            YOUR COMMITTED HABITS
           </p>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Small habits. A different way of moving.
+          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {founderName ? `${founderName}, these are your small habits.` : 'Small habits. A different way of moving.'}
           </h2>
           <p className="text-lg leading-8 text-muted-foreground">
-            These small actions are yours to practise in everyday life.
-            You can build on them as your journey continues.
+            These small actions are yours to practise in everyday life. You can build on them as your journey continues.
           </p>
         </div>
 
-        <div className="rounded-2xl border bg-muted/20 p-6 sm:p-8">
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            WHAT WE NOTICED
+        <div className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-6 sm:p-8 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            THE TENSION YOU ARE BALANCING
           </p>
-          <h3 className="mt-3 text-2xl font-semibold leading-9">
+          <h3 className="font-heading text-xl font-semibold text-foreground">
             {reveal.headline}
           </h3>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
+          <p className="text-sm leading-6 text-muted-foreground">
             {reveal.interpretation}
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           {selectedHabits.map((habit) => (
-            <div key={habit.id} className="overflow-hidden rounded-2xl border">
+            <div key={habit.id} className="overflow-hidden rounded-2xl border border-border bg-card">
               <HabitImage
                 habit={habit}
                 failed={failedImages.includes(habit.id)}
                 onError={() =>
                   setFailedImages((current) =>
-                    current.includes(habit.id) ? current : [...current, habit.id],
+                    current.includes(habit.id) ? current : [...current, habit.id]
                   )
                 }
               />
@@ -386,60 +348,74 @@ export function CommitmentBuilder({
           ))}
         </div>
 
-        <Button
-          onClick={() =>
-            onComplete({
-              reveal,
-              habitIds: selectedHabitIds,
-              practiceIds: selectedHabitIds,
-              nudges,
-              completed: true,
-            })
-          }
-          className="gap-2"
-        >
-          Continue <ArrowRight className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center justify-between border-t border-border pt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setIsEditingAfterCompletion(true)}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit your habits
+          </Button>
+
+          <Button
+            onClick={() =>
+              onComplete({
+                reveal,
+                habitIds: selectedHabitIds,
+                practiceIds: selectedHabitIds,
+                nudges,
+                completed: true,
+              })
+            }
+            className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
+          >
+            Continue to Quest 2 <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     );
   }
 
+  // 4. Active selection state
   return (
-    <div className="w-full max-w-4xl space-y-8 pb-16">
+    <div className="w-full max-w-4xl space-y-8 pb-16 animate-in fade-in duration-300">
       <div className="space-y-4">
-        <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           CARRY THIS FORWARD
         </p>
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Small habits. A different way of moving.
-        </h2>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {founderName
+            ? `Small habits, ${founderName}. A different way of moving.`
+            : 'Small habits. A different way of moving.'}
+        </h1>
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
           You have looked at what drives you, what holds you back, and what
           happens when those things collide. You do not have to change
           everything at once. Choose a few small habits to try in everyday
-          life. These are not business tasks or another checklist. They are
-          ways to practise moving forward, one small step at a time.
+          life. These are ways to practise moving forward before you feel ready.
         </p>
       </div>
 
-      <div className="rounded-2xl border bg-muted/20 p-6 sm:p-8">
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+      <div className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-6 sm:p-8 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           WHAT WE NOTICED
         </p>
-        <h3 className="mt-3 text-2xl font-semibold leading-9">
+        <h2 className="font-heading text-xl font-semibold text-foreground">
           {reveal.headline}
-        </h3>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+        </h2>
+        <p className="text-sm leading-6 text-muted-foreground">
           {reveal.interpretation}
         </p>
       </div>
 
       <section className="space-y-5">
         <div className="space-y-2">
-          <h3 className="text-xl font-semibold">Choose what feels useful</h3>
+          <h2 className="text-xl font-semibold">Choose what feels useful</h2>
           <p className="text-base leading-7 text-muted-foreground">
-            We have suggested a few habits based on what you shared. Choose
-            one to three that you are willing to try. You can start small.
+            We have suggested habits based on your biggest barrier and core motivation.
+            Choose one to three habits you are genuinely willing to maintain.
           </p>
         </div>
 
@@ -452,8 +428,10 @@ export function CommitmentBuilder({
               <article
                 key={habit.id}
                 className={[
-                  'overflow-hidden rounded-2xl border transition-colors',
-                  selected ? 'border-primary bg-primary/[0.04]' : 'bg-card',
+                  'overflow-hidden rounded-2xl border transition-all',
+                  selected
+                    ? 'border-primary bg-primary/[0.04] ring-1 ring-primary/20'
+                    : 'border-border bg-card hover:border-primary/50 hover:bg-muted/30',
                 ].join(' ')}
               >
                 <button
@@ -471,7 +449,7 @@ export function CommitmentBuilder({
                     failed={failedImages.includes(habit.id)}
                     onError={() =>
                       setFailedImages((current) =>
-                        current.includes(habit.id) ? current : [...current, habit.id],
+                        current.includes(habit.id) ? current : [...current, habit.id]
                       )
                     }
                   />
@@ -482,9 +460,9 @@ export function CommitmentBuilder({
                         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           {habit.category}
                         </p>
-                        <h4 className="font-semibold leading-snug">
+                        <h3 className="font-semibold leading-snug">
                           {habit.title}
-                        </h4>
+                        </h3>
                       </div>
 
                       <span
@@ -518,7 +496,7 @@ export function CommitmentBuilder({
                 </button>
 
                 {selected && (
-                  <div className="flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-5">
+                  <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5">
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">
@@ -552,7 +530,7 @@ export function CommitmentBuilder({
         </div>
       </section>
 
-      <div className="rounded-xl border border-dashed p-5">
+      <div className="rounded-xl border border-dashed border-border p-5">
         <p className="text-sm leading-relaxed text-muted-foreground">
           These habits are here to support the work ahead, not replace it.
           You will still need to speak to people, test your ideas, and make
@@ -562,7 +540,7 @@ export function CommitmentBuilder({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {selectedHabitIds.length === 0
             ? 'Choose 1–3 habits.'
@@ -572,7 +550,7 @@ export function CommitmentBuilder({
         <Button
           onClick={handleSave}
           disabled={!canContinue || isSubmitting}
-          className="h-12 gap-2 rounded-full px-8"
+          className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
         >
           {isSubmitting ? (
             <>
