@@ -4,24 +4,21 @@ import type {
   ProblemDetails,
 } from '@/lib/types/observations';
 
+export type SynthesisReflectiveItem = {
+  id: string;
+  title: string;
+  reflection: string;
+  isPrimary?: boolean;
+  isCustom?: boolean;
+};
+
 export type CommitmentSynthesisInput = {
   situation: string;
-  barriers: Array<{
-    id: string;
-    title: string;
-    reflection: string;
-  }>;
-  motivations: Array<{
-    id: string;
-    title: string;
-    reflection: string;
-  }>;
+  barriers: SynthesisReflectiveItem[];
+  motivations: SynthesisReflectiveItem[];
   future: string;
-  quitConditions: Array<{
-    id: string;
-    title: string;
-    reflection: string;
-  }>;
+  futureChanges?: SynthesisReflectiveItem[];
+  quitConditions: SynthesisReflectiveItem[];
 };
 
 export type CommitmentSynthesisResult = {
