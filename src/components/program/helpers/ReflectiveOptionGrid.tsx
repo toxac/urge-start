@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   PlusCircle,
+  Star,
   X,
 } from 'lucide-react';
 
@@ -38,6 +39,7 @@ export type ReflectiveOptionGridProps = {
   introParagraphs: string[];
   options: ReflectiveOptionPreset[];
   initialItems?: ReflectiveItem[];
+  isCompleted?: boolean;
   entityLabel: string; // e.g. "barrier", "motivation", "risk"
   primaryBadgeLabel?: string; // e.g. "Biggest barrier", "Core motivation"
   prioritizePrompt?: string;
@@ -45,6 +47,7 @@ export type ReflectiveOptionGridProps = {
   customPromptLabel?: string;
   customPromptPlaceholder?: string;
   onSubmit: (items: ReflectiveItem[]) => Promise<void>;
+  onContinueWithoutChanges?: () => Promise<void>;
 };
 
 export function ReflectiveOptionGrid({
@@ -52,6 +55,7 @@ export function ReflectiveOptionGrid({
   introParagraphs,
   options,
   initialItems = [],
+  isCompleted = false,
   entityLabel,
   primaryBadgeLabel = 'Top focus',
   prioritizePrompt = `Which of these ${entityLabel}s matters most right now?`,
@@ -59,9 +63,13 @@ export function ReflectiveOptionGrid({
   customPromptLabel = `What is another ${entityLabel} for you?`,
   customPromptPlaceholder = `In your own words, describe this ${entityLabel}...`,
   onSubmit,
+  onContinueWithoutChanges,
 }: ReflectiveOptionGridProps) {
-  // Navigation stage: 'select' -> 'prioritize'
-  const [stage, setStage] = useState<'select' | 'prioritize'>('select');
+  // Navigation stage: 'review' | 'select' | 'prioritize'
+  const hasSavedData = initialItems.length > 0;
+  const [stage, setStage] = useState<'review' | 'select' | 'prioritize'>(
+    isCompleted || hasSavedData ? 'review' : 'select'
+  );
 
   // Selected items & reflections
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -80,7 +88,7 @@ export function ReflectiveOptionGrid({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Restore saved initialItems on mount
+  // Hydrate from initialItems whenever it updates
   useEffect(() => {
     if (initialItems.length === 0) return;
 
@@ -101,10 +109,15 @@ export function ReflectiveOptionGrid({
     setSelectedIds(ids);
     setReflections(refls);
     setCustomItems(customs);
-    if (initialPrimary) setPrimaryId(initialPrimary);
-  }, [initialItems]);
+    setPrimaryId(initialPrimary ?? (ids.length === 1 ? ids[0] : null));
 
-  // Escape key handler for dialog
+    // If completed or returning to saved data, stay in review mode
+    if (isCompleted || ids.length > 0) {
+      setStage((prev) => (prev === 'select' && !hasSavedData ? 'review' : prev));
+    }
+  }, [initialItems, isCompleted]);
+
+  // Dialog Escape key handler
   useEffect(() => {
     if (!activeModalId && !isCreatingCustom) return;
 
@@ -200,7 +213,8 @@ export function ReflectiveOptionGrid({
     if (primaryId === id) setPrimaryId(null);
   }
 
-  function buildOutputPayload(chosenPrimaryId: string): ReflectiveItem[] {
+  function buildOutputPayload(chosenPrimaryId?: string | null): ReflectiveItem[] {
+    const finalPrimary = chosenPrimaryId ?? primaryId ?? selectedIds[0];
     return selectedIds.map((id) => {
       const preset = options.find((opt) => opt.id === id);
       const custom = customItems.find((item) => item.id === id);
@@ -210,26 +224,22 @@ export function ReflectiveOptionGrid({
         id,
         title: itemTitle,
         reflection: (reflections[id] ?? '').trim(),
-        isPrimary: chosenPrimaryId === id,
+        isPrimary: finalPrimary === id,
         isCustom: Boolean(custom),
       };
     });
   }
 
-  // Handle continuing from Step 1
   async function handleStep1Continue() {
     if (selectedIds.length === 0) return;
 
     if (selectedIds.length === 1) {
-      // Only 1 selected -> it is naturally the primary
       await submitPayload(selectedIds[0]);
     } else {
-      // 2 or more selected -> move to the pause/prioritize step
       setStage('prioritize');
     }
   }
 
-  // Final submission handler
   async function submitPayload(finalPrimaryId: string) {
     setIsSubmitting(true);
     setError(null);
@@ -241,6 +251,131 @@ export function ReflectiveOptionGrid({
       setError(err instanceof Error ? err.message : 'Could not save your responses.');
       setIsSubmitting(false);
     }
+  }
+
+  async function handleReviewContinue() {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      if (onContinueWithoutChanges) {
+        await onContinueWithoutChanges();
+      } else {
+        const payload = buildOutputPayload();
+        await onSubmit(payload);
+      }
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : 'Could not proceed.');
+      setIsSubmitting(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // REVISIT / REVIEW STATE: Rendered when user returns after saving/completing
+  // ---------------------------------------------------------------------------
+  if (stage === 'review' && selectedIds.length > 0) {
+    const primaryItem = selectedIds.find((id) => id === primaryId) ?? selectedIds[0];
+    const otherItems = selectedIds.filter((id) => id !== primaryItem);
+
+    const getTitle = (id: string) =>
+      options.find((o) => o.id === id)?.title ??
+      customItems.find((c) => c.id === id)?.title ??
+      '';
+
+    return (
+      <div className="w-full space-y-10 pb-12 animate-in fade-in duration-300">
+        <div className="max-w-3xl space-y-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-primary">
+            Saved Reflection
+          </span>
+
+          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            {title}
+          </h1>
+
+          <p className="text-lg leading-8 text-muted-foreground">
+            Here is what you named. You can review your responses, make changes, or continue forward.
+          </p>
+        </div>
+
+        <div className="max-w-3xl space-y-6">
+          {/* Primary Item Card */}
+          <div className="rounded-2xl border-2 border-primary/40 bg-primary/[0.04] p-6 sm:p-7 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
+                <Star className="h-3 w-3 fill-current" />
+                {primaryBadgeLabel}
+              </span>
+            </div>
+
+            <h2 className="font-heading text-xl font-semibold text-foreground">
+              {getTitle(primaryItem)}
+            </h2>
+
+            <p className="text-base leading-8 text-foreground/90 whitespace-pre-wrap">
+              {reflections[primaryItem]}
+            </p>
+          </div>
+
+          {/* Secondary Items */}
+          {otherItems.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Other {entityLabel}s you identified
+              </h3>
+
+              <div className="space-y-3">
+                {otherItems.map((id) => (
+                  <div key={id} className="rounded-xl border border-border bg-card p-5 space-y-2">
+                    <h4 className="font-medium text-foreground">{getTitle(id)}</h4>
+                    <p className="text-sm leading-7 text-muted-foreground whitespace-pre-wrap">
+                      {reflections[id]}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p role="alert" className="max-w-3xl text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="flex max-w-3xl items-center justify-between border-t border-border pt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setStage('select')}
+            disabled={isSubmitting}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit your responses
+          </Button>
+
+          <Button
+            onClick={handleReviewContinue}
+            disabled={isSubmitting}
+            className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Continuing...
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="h-5 w-5" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -283,7 +418,6 @@ export function ReflectiveOptionGrid({
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  {/* Custom Radio Button */}
                   <div
                     className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
                       isSelected
@@ -363,7 +497,6 @@ export function ReflectiveOptionGrid({
   // ---------------------------------------------------------------------------
   return (
     <div className="w-full space-y-10 pb-12 animate-in fade-in duration-300">
-      {/* Header */}
       <div className="max-w-3xl space-y-5">
         <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {title}
@@ -376,9 +509,7 @@ export function ReflectiveOptionGrid({
         ))}
       </div>
 
-      {/* Cards Grid */}
       <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
-        {/* Presets */}
         {options.map((option) => {
           const isSelected = selectedIds.includes(option.id);
           const reflection = reflections[option.id] ?? '';
@@ -431,7 +562,6 @@ export function ReflectiveOptionGrid({
                 )}
               </button>
 
-              {/* Card Footer: Remove selection */}
               {isSelected && (
                 <div className="flex items-center justify-end border-t border-border/50 px-5 py-2">
                   <button
@@ -452,7 +582,6 @@ export function ReflectiveOptionGrid({
           );
         })}
 
-        {/* Custom User Cards */}
         {customItems.map((item) => {
           const reflection = reflections[item.id] ?? '';
 
@@ -505,7 +634,6 @@ export function ReflectiveOptionGrid({
           );
         })}
 
-        {/* Add Custom Option Card */}
         <button
           type="button"
           onClick={() => openCustomModal()}
@@ -537,7 +665,6 @@ export function ReflectiveOptionGrid({
         </p>
       )}
 
-      {/* Footer Continue */}
       <div className="flex max-w-4xl justify-end">
         <Button
           onClick={handleStep1Continue}
