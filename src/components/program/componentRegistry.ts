@@ -115,5 +115,4 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'choose_opportunity': ChooseOpportunity,
   'opportunity_synthesis': Mission2Reveal,
   'opportunity_action': Mission2Action,
-  
 };
