@@ -1,141 +1,162 @@
-# Mission 1 Tweaks based on user feedbacks
+# Mission 1 Quest 2 Enhancement nased on feedback
 
-Lets focus on one quest at a time. Starting with quest 1
+## node-m1-q2-capabilities
+component mapping: 'capability_inventory': CapabilityInventory
 
-## Quest 1
-### Current setup of components
-- we have some preset choices ( we will have to refine them a bit later)
-- we display the choices as cards and users can pick more than one
-- each card the pick we show them a textbox they can add their remarks to it
-- we save that to user_program_context table
+Right now the capability node is quite basic and we are missing out quite a lot of strengths users might have. We need to make the list capture all the kay ability we think would be constructive for users. They dont need to have everything. We don't want to keep adding new ability cards which will make the task cumbersome. I have another idea as well we can have key theme and let users tell us in free form and we can extract things from it in structured manner. So we can have a textbox for creativity and innovation and then we can grab details from users input like what kind of creativity, if they have some experience and if they have applied it somewhere. Its and idea. Some of the additional ability which is not currenty explicit in the node component.
 
-### Feedback
-- while users can pick presets there is not raking or ordering. even if users could most relevant option that would be good
-- also if users could add their own option that also would be good
-
-## Implication
-
-1. Data schema: is not affected much as we are saving these as json, but we have to decide what that new schema would be
-2. Right now we have a good balance of interaction so we dont want to loose that
+- Ability to be creative
+- Come up with innovation solutions
+- being able to evaluate and mitigate risks and roadblocks
+- Ability to strategise and plan
+- Ability to communicate clearly
+- Connect and network with strangers
+- Good listener
+- persuasiveness
+- empathy and conviction.
 
 
-## Task
-- confirm that you understand the current setup and the feedback
-- evaluate all the component and logic
-- put together implementation plan which doesnt not change look and feel much
+### Node Entry
+```ts
+{
+          key: 'm1-q2-capabilities',
+          sequence: 4,
+          role: 'investigation',
+          title: 'What can you already do?',
+          description:
+            'You have probably learned more useful things than you give yourself credit for. Look for capabilities you already use to solve problems.',
+          prompt:
+            'What can you already do that could be useful?',
+          intent:
+            'Surface practical capabilities through problems the user already solves.',
+          component: 'capability_inventory',
+          dependencies: ['m1-q2-network'],
+        },
+```
 
-## mission1 quest 1 nodes
+## Tasks
+- Evaluate component based on feedback
+- Evaluate my suggestion of having struture textboxes and we extract data using AI and then format and save it
+- We will need to also figure out how to implment STT for textarea
+- lets address each of these before we update the component
+
+
+## mission1 quest 2 nodes
 
 ```ts
 {
-      key: 'q1',
-      sequence: 1,
-      title: 'Draw the Line',
+      key: 'q2',
+      sequence: 2,
+      title: 'What You Already Have',
       description:
-        'Understand what is keeping you from starting and decide what you are willing to do about it.',
+        'Look beyond what you think you lack. Find the people, skills, experience, resources, and access already within reach.',
 
       nodes: [
         {
-          key: 'm1-q1-setup',
+          key: 'm1-q2-setup',
           sequence: 1,
           role: 'setup',
-          title: 'What is really keeping you from starting?',
-          description:
-            "Sometimes, the reasons we give ourselves for waiting are only part of the story. Beneath practical challenges, there may be fears, doubts, or assumptions that make it harder to take the first step.\n\nIn this quest, you'll explore what's been stopping you, what keeps pulling you towards starting, what you want to change, and what might make you give up. By looking at these things honestly, you'll get a clearer picture of what's driving you, what's holding you back, and what you're willing to do about it.",
+          title: 'You are not starting from zero.',
+          description: `Before you decide what you need to start a business, take stock of what you already have.
+
+In this quest, you'll explore the skills you've built, the experiences you've had, the people you know, and the resources you can draw on. You might discover useful strengths you take for granted, or realise you have more to work with than you thought.
+
+You don't need to have everything. The goal is to see what you can build on—and where there may be gaps to work around.`,
           prompt:
-            'What do you think is standing between you and starting?',
+            'What are you starting with?',
           intent:
-            'Frame the gap between wanting to start and actually starting in a personal way.',
-          component: 'barrier_reflection',
-          dependencies: ['m1-setup'],
+            'Shift the user from thinking about what they lack to noticing the resources, people, capabilities, and experience already within reach.',
+          component: 'asset_inventory_intro',
+          dependencies: ['m1-q1-action'],
         },
 
         {
-          key: 'm1-q1-barriers',
+          key: 'm1-q2-inventory',
           sequence: 2,
           role: 'investigation',
-          title: 'What has been stopping you?',
+          title: 'What resources are already within reach?',
           description:
-            'Look more closely at the barriers you named. Some may be real constraints. Others may be fears or assumptions that have become reasons to wait.',
+            'Resources are not just money. Time, tools, spaces, information, technology, and other forms of access can all change what is possible.',
           prompt:
-            'Which barriers feel most responsible for keeping you stuck?',
+            'What resources could you use right now?',
           intent:
-            'Put words to the real barriers, fears, and reasons behind not starting.',
-          component: 'why_havent_you_started',
-          dependencies: ['m1-q1-setup'],
+            'Identify current resources and perceived constraints.',
+          component: 'resource_inventory',
+          dependencies: ['m1-q2-setup'],
         },
 
         {
-          key: 'm1-q1-motivation',
+          key: 'm1-q2-network',
           sequence: 3,
           role: 'investigation',
-          title: 'What keeps bringing you back?',
-          description:
-            'Something keeps pulling you toward this, even when the barriers are still there. That pull matters.',
+          title: 'Who is already within reach?',
+          description: `Think about the people you know, the groups you're part of, and the communities you can access.
+
+You don't need to know how these connections might help you yet. For now, the goal is to recognise who's already around you and make a record you can return to as you explore opportunities.`,
           prompt:
-            'What makes you keep coming back to this idea or possibility?',
+            'Who could you talk to, learn from, or ask for help?',
           intent:
-            'Understand the pull that keeps bringing the user back despite the barriers.',
-          component: 'motivation_explorer',
-          dependencies: ['m1-q1-barriers'],
+            'Build an inventory of the people, groups and communities the user already has connections to.',
+          component: 'contact_inventory',
+          dependencies: ['m1-q2-inventory'],
         },
 
         {
-          key: 'm1-q1-future',
+          key: 'm1-q2-capabilities',
           sequence: 4,
           role: 'investigation',
-          title: 'What would be different?',
+          title: 'What can you already do?',
           description:
-            'Starting a business is not the goal by itself. Something about your life, work, or circumstances is making you want to do this.',
+            'You have probably learned more useful things than you give yourself credit for. Look for capabilities you already use to solve problems.',
           prompt:
-            'If this worked, what would be different for you?',
+            'What can you already do that could be useful?',
           intent:
-            'Describe what the user actually wants to change if they make this happen.',
-          component: 'future_reflection',
-          dependencies: ['m1-q1-motivation'],
+            'Surface practical capabilities through problems the user already solves.',
+          component: 'capability_inventory',
+          dependencies: ['m1-q2-network'],
         },
 
         {
-          key: 'm1-q1-quit',
+          key: 'm1-q2-experience',
           sequence: 5,
           role: 'investigation',
-          title: 'What might make you quit?',
+          title: 'What have you already lived through?',
           description:
-            'Knowing what could make you stop is useful. It gives you a chance to recognize those moments before they arrive.',
+            'Your experience is bigger than your job history. Work, hobbies, side projects, communities, failures, and problems you have solved can all give you useful context.',
           prompt:
-            'What could realistically make you stop trying?',
+            'What experiences might give you an advantage here?',
           intent:
-            'Make the user aware of conditions that could realistically cause them to stop.',
-          component: 'quit_condition_explorer',
-          dependencies: ['m1-q1-future'],
+            'Find useful experience across work, hobbies, side projects, failures, communities, and personal problems.',
+          component: 'experience_inventory',
+          dependencies: ['m1-q2-capabilities'],
         },
 
         {
-          key: 'm1-q1-reveal',
+          key: 'm1-q2-reveal',
           sequence: 6,
           role: 'reveal',
-          title: 'What is actually driving you?',
+          title: 'You have more to work with than you thought.',
           description:
-            'Look across what you have said. There is a tension between what is holding you back and what keeps pulling you forward.',
+            'Now compare what you thought you were missing with what you actually have available.',
           intent:
-            'Bring the answers together so the user can see what is pulling them forward and holding them back.',
-          component: 'commitment_synthesis',
-          dependencies: ['m1-q1-quit'],
+            'Compare perceived gaps with actual assets while making genuine remaining gaps visible.',
+          component: 'asset_reveal',
+          dependencies: ['m1-q2-experience'],
         },
 
         {
-          key: 'm1-q1-action',
+          key: 'm1-q2-action',
           sequence: 7,
           role: 'action',
-          title: 'Draw your line.',
+          title: 'What still needs attention?',
           description:
-            'You do not need to promise that you will never hesitate again. You need a way to keep moving when hesitation shows up.',
+            'You do not need to close every gap before you begin. Identify the ones that actually matter now.',
           prompt:
-            'What is one behavior you are willing to keep doing when you feel stuck?',
+            'Which gap is worth doing something about first?',
           intent:
-            'Turn the understanding into a minimum behavior the user is genuinely willing to maintain.',
-          component: 'commitment_builder',
-          dependencies: ['m1-q1-reveal'],
+            'Turn genuine gaps into concrete next steps without forcing the user to solve everything now.',
+          component: 'gap_action',
+          dependencies: ['m1-q2-reveal'],
         },
       ],
     },
