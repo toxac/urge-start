@@ -679,7 +679,7 @@ Generate 4 tailored, low-stakes preparatory actions (one for each pillar: networ
       'experience',
     ];
 
-    const cleaned: GapTaskOption[] = parsed.tasks
+    const cleaned: GapTaskOption[] = (parsed.tasks as unknown[])
       .filter(
         (item: unknown): item is Record<string, unknown> =>
           typeof item === 'object' &&
@@ -687,7 +687,7 @@ Generate 4 tailored, low-stakes preparatory actions (one for each pillar: networ
           typeof (item as { title?: unknown }).title === 'string' &&
           typeof (item as { description?: unknown }).description === 'string'
       )
-      .map((item, index) => {
+      .map((item: Record<string, unknown>, index: number) => {
         const rawPillar =
           typeof item.pillar === 'string' ? item.pillar : 'capabilities';
         const pillar: GapTaskPillar = validPillars.includes(
