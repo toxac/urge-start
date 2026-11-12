@@ -389,7 +389,7 @@ export function GapAction({
       const tasksToPersist = selectedOptions.map((item) => ({
         title: item.title,
         description: item.description,
-        task_type: 'action' as const,
+        task_type: 'general' as const,
         source_node_key: nodeKey,
         is_nudge_enabled: nudges[item.id] ?? false,
         metadata: {
@@ -397,6 +397,7 @@ export function GapAction({
           pillar: item.pillar,
           asset_reference: item.assetReference,
           is_custom: Boolean(item.isCustom),
+          recurrence: 'once',
           quest: 'm1-q2',
         },
       }));
