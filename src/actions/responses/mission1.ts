@@ -12,7 +12,8 @@ import type {
   RejectionSynthesisResult,
   AskPreparationGuide,
   CapabilityTag,
-  ExperienceTag
+  ExperienceTag,
+  AssetRevealInput
 } from '@/lib/types/ai';
 
 // HELPER FUNCTIONS
@@ -428,48 +429,101 @@ FOUNDER'S STORY:
 }
 
 export async function generateAssetReveal(
-  assets: {
-    resources: any;
-    networks: any;
-    capabilities: any;
-    experience: any;
-  },
+  assets: AssetRevealInput,
   sourceNodeKey: string
-) {
+): Promise<string> {
+  const founderNameClause = assets.userName
+    ? `The founder's name is ${assets.userName}. You may use their name once naturally if it fits, keeping the tone calm, direct, and grounded.`
+    : `Keep the tone calm, direct, and grounded.`;
+
   const systemPrompt = `
-    You are Urge, a thoughtful friend acting as a mirror.
-    The user has just mapped out what they currently have available to start a business.
+You are Urge, a thoughtful friend acting as a mirror.
+The user has just mapped out what they currently have available to start something of their own.
 
-    Here is their raw asset inventory:
-    1. Resources (1-5 scale): ${JSON.stringify(assets.resources)}
-    2. Networks (Distribution): ${JSON.stringify(assets.networks)}
-    3. Behavioral Traits: ${JSON.stringify(assets.capabilities)}
-    4. Adjacent Experience: ${JSON.stringify(assets.experience)}
+Your exact task: Write ONE short paragraph (3–4 sentences maximum) pointing out their "unfair advantage" or unique leverage based ONLY on the intersection of what they already have.
 
-    Your exact task: Write ONE short paragraph (3-4 sentences maximum) pointing out their "unfair advantage" or unique leverage based ONLY on what they have. 
-    
-    RULES:
-    - IGNORE their weaknesses or what they lack. Do not mention what is missing.
-    - Start directly with an observation about their leverage (e.g., "Looking at this, your actual leverage is...", "Your unfair advantage here isn't capital, it's...").
-    - DO NOT praise, cheerlead, or use words like "amazing", "incredible", or "unstoppable".
-    - DO NOT use Silicon Valley jargon (e.g., synergy, paradigm shift, 10x).
-    - Be grounded, direct, and pragmatic. Show them that they already possess the raw materials to start.
-  `;
+${founderNameClause}
+
+RULES:
+- Look for specific intersections across their resources, connections, capabilities, and lived experience (e.g., how a technical or interpersonal ability pairs with an insider community or specific access they already have).
+- IGNORE their weaknesses, limits, or what they lack. Do not mention what is missing.
+- Start directly with a concrete observation about their leverage (e.g., "Looking at what you have mapped out, your real leverage is...", "Your advantage here isn't starting capital, it's...").
+- Ground every claim in the specific facts, tools, groups, or experiences they shared.
+- DO NOT praise, cheerlead, or use words like "amazing", "incredible", "impressive", or "unstoppable".
+- DO NOT use Silicon Valley jargon (e.g., synergy, paradigm shift, 10x, disrupt).
+- Be pragmatic and direct. Show them that they already possess concrete raw materials to start.
+`;
+
+  const resourcesText =
+    assets.resources.length > 0
+      ? assets.resources
+          .map((r) => `• ${r.title}: ${r.detail}`)
+          .join('\n')
+      : 'None listed.';
+
+  const networksText =
+    assets.networks.length > 0
+      ? assets.networks
+          .map(
+            (n) =>
+              `• ${n.name} (${n.type})${n.description ? ` — ${n.description}` : ''}`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const capabilitiesText =
+    assets.capabilities.length > 0
+      ? assets.capabilities
+          .map(
+            (c) =>
+              `• [${c.area}] Tags: ${c.tags.join(', ') || 'None'} | Context: "${c.story}"`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const experienceText =
+    assets.experience.length > 0
+      ? assets.experience
+          .map(
+            (e) =>
+              `• [${e.arena}] Territories: ${e.tags.join(', ') || 'None'} | Context: "${e.story}"`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const userPrompt = `
+FOUNDER: ${assets.userName || 'Not specified'}
+
+1. CONCRETE RESOURCES (Time, Money, Energy, Access, Credibility):
+${resourcesText}
+
+2. NETWORKS & COMMUNITIES (People & Distribution):
+${networksText}
+
+3. CAPABILITIES (How they solve problems, communicate, & learn):
+${capabilitiesText}
+
+4. LIVED EXPERIENCE (Environments, groups, & problems known from the inside):
+${experienceText}
+
+Synthesize these assets into a single paragraph defining their concrete starting leverage.
+`;
 
   const { success, content, error } = await invokeAIStandard({
     systemPrompt,
-    userPrompt: "Synthesize these assets into a single paragraph defining my unfair advantage.",
+    userPrompt,
     componentKey: 'asset_reveal',
     sourceNodeKey,
     purpose: 'asset_advantage_synthesis',
     requireJson: false,
+    temperature: 0.3,
   });
 
   if (!success || !content) {
     throw new Error(error || 'Failed to generate asset synthesis');
   }
 
-  return content;
+  return content.trim();
 }
 
 export async function generateGapTasks(

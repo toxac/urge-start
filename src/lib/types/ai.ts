@@ -88,6 +88,31 @@ export type LearningActionOption = {
   description: string;
 };
 
+// Asset reveal context input types
+export type AssetRevealInput = {
+  userName?: string;
+  resources: Array<{
+    type: string;
+    title: string;
+    detail: string;
+  }>;
+  networks: Array<{
+    type: string;
+    name: string;
+    description: string;
+  }>;
+  capabilities: Array<{
+    area: string;
+    story: string;
+    tags: string[];
+  }>;
+  experience: Array<{
+    arena: string;
+    story: string;
+    tags: string[];
+  }>;
+};
+
 export type LearningActionResult = {
   options: LearningActionOption[];
 };
