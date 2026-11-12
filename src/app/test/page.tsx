@@ -1,88 +1,120 @@
 "use client";
 
-import { VoiceTextarea } from "@/components/ui/custom/VoiceTextarea";
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { SpeechTextarea } from "@/components/ui/speech-textarea";
+import { SpeechContent } from "@/components/ui/speech-content";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-type FormValues = {
-  notes: string;
+// Optional: Ensure you have your Whisper fallback defined in a utility file
+// import { handleWhisperAudio } from "@/lib/speech";
+
+// For testing without the API route setup yet, use this mock handler
+const mockWhisperAudio = async (audioBlob: Blob): Promise<string> => {
+  console.log("Audio blob recorded:", audioBlob.size, "bytes");
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  return " This is a simulated whisper transcription from the media recorder fallback.";
 };
 
-// Fake STT provider: lets you test the MediaRecorder path without an API.
-// Only fires in browsers using MediaRecorder mode (Firefox/Safari, or Chrome
-// if you add the forceMediaRecorder prop to speech-input.tsx).
-async function fakeTranscribe(blob: Blob): Promise<string> {
-  await new Promise((r) => setTimeout(r, 1200));
-  return `[fake transcript of ${Math.round(blob.size / 1024)}KB audio]`;
+interface FormData {
+  feedback: string;
 }
 
-export default function VoiceTextareaTestPage() {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm<FormValues>({ defaultValues: { notes: "" } });
+export default function SpeechTestingPage() {
+  const { register, handleSubmit, watch, reset } = useForm<FormData>();
+  const [submittedData, setSubmittedData] = useState<string | null>(null);
 
-  const [controlled, setControlled] = useState("");
-  const [submitted, setSubmitted] = useState<string | null>(null);
+  // Watch the form state in real-time
+  const currentFeedback = watch("feedback");
+
+  const onSubmit = (data: FormData) => {
+    setSubmittedData(data.feedback);
+    reset();
+  };
 
   return (
-    <main className="mx-auto max-w-2xl space-y-12 p-6 py-12">
-      <h1 className="font-heading text-2xl font-semibold">
-        VoiceTextarea test page
-      </h1>
+    <div className="container mx-auto max-w-3xl space-y-8 py-12">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Speech Components Test</h1>
+        <p className="text-muted-foreground mt-2">
+          Verify Web Speech API functionality and MediaRecorder fallback (Firefox/Safari).
+        </p>
+      </div>
 
-      {/* 1. react-hook-form with register */}
-      <section className="space-y-3">
-        <h2 className="font-medium">1. react-hook-form (register)</h2>
-        <form
-          className="space-y-3"
-          onSubmit={handleSubmit((v) => setSubmitted(v.notes))}
-        >
-          <VoiceTextarea
-            {...register("notes", { required: "Notes are required" })}
-            placeholder="Type or dictate..."
-            aria-invalid={!!errors.notes}
-            className="min-h-32"
-            onAudioRecorded={fakeTranscribe}
-          />
-          {errors.notes && (
-            <p className="text-sm text-destructive">{errors.notes.message}</p>
+      {/* Test Case 1: SpeechTextarea with react-hook-form */}
+      <Card>
+        <CardHeader>
+          <CardTitle>1. SpeechTextarea (react-hook-form)</CardTitle>
+          <CardDescription>
+            Tests real-time transcription appending and form validation state.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="feedback" className="text-sm font-medium">
+                Your Feedback
+              </label>
+              <SpeechTextarea
+                id="feedback"
+                placeholder="Speak or type your feedback here..."
+                rows={5}
+                {...register("feedback", { required: true })}
+                // Swap `mockWhisperAudio` with `handleWhisperAudio` when your API route is ready
+                onAudioRecorded={mockWhisperAudio}
+              />
+              <p className="text-xs text-muted-foreground">
+                Current form state length: {currentFeedback?.length || 0} characters
+              </p>
+            </div>
+            <Button type="submit" disabled={!currentFeedback?.trim()}>
+              Submit Feedback
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Test Case 2: SpeechContent TTS reading */}
+      <Card>
+        <CardHeader>
+          <CardTitle>2. SpeechContent (TTS)</CardTitle>
+          <CardDescription>
+            Tests text extraction and browser-native Text-to-Speech synthesis. Hover over the card to reveal controls.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SpeechContent className="rounded-xl border bg-muted/50 p-6">
+            <h3 className="mb-2 font-semibold">Project Urge Startup Phase</h3>
+            <p className="mb-4 text-sm leading-relaxed">
+              Welcome to the Project Urge platform. Our goal is to streamline 
+              operations and integrate AI seamlessly into daily workflows. 
+              The speech components you are testing right now utilize advanced 
+              browser APIs to make data entry entirely frictionless.
+            </p>
+            <ul className="list-inside list-disc text-sm">
+              <li>Cross-browser support via MediaRecorder</li>
+              <li>Zero-latency client-side synthesis</li>
+              <li>React Hook Form compatibility</li>
+            </ul>
+          </SpeechContent>
+
+          {/* Test Case 3: Read submitted form data */}
+          {submittedData && (
+            <div className="mt-8 space-y-2">
+              <h3 className="text-sm font-medium">Read Submitted Data:</h3>
+              <SpeechContent 
+                className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm"
+                controlsPosition="top-right"
+                showControls="always"
+              >
+                {submittedData}
+              </SpeechContent>
+            </div>
           )}
-          <div className="flex justify-end">
-            <Button type="submit">Submit</Button>
-          </div>
-        </form>
-        <pre className="rounded-lg bg-muted p-3 text-xs">
-          watch: {JSON.stringify(watch("notes"))}
-          {"\n"}
-          submitted: {JSON.stringify(submitted)}
-        </pre>
-      </section>
-
-      {/* 2. Controlled with useState (like SituationExplorer) */}
-      <section className="space-y-3">
-        <h2 className="font-medium">2. Controlled (useState)</h2>
-        <VoiceTextarea
-          value={controlled}
-          onChange={(e) => setControlled(e.target.value)}
-          placeholder="Controlled example..."
-          className="min-h-48"
-          textareaClassName="text-base leading-7"
-          onAudioRecorded={fakeTranscribe}
-        />
-        <pre className="rounded-lg bg-muted p-3 text-xs">
-          state: {JSON.stringify(controlled)}
-        </pre>
-      </section>
-
-      {/* 3. Disabled */}
-      <section className="space-y-3">
-        <h2 className="font-medium">3. Disabled</h2>
-        <VoiceTextarea disabled defaultValue="Can't edit or dictate this." />
-      </section>
-    </main>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
