@@ -1,12 +1,12 @@
-
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechContent } from '@/components/ui/speech-content';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { updateUserProgramContext } from '@/actions/user-context';
 import {
@@ -14,42 +14,11 @@ import {
   userContextActions,
 } from '@/lib/stores/user-context';
 import { generateAssetReveal } from '@/actions/responses/mission1';
-
-type ResourceEntry = {
-  id: string;
-  type: 'time' | 'money' | 'energy' | 'access' | 'credibility';
-  title: string;
-  detail: string;
-};
-
-type NetworkUse =
-  | 'ask'
-  | 'feedback'
-  | 'find'
-  | 'test'
-  | 'tell'
-  | 'learn'
-  | 'introduction';
-
-type NetworkEntry = {
-  id: string;
-  type: 'people' | 'group' | 'professional' | 'online' | 'place';
-  name: string;
-  access: string;
-  possibleUses: NetworkUse[];
-};
-
-type CapabilityEntry = {
-  id: string;
-  title: string;
-  evidence: string;
-};
-
-type ExperienceEntry = {
-  id: string;
-  title: string;
-  evidence: string;
-};
+import type {
+  AssetRevealInput,
+  CapabilitiesContext,
+  ExperienceContext,
+} from '@/lib/types/ai';
 
 type AssetRevealPayload = {
   synthesis?: string;
@@ -67,6 +36,20 @@ type AdditionalAssessment = {
   [key: string]: unknown;
 };
 
+const CAPABILITY_LABELS: Record<string, string> = {
+  making: 'Making & Inventing',
+  people: 'People & Communication',
+  uncertainty: 'Navigating Uncertainty & Pressure',
+  learning: 'Self-Direction & Learning',
+};
+
+const EXPERIENCE_LABELS: Record<string, string> = {
+  work_industry: 'Workplaces & Industries',
+  customers_served: 'People & Customers Served',
+  communities: 'Communities & Circles',
+  lived_friction: 'Problems & Setbacks Lived Through',
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -76,20 +59,106 @@ function getAdditionalAssessment(value: unknown): AdditionalAssessment {
   return value as AdditionalAssessment;
 }
 
-function getContextItems<T>(value: unknown): T[] {
-  if (!isRecord(value)) return [];
+function normalizeResources(value: unknown): AssetRevealInput['resources'] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return [];
 
-  const items = value.items;
-  return Array.isArray(items) ? (items as T[]) : [];
+  return value.items
+    .filter(isRecord)
+    .map((item) => ({
+      type: typeof item.type === 'string' ? item.type : 'resource',
+      title: typeof item.title === 'string' ? item.title : '',
+      detail: typeof item.detail === 'string' ? item.detail : '',
+    }))
+    .filter((item) => item.title || item.detail);
 }
 
-function getNetworkItems(value: unknown): NetworkEntry[] {
-  if (Array.isArray(value)) {
-    return value as NetworkEntry[];
+function normalizeNetworks(value: unknown): AssetRevealInput['networks'] {
+  const rawList = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.items)
+      ? value.items
+      : [];
+
+  return rawList
+    .filter(isRecord)
+    .map((item) => ({
+      type: typeof item.type === 'string' ? item.type : 'connection',
+      name: typeof item.name === 'string' ? item.name : '',
+      description:
+        typeof item.description === 'string'
+          ? item.description
+          : typeof item.access === 'string'
+            ? item.access
+            : '',
+    }))
+    .filter((item) => item.name);
+}
+
+function normalizeCapabilities(
+  value: unknown
+): AssetRevealInput['capabilities'] {
+  if (!isRecord(value)) return [];
+
+  // New bucketed structure: { entries: [{ capabilityKey, rawUserInput, tags }] }
+  if (Array.isArray((value as CapabilitiesContext).entries)) {
+    return (value as CapabilitiesContext).entries
+      .map((entry) => ({
+        area:
+          CAPABILITY_LABELS[entry.capabilityKey] ?? 'Additional Strength',
+        story: typeof entry.rawUserInput === 'string' ? entry.rawUserInput : '',
+        tags: Array.isArray(entry.tags)
+          ? entry.tags
+              .map((t) => (typeof t?.name === 'string' ? t.name : ''))
+              .filter(Boolean)
+          : [],
+      }))
+      .filter((item) => item.story || item.tags.length > 0);
   }
 
-  if (isRecord(value) && Array.isArray(value.items)) {
-    return value.items as NetworkEntry[];
+  // Legacy structure: { items: [{ id, title, evidence }] }
+  if (Array.isArray(value.items)) {
+    return value.items
+      .filter(isRecord)
+      .map((item) => ({
+        area: typeof item.title === 'string' ? item.title : 'Capability',
+        story: typeof item.evidence === 'string' ? item.evidence : '',
+        tags: typeof item.title === 'string' ? [item.title] : [],
+      }))
+      .filter((item) => item.story || item.tags.length > 0);
+  }
+
+  return [];
+}
+
+function normalizeExperience(value: unknown): AssetRevealInput['experience'] {
+  if (!isRecord(value)) return [];
+
+  // New bucketed structure: { entries: [{ experienceKey, rawUserInput, tags }] }
+  if (Array.isArray((value as ExperienceContext).entries)) {
+    return (value as ExperienceContext).entries
+      .map((entry) => ({
+        arena:
+          EXPERIENCE_LABELS[entry.experienceKey] ?? 'Additional Experience',
+        story: typeof entry.rawUserInput === 'string' ? entry.rawUserInput : '',
+        tags: Array.isArray(entry.tags)
+          ? entry.tags
+              .map((t) => (typeof t?.name === 'string' ? t.name : ''))
+              .filter(Boolean)
+          : [],
+      }))
+      .filter((item) => item.story || item.tags.length > 0);
+  }
+
+  // Legacy structure: { items: [{ id, title, evidence }] }
+  if (Array.isArray(value.items)) {
+    return value.items
+      .filter(isRecord)
+      .map((item) => ({
+        arena: typeof item.title === 'string' ? item.title : 'Experience',
+        story: typeof item.evidence === 'string' ? item.evidence : '',
+        tags: typeof item.title === 'string' ? [item.title] : [],
+      }))
+      .filter((item) => item.story || item.tags.length > 0);
   }
 
   return [];
@@ -103,7 +172,11 @@ export function AssetReveal({
 }: NodeComponentProps) {
   const rawContext = useStore($userContext);
   const context = rawContext.userContext;
+  const profile = rawContext.profile;
   const hasGeneratedRef = useRef(false);
+
+  const founderName =
+    profile?.display_name?.trim() || profile?.username?.trim() || null;
 
   const saved = (progress.payload ?? {}) as AssetRevealPayload;
 
@@ -111,7 +184,7 @@ export function AssetReveal({
     typeof saved.synthesis === 'string' ? saved.synthesis : '';
 
   const additionalAssessment = getAdditionalAssessment(
-    context?.additional_assessment,
+    context?.additional_assessment
   );
 
   const resourceAddition = isRecord(additionalAssessment.resources)
@@ -124,12 +197,10 @@ export function AssetReveal({
       : '';
 
   const [synthesis, setSynthesis] = useState(savedSynthesis);
-  const [additionalNotes, setAdditionalNotes] = useState(
-    savedAdditionalNotes,
-  );
+  const [additionalNotes, setAdditionalNotes] = useState(savedAdditionalNotes);
 
   const [mode, setMode] = useState<'generating' | 'review'>(
-    savedSynthesis ? 'review' : 'generating',
+    savedSynthesis ? 'review' : 'generating'
   );
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -137,12 +208,22 @@ export function AssetReveal({
   const [generationAttempt, setGenerationAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const resources = getContextItems<ResourceEntry>(context?.resources);
-  const networks = getNetworkItems(context?.network_context);
-  const capabilities = getContextItems<CapabilityEntry>(
-    context?.capabilities,
+  const normalizedAssets = useMemo<AssetRevealInput>(
+    () => ({
+      userName: founderName ?? undefined,
+      resources: normalizeResources(context?.resources),
+      networks: normalizeNetworks(context?.network_context),
+      capabilities: normalizeCapabilities(context?.capabilities),
+      experience: normalizeExperience(context?.experience),
+    }),
+    [
+      founderName,
+      context?.resources,
+      context?.network_context,
+      context?.capabilities,
+      context?.experience,
+    ]
   );
-  const experiences = getContextItems<ExperienceEntry>(context?.experience);
 
   useEffect(() => {
     setAdditionalNotes(savedAdditionalNotes);
@@ -166,15 +247,7 @@ export function AssetReveal({
 
     async function generate() {
       try {
-        const result = await generateAssetReveal(
-          {
-            resources,
-            networks,
-            capabilities,
-            experience: experiences,
-          },
-          nodeKey,
-        );
+        const result = await generateAssetReveal(normalizedAssets, nodeKey);
 
         setSynthesis(result);
         setMode('review');
@@ -186,7 +259,7 @@ export function AssetReveal({
         setError(
           err instanceof Error
             ? err.message
-            : 'Something went wrong creating the reflection.',
+            : 'Something went wrong creating the reflection.'
         );
       } finally {
         setIsGenerating(false);
@@ -197,6 +270,7 @@ export function AssetReveal({
   }, [
     rawContext.isHydrated,
     savedSynthesis,
+    normalizedAssets,
     nodeKey,
     generationAttempt,
   ]);
@@ -209,7 +283,7 @@ export function AssetReveal({
 
     try {
       const existingAssessment = getAdditionalAssessment(
-        context?.additional_assessment,
+        context?.additional_assessment
       );
 
       const existingResources = isRecord(existingAssessment.resources)
@@ -218,7 +292,6 @@ export function AssetReveal({
 
       const trimmedNotes = additionalNotes.trim();
 
-      // Preserve other assessment areas and existing resource assessment fields.
       const nextResources: ResourceAssessmentAddition = {
         ...existingResources,
       };
@@ -257,7 +330,7 @@ export function AssetReveal({
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong saving your reflection.',
+          : 'Something went wrong saving your reflection.'
       );
     } finally {
       setIsSubmitting(false);
@@ -313,14 +386,16 @@ export function AssetReveal({
   }
 
   return (
-    <div className="w-full max-w-3xl space-y-10">
+    <div className="w-full max-w-3xl space-y-10 pb-12 animate-in fade-in duration-300">
       <div className="space-y-4">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
           What we notice
         </p>
 
         <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title || 'You are not starting from zero.'}
+          {founderName
+            ? `${founderName}, you are not starting from zero.`
+            : node.title || 'You are not starting from zero.'}
         </h2>
 
         <p className="text-lg leading-8 text-muted-foreground">
@@ -329,17 +404,23 @@ export function AssetReveal({
         </p>
       </div>
 
-      {/* AI synthesis: an interpretation, not a verdict. */}
+      {/* AI synthesis with text-to-speech playback */}
       <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-        <div className="space-y-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            The leverage we see
-          </p>
+        <SpeechContent
+          textToRead={synthesis}
+          showControls="always"
+          controlsPosition="top-right"
+        >
+          <div className="space-y-4">
+            <p className="pr-16 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              The leverage we see
+            </p>
 
-          <p className="text-base leading-7 text-foreground sm:text-lg sm:leading-8">
-            {synthesis}
-          </p>
-        </div>
+            <p className="text-base leading-7 text-foreground sm:text-lg sm:leading-8">
+              {synthesis}
+            </p>
+          </div>
+        </SpeechContent>
       </section>
 
       {/* Why this matters */}
@@ -389,7 +470,7 @@ export function AssetReveal({
             </span>
           </label>
 
-          <Textarea
+          <SpeechTextarea
             id="resources-additional-notes"
             value={additionalNotes}
             onChange={(event) => setAdditionalNotes(event.target.value)}
