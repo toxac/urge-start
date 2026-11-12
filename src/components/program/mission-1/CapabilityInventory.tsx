@@ -195,13 +195,18 @@ export function CapabilityInventory({
     }
   }, [contextState.isHydrated, contextState.userContext?.capabilities, progress]);
 
-  // Sync draftText whenever activeBucketIndex changes in capture mode
-  useEffect(() => {
-    if (stage !== 'capture' || !currentBucket) return;
-    const existing = entries.find((e) => e.capabilityKey === currentBucket.key);
+  function goToBucket(idx: number, currentEntries = entries) {
+    const target = CAPABILITY_BUCKETS[idx];
+    if (!target) return;
+
+    const existing = currentEntries.find(
+      (e) => e.capabilityKey === target.key
+    );
+    setActiveBucketIndex(idx);
     setDraftText(existing?.rawUserInput ?? '');
     setError(null);
-  }, [activeBucketIndex, stage]);
+    setStage('capture');
+  }
 
   async function persistEntries(nextEntries: CapabilityBucketEntry[]) {
     const capabilitiesPayload: CapabilitiesContext = {
@@ -216,17 +221,19 @@ export function CapabilityInventory({
     setEntries(nextEntries);
   }
 
-  function advanceAfterBucket(currentIdx: number, updatedEntries: CapabilityBucketEntry[]) {
-    // Check if there is another unanswered bucket after currentIdx, or go to review
+  function advanceAfterBucket(
+    currentIdx: number,
+    updatedEntries: CapabilityBucketEntry[]
+  ) {
     const completedKeys = new Set(updatedEntries.map((e) => e.capabilityKey));
     const nextUnanswered = CAPABILITY_BUCKETS.findIndex(
       (b, idx) => idx > currentIdx && !completedKeys.has(b.key)
     );
 
     if (nextUnanswered !== -1) {
-      setActiveBucketIndex(nextUnanswered);
+      goToBucket(nextUnanswered, updatedEntries);
     } else if (currentIdx < CAPABILITY_BUCKETS.length - 1) {
-      setActiveBucketIndex(currentIdx + 1);
+      goToBucket(currentIdx + 1, updatedEntries);
     } else {
       setStage('review');
     }
@@ -235,7 +242,9 @@ export function CapabilityInventory({
   async function handleSaveAndNext() {
     const trimmed = draftText.trim();
     if (trimmed.length < 15) {
-      setError('Please share a bit more detail (at least a couple of sentences) so we can capture your strengths accurately.');
+      setError(
+        'Please share a bit more detail (at least a couple of sentences) so we can capture your strengths accurately.'
+      );
       return;
     }
 
@@ -249,7 +258,11 @@ export function CapabilityInventory({
 
       // Re-extract only if text changed or no tags exist yet
       let extractedTags = existingEntry?.tags ?? [];
-      if (!existingEntry || existingEntry.rawUserInput.trim() !== trimmed || extractedTags.length === 0) {
+      if (
+        !existingEntry ||
+        existingEntry.rawUserInput.trim() !== trimmed ||
+        extractedTags.length === 0
+      ) {
         extractedTags = await extractCapabilityTags(
           {
             bucketKey: currentBucket.key,
@@ -266,7 +279,9 @@ export function CapabilityInventory({
         tags: extractedTags,
       };
 
-      const filtered = entries.filter((e) => e.capabilityKey !== currentBucket.key);
+      const filtered = entries.filter(
+        (e) => e.capabilityKey !== currentBucket.key
+      );
       const nextEntries = [...filtered, nextEntry];
 
       await persistEntries(nextEntries);
@@ -294,7 +309,7 @@ export function CapabilityInventory({
     setLastCapturedBanner(null);
 
     if (activeBucketIndex < CAPABILITY_BUCKETS.length - 1) {
-      setActiveBucketIndex((prev) => prev + 1);
+      goToBucket(activeBucketIndex + 1);
     } else {
       if (entries.length === 0) {
         setError('Please answer at least one capability area before reviewing.');
@@ -482,8 +497,7 @@ export function CapabilityInventory({
                       type="button"
                       onClick={() => {
                         setLastCapturedBanner(null);
-                        setActiveBucketIndex(bucketIndex);
-                        setStage('capture');
+                        goToBucket(bucketIndex);
                       }}
                       className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
                     >
@@ -641,10 +655,7 @@ export function CapabilityInventory({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => {
-              setActiveBucketIndex(0);
-              setStage('capture');
-            }}
+            onClick={() => goToBucket(0)}
             disabled={isCompleting}
             className="gap-2 text-muted-foreground hover:text-foreground"
           >
@@ -701,7 +712,7 @@ export function CapabilityInventory({
                 onClick={() => {
                   if (!isExtracting) {
                     setLastCapturedBanner(null);
-                    setActiveBucketIndex(idx);
+                    goToBucket(idx);
                   }
                 }}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
@@ -806,7 +817,7 @@ export function CapabilityInventory({
                 variant="ghost"
                 onClick={() => {
                   setLastCapturedBanner(null);
-                  setActiveBucketIndex((prev) => prev - 1);
+                  goToBucket(activeBucketIndex - 1);
                 }}
                 disabled={isExtracting}
                 className="gap-1.5 text-muted-foreground hover:text-foreground"
