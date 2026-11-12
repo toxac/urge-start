@@ -1,186 +1,157 @@
-
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from '@nanostores/react';
 import {
+  ArrowLeft,
   ArrowRight,
+  Check,
   Loader2,
   Pencil,
-  PlusCircle,
+  Plus,
+  SkipForward,
+  Sparkles,
   X,
 } from 'lucide-react';
-import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+
 import { updateUserProgramContext } from '@/actions/user-context';
+import { extractExperienceTags } from '@/actions/responses/mission1';
 import {
   $userContext,
   userContextActions,
 } from '@/lib/stores/user-context';
+import type {
+  CapabilitiesContext,
+  ExperienceBucketEntry,
+  ExperienceBucketKey,
+  ExperienceContext,
+  ExperienceTag,
+} from '@/lib/types/ai';
 
-type ExperienceOption = {
-  id: string;
+type ExperienceBucketConfig = {
+  key: ExperienceBucketKey;
+  shortLabel: string;
   title: string;
-  description: string;
-  reflectionPrompt: string;
+  whyItMatters: string;
+  prompt: string;
+  helperText: string;
   placeholder: string;
 };
 
-type ExperienceEntry = {
-  id: string;
-  title: string;
-  evidence: string;
-};
-
-type ExperienceContext = {
-  items: ExperienceEntry[];
-};
-
-const experiences: ExperienceOption[] = [
+const EXPERIENCE_BUCKETS: ExperienceBucketConfig[] = [
   {
-    id: 'industry',
-    title: 'Worked in an industry',
-    description:
-      'You have spent enough time around an industry to understand how some part of it actually works.',
-    reflectionPrompt:
-      'What did you learn about how this industry works?',
+    key: 'work_industry',
+    shortLabel: 'Workplaces',
+    title: 'Workplaces & Industries',
+    whyItMatters:
+      'Even an entry-level job, internship, or family business lets you see how money moves, where time gets wasted, and which daily tools frustrate people.',
+    prompt: 'What industries, workplaces, or operations have you seen from the inside?',
+    helperText:
+      'Think about jobs, labs, internships, or businesses you have worked in or around. What goes on behind the scenes that outsiders rarely see?',
     placeholder:
-      'I learned how this industry works by...',
+      'For example: I work as a junior backend dev at a SaaS company, and in university I worked in a computer vision lab where we wasted hours fixing broken sensor scripts...',
   },
   {
-    id: 'customers',
-    title: 'Dealt with a particular kind of customer',
-    description:
-      'You have spent time understanding, serving, helping, or selling to a particular kind of person.',
-    reflectionPrompt:
-      'What did you learn about these people, their needs, or how they make decisions?',
+    key: 'customers_served',
+    shortLabel: 'People Served',
+    title: 'People & Customers Served',
+    whyItMatters:
+      'Knowing how a specific group of people thinks, complains, buys, or makes decisions gives you a head start in spotting real needs.',
+    prompt: 'What specific groups of people have you helped, served, or dealt with repeatedly?',
+    helperText:
+      'These do not have to be paying customers—they could be clients, students, patients, event organizers, or coworkers whose requests you handled regularly.',
     placeholder:
-      'From working with these people, I noticed...',
+      'For example: As student body president, I dealt constantly with campus club organizers trying to get budgets approved and administrators worried about compliance...',
   },
   {
-    id: 'repeated_problem',
-    title: 'Solved a problem repeatedly',
-    description:
-      'You have encountered the same kind of problem often enough to learn something about it.',
-    reflectionPrompt:
-      'What kept going wrong, and what did you learn from dealing with it?',
+    key: 'communities',
+    shortLabel: 'Communities',
+    title: 'Communities & Circles',
+    whyItMatters:
+      'Subcultures, hobby groups, local clubs, and online forums all have shared habits and recurring annoyances that outsiders overlook.',
+    prompt: 'What communities, hobbies, or groups are you genuinely part of?',
+    helperText:
+      'Where do you spend your free time or hang out online? What do people in those circles constantly complain about or cobble together manually?',
     placeholder:
-      'I kept encountering this problem, and I learned...',
+      'For example: I spend weekends in maker spaces and ESP32 forums—most hardware hobbyists love building circuits, but almost everyone gets stuck building a clean web dashboard...',
   },
   {
-    id: 'built_from_scratch',
-    title: 'Built something from scratch',
-    description:
-      'You have started with very little and figured out how to create something that worked.',
-    reflectionPrompt:
-      'What were you trying to build, and how did you make it happen?',
+    key: 'lived_friction',
+    shortLabel: 'Lived Problems',
+    title: 'Problems & Setbacks Lived Through',
+    whyItMatters:
+      'Living through a frustrating process, constraint, or failure yourself gives you firsthand proof of what is broken and what you wish existed.',
+    prompt: 'What problems or setbacks have you personally struggled through?',
+    helperText:
+      'Think about transitions, bureaucratic headaches, health or money constraints, or projects that went sideways. What made it painful, and what did it teach you?',
     placeholder:
-      'I started with..., figured out..., and managed to...',
-  },
-  {
-    id: 'run_project',
-    title: 'Run an event or project',
-    description:
-      'You have had to coordinate people, resources, deadlines, or moving parts to make something happen.',
-    reflectionPrompt:
-      'What did you have to coordinate, and what did the experience teach you?',
-    placeholder:
-      'I had to bring together..., and I learned...',
-  },
-  {
-    id: 'managed_resources',
-    title: 'Managed money or limited resources',
-    description:
-      'You have had to make decisions when money, time, people, or other resources were limited.',
-    reflectionPrompt:
-      'What choices did you have to make with limited resources?',
-    placeholder:
-      'I had limited..., so I decided to...',
-  },
-  {
-    id: 'failure',
-    title: 'Dealt with failure or a setback',
-    description:
-      'Something did not work out, and you had to figure out what to do next.',
-    reflectionPrompt:
-      'What happened, how did you respond, and what do you understand now that you did not understand before?',
-    placeholder:
-      'Things did not go as planned when..., so I...',
-  },
-  {
-    id: 'community',
-    title: 'Been part of a community',
-    description:
-      'You have been closely involved with a group of people who share an interest, identity, profession, or place.',
-    reflectionPrompt:
-      'What did being part of this community help you understand about its people?',
-    placeholder:
-      'Being part of this community helped me notice...',
-  },
-  {
-    id: 'seen_business',
-    title: 'Seen how a business or industry works',
-    description:
-      'You have had a close enough view to notice how people buy, sell, deliver, compete, or make decisions.',
-    reflectionPrompt:
-      'What did you notice about how the business operates or makes money?',
-    placeholder:
-      'I noticed that the business...',
-  },
-  {
-    id: 'lived_problem',
-    title: 'Personally experienced a problem',
-    description:
-      'You have experienced a problem yourself rather than only hearing about it from someone else.',
-    reflectionPrompt:
-      'What was difficult about this problem, and what do you wish had been different?',
-    placeholder:
-      'When I experienced this, I struggled with...',
-  },
-  {
-    id: 'constraints',
-    title: 'Worked around constraints',
-    description:
-      'You have had to get something done despite limited money, time, information, access, or other resources.',
-    reflectionPrompt:
-      'What was getting in your way, and how did you work around it?',
-    placeholder:
-      'I could not..., so I found a way to...',
-  },
-  {
-    id: 'figure_it_out',
-    title: 'Figured something out without much help',
-    description:
-      'You have had to navigate something unfamiliar and find your own way through it.',
-    reflectionPrompt:
-      'What did you have to figure out, and how did you find your way forward?',
-    placeholder:
-      'I did not know how to..., so I...',
+      'For example: Moving to a new city for my first full-time job—navigating tax deductions, renting without credit history, and budgeting on a junior salary...',
   },
 ];
 
-function getSavedExperiences(
-  progress: NodeComponentProps['progress'],
-): ExperienceEntry[] {
-  const savedContext = $userContext.get().userContext?.experience as
-    | ExperienceContext
-    | null
-    | undefined;
+function hydrateExperienceEntries(
+  rawExperience: unknown,
+  progressPayload: Record<string, unknown>
+): ExperienceBucketEntry[] {
+  const ctx = rawExperience as Record<string, unknown> | null | undefined;
+  const payloadExp = progressPayload?.experience as Record<string, unknown> | null | undefined;
 
-  if (savedContext && Array.isArray(savedContext.items)) {
-    return savedContext.items;
+  if (ctx && Array.isArray(ctx.entries)) {
+    return ctx.entries as ExperienceBucketEntry[];
+  }
+  if (payloadExp && Array.isArray(payloadExp.entries)) {
+    return payloadExp.entries as ExperienceBucketEntry[];
   }
 
-  const saved = progress.payload?.experience;
+  // Backward compatibility with legacy { items: [{ id, title, evidence }] }
+  const legacyItems = Array.isArray(ctx?.items)
+    ? ctx.items
+    : Array.isArray(payloadExp?.items)
+      ? payloadExp.items
+      : [];
 
-  if (
-    saved &&
-    typeof saved === 'object' &&
-    Array.isArray((saved as ExperienceContext).items)
-  ) {
-    return (saved as ExperienceContext).items;
+  if (legacyItems.length > 0) {
+    return [
+      {
+        experienceKey: 'custom',
+        rawUserInput: legacyItems
+          .map((item: { title?: string; evidence?: string }) =>
+            `${item.title ?? ''}: ${item.evidence ?? ''}`.trim()
+          )
+          .join('\n\n'),
+        tags: legacyItems
+          .filter((item: { title?: unknown }) => typeof item.title === 'string')
+          .map((item: { title: string }) => ({ name: item.title })),
+      },
+    ];
+  }
+
+  return [];
+}
+
+function getCapabilityTagPreview(rawCapabilities: unknown): string[] {
+  const ctx = rawCapabilities as Record<string, unknown> | null | undefined;
+  if (!ctx) return [];
+
+  if (Array.isArray((ctx as CapabilitiesContext).entries)) {
+    return (ctx as CapabilitiesContext).entries
+      .flatMap((entry) => entry.tags?.map((t) => t.name) ?? [])
+      .filter(Boolean)
+      .slice(0, 6);
+  }
+
+  if (Array.isArray(ctx.items)) {
+    return ctx.items
+      .map((item: { title?: unknown }) =>
+        typeof item.title === 'string' ? item.title : ''
+      )
+      .filter(Boolean)
+      .slice(0, 6);
   }
 
   return [];
@@ -188,192 +159,292 @@ function getSavedExperiences(
 
 export function ExperienceMiner({
   node,
+  nodeKey,
   progress,
   onComplete,
 }: NodeComponentProps) {
   const contextState = useStore($userContext);
-
-  const savedContext = contextState.userContext?.experience as
-    | ExperienceContext
-    | null
-    | undefined;
-
   const hasInitialized = useRef(false);
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [entries, setEntries] = useState<ExperienceBucketEntry[]>([]);
+  const [stage, setStage] = useState<'capture' | 'review'>('capture');
+  const [activeBucketIndex, setActiveBucketIndex] = useState(0);
 
-  const [activeExperienceId, setActiveExperienceId] = useState<string | null>(
-    null,
-  );
-  const [draft, setDraft] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  // Active card input state
+  const [draftText, setDraftText] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [lastCapturedBanner, setLastCapturedBanner] = useState<{
+    bucketTitle: string;
+    tags: ExperienceTag[];
+  } | null>(null);
+
+  // Review screen inline editing state
+  const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({});
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [customDraftText, setCustomDraftText] = useState('');
+  const [isExtractingCustom, setIsExtractingCustom] = useState(false);
+
   const [isCompleting, setIsCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeExperience = experiences.find(
-    (experience) => experience.id === activeExperienceId,
+  const currentBucket = EXPERIENCE_BUCKETS[activeBucketIndex];
+
+  const capabilityBridgeTags = useMemo(
+    () => getCapabilityTagPreview(contextState.userContext?.capabilities),
+    [contextState.userContext?.capabilities]
   );
 
-  const selectedExperiences = useMemo(
-    () => experiences.filter((experience) => selectedIds.includes(experience.id)),
-    [selectedIds],
-  );
-
-  const canSave = draft.trim().length >= 10;
-
-  // Restore saved entries after user context has hydrated.
+  // Hydrate saved entries from userContext store (or progress payload) once hydrated
   useEffect(() => {
     if (!contextState.isHydrated || hasInitialized.current) return;
+    hasInitialized.current = true;
 
-    const contextItems = savedContext?.items;
-    const progressItems = getSavedExperiences(progress);
-
-    const initialItems = Array.isArray(contextItems)
-      ? contextItems
-      : progressItems;
-
-    setSelectedIds(initialItems.map((item) => item.id));
-    setEvidence(
-      Object.fromEntries(
-        initialItems.map((item) => [item.id, item.evidence]),
-      ),
+    const initialEntries = hydrateExperienceEntries(
+      contextState.userContext?.experience,
+      (progress.payload ?? {}) as Record<string, unknown>
     );
 
-    hasInitialized.current = true;
-  }, [contextState.isHydrated, savedContext, progress]);
+    setEntries(initialEntries);
 
-  // Close the dialog with Escape without changing saved responses.
-  useEffect(() => {
-    if (!activeExperienceId) return;
+    const isCompleted = progress.completed === true;
+    const completedKeys = new Set(initialEntries.map((e) => e.experienceKey));
+    const firstIncompleteIdx = EXPERIENCE_BUCKETS.findIndex(
+      (b) => !completedKeys.has(b.key)
+    );
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !isSaving) {
-        setActiveExperienceId(null);
-        setError(null);
-      }
+    if (isCompleted || (initialEntries.length > 0 && firstIncompleteIdx === -1)) {
+      setStage('review');
+    } else if (firstIncompleteIdx >= 0) {
+      setActiveBucketIndex(firstIncompleteIdx);
+      const existing = initialEntries.find(
+        (e) => e.experienceKey === EXPERIENCE_BUCKETS[firstIncompleteIdx].key
+      );
+      setDraftText(existing?.rawUserInput ?? '');
+      setStage('capture');
     }
+  }, [contextState.isHydrated, contextState.userContext?.experience, progress]);
 
-    window.addEventListener('keydown', handleKeyDown);
+  function goToBucket(idx: number, currentEntries = entries) {
+    const target = EXPERIENCE_BUCKETS[idx];
+    if (!target) return;
 
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeExperienceId, isSaving]);
-
-  function openReflection(experience: ExperienceOption) {
+    const existing = currentEntries.find(
+      (e) => e.experienceKey === target.key
+    );
+    setActiveBucketIndex(idx);
+    setDraftText(existing?.rawUserInput ?? '');
     setError(null);
-    setDraft(evidence[experience.id] ?? '');
-    setActiveExperienceId(experience.id);
+    setStage('capture');
   }
 
-  function closeReflection() {
-    if (isSaving) return;
-
-    setActiveExperienceId(null);
-    setError(null);
-  }
-
-  function buildEntries(
-    ids: string[],
-    values: Record<string, string>,
-  ): ExperienceEntry[] {
-    return experiences
-      .filter((experience) => ids.includes(experience.id))
-      .map((experience) => ({
-        id: experience.id,
-        title: experience.title,
-        evidence: (values[experience.id] ?? '').trim(),
-      }));
-  }
-
-  async function persistExperiences(
-    ids: string[],
-    values: Record<string, string>,
-  ) {
-    const items = buildEntries(ids, values);
+  async function persistEntries(nextEntries: ExperienceBucketEntry[]) {
+    const experiencePayload: ExperienceContext = {
+      entries: nextEntries,
+    };
 
     const result = await updateUserProgramContext({
-      experience: { items },
+      experience: experiencePayload,
     });
 
     userContextActions.updateContextLocally(result.userContext);
-
-    return items;
+    setEntries(nextEntries);
   }
 
-  async function saveReflection() {
-    if (!activeExperience || !canSave || isSaving) return;
+  function advanceAfterBucket(
+    currentIdx: number,
+    updatedEntries: ExperienceBucketEntry[]
+  ) {
+    const completedKeys = new Set(updatedEntries.map((e) => e.experienceKey));
+    const nextUnanswered = EXPERIENCE_BUCKETS.findIndex(
+      (b, idx) => idx > currentIdx && !completedKeys.has(b.key)
+    );
 
-    setIsSaving(true);
-    setError(null);
-
-    const nextIds = selectedIds.includes(activeExperience.id)
-      ? selectedIds
-      : [...selectedIds, activeExperience.id];
-
-    const nextEvidence = {
-      ...evidence,
-      [activeExperience.id]: draft.trim(),
-    };
-
-    try {
-      await persistExperiences(nextIds, nextEvidence);
-
-      setSelectedIds(nextIds);
-      setEvidence(nextEvidence);
-      setActiveExperienceId(null);
-    } catch (err) {
-      console.error('[EXPERIENCE MINER SAVE]', err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Something went wrong saving your response. Please try again.',
-      );
-    } finally {
-      setIsSaving(false);
+    if (nextUnanswered !== -1) {
+      goToBucket(nextUnanswered, updatedEntries);
+    } else if (currentIdx < EXPERIENCE_BUCKETS.length - 1) {
+      goToBucket(currentIdx + 1, updatedEntries);
+    } else {
+      setStage('review');
     }
   }
 
-  async function removeExperience(id: string) {
-    if (isRemoving || isSaving || isCompleting) return;
+  async function handleSaveAndNext() {
+    const trimmed = draftText.trim();
+    if (trimmed.length < 15) {
+      setError(
+        'Please share a bit more detail (at least a couple of sentences) so we can capture your experience accurately.'
+      );
+      return;
+    }
 
-    const nextIds = selectedIds.filter((item) => item !== id);
-    const nextEvidence = { ...evidence };
-    delete nextEvidence[id];
-
-    setIsRemoving(id);
+    setIsExtracting(true);
     setError(null);
 
     try {
-      await persistExperiences(nextIds, nextEvidence);
+      const existingEntry = entries.find(
+        (e) => e.experienceKey === currentBucket.key
+      );
 
-      setSelectedIds(nextIds);
-      setEvidence(nextEvidence);
+      let extractedTags = existingEntry?.tags ?? [];
+      if (
+        !existingEntry ||
+        existingEntry.rawUserInput.trim() !== trimmed ||
+        extractedTags.length === 0
+      ) {
+        extractedTags = await extractExperienceTags(
+          {
+            bucketKey: currentBucket.key,
+            bucketTitle: currentBucket.title,
+            rawUserInput: trimmed,
+          },
+          nodeKey
+        );
+      }
+
+      const nextEntry: ExperienceBucketEntry = {
+        experienceKey: currentBucket.key,
+        rawUserInput: trimmed,
+        tags: extractedTags,
+      };
+
+      const filtered = entries.filter(
+        (e) => e.experienceKey !== currentBucket.key
+      );
+      const nextEntries = [...filtered, nextEntry];
+
+      await persistEntries(nextEntries);
+
+      setLastCapturedBanner({
+        bucketTitle: currentBucket.title,
+        tags: extractedTags,
+      });
+
+      advanceAfterBucket(activeBucketIndex, nextEntries);
     } catch (err) {
-      console.error('[EXPERIENCE MINER REMOVE]', err);
+      console.error('[EXPERIENCE CAPTURE SAVE]', err);
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong removing this response. Please try again.',
+          : 'Something went wrong capturing your response. Please try again.'
       );
     } finally {
-      setIsRemoving(null);
+      setIsExtracting(false);
     }
   }
 
-  async function handleContinue() {
-    if (selectedIds.length === 0 || isCompleting) return;
+  function handleSkipBucket() {
+    setError(null);
+    setLastCapturedBanner(null);
+
+    if (activeBucketIndex < EXPERIENCE_BUCKETS.length - 1) {
+      goToBucket(activeBucketIndex + 1);
+    } else {
+      if (entries.length === 0) {
+        setError('Please answer at least one experience area before reviewing.');
+        return;
+      }
+      setStage('review');
+    }
+  }
+
+  async function handleRemoveTag(experienceKey: string, tagIndex: number) {
+    const nextEntries = entries.map((entry) => {
+      if (entry.experienceKey !== experienceKey) return entry;
+      return {
+        ...entry,
+        tags: entry.tags.filter((_, idx) => idx !== tagIndex),
+      };
+    });
+
+    try {
+      await persistEntries(nextEntries);
+    } catch (err) {
+      console.error('[REMOVE EXPERIENCE TAG]', err);
+    }
+  }
+
+  async function handleAddTag(experienceKey: string) {
+    const rawTag = (newTagInputs[experienceKey] ?? '').trim();
+    if (!rawTag) return;
+
+    const nextEntries = entries.map((entry) => {
+      if (entry.experienceKey !== experienceKey) return entry;
+      const alreadyExists = entry.tags.some(
+        (t) => t.name.toLowerCase() === rawTag.toLowerCase()
+      );
+      if (alreadyExists) return entry;
+      return {
+        ...entry,
+        tags: [...entry.tags, { name: rawTag }],
+      };
+    });
+
+    setNewTagInputs((prev) => ({ ...prev, [experienceKey]: '' }));
+
+    try {
+      await persistEntries(nextEntries);
+    } catch (err) {
+      console.error('[ADD EXPERIENCE TAG]', err);
+    }
+  }
+
+  async function handleSaveCustomEntry() {
+    const trimmed = customDraftText.trim();
+    if (trimmed.length < 15) {
+      setError('Please write at least a couple of sentences describing this experience.');
+      return;
+    }
+
+    setIsExtractingCustom(true);
+    setError(null);
+
+    const customKey = `custom_${Date.now()}`;
+
+    try {
+      const extractedTags = await extractExperienceTags(
+        {
+          bucketKey: customKey,
+          bucketTitle: 'Additional Experience',
+          rawUserInput: trimmed,
+        },
+        nodeKey
+      );
+
+      const nextEntries: ExperienceBucketEntry[] = [
+        ...entries,
+        {
+          experienceKey: customKey,
+          rawUserInput: trimmed,
+          tags: extractedTags,
+        },
+      ];
+
+      await persistEntries(nextEntries);
+      setCustomDraftText('');
+      setIsAddingCustom(false);
+    } catch (err) {
+      console.error('[CUSTOM EXPERIENCE SAVE]', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not save your additional experience.'
+      );
+    } finally {
+      setIsExtractingCustom(false);
+    }
+  }
+
+  async function handleCompleteNode() {
+    if (entries.length === 0 || isCompleting) return;
 
     setIsCompleting(true);
     setError(null);
 
-    const items = buildEntries(selectedIds, evidence);
-
     try {
-      await persistExperiences(selectedIds, evidence);
+      await persistEntries(entries);
 
       await onComplete({
-        experience: { items },
+        experience: { entries },
         completed: true,
       });
     } catch (err) {
@@ -381,245 +452,448 @@ export function ExperienceMiner({
       setError(
         err instanceof Error
           ? err.message
-          : 'Something went wrong completing this step. Please try again.',
+          : 'Something went wrong completing this step.'
       );
-    } finally {
       setIsCompleting(false);
     }
   }
 
-  return (
-    <div className="w-full space-y-10 pb-12">
-      <div className="max-w-3xl space-y-5">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title}
-        </h1>
-
-        {node.description && (
-          <p className="whitespace-pre-line text-lg leading-8 text-muted-foreground">
-            {node.description}
-          </p>
-        )}
-
-        <p className="text-base leading-7 text-muted-foreground">
-          Choose experiences that genuinely apply to you. When you select one,
-          a window will open where you can describe what happened and what you
-          learned. Save each response to add it to your list. You can edit or
-          remove your responses at any time.
-        </p>
+  if (!contextState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your experience inventory...</span>
       </div>
+    );
+  }
 
-      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
-        {experiences.map((experience) => {
-          const isSelected = selectedIds.includes(experience.id);
-          const response = evidence[experience.id] ?? '';
-          const isRemovingThis = isRemoving === experience.id;
+  // ---------------------------------------------------------------------------
+  // STAGE 2: REVIEW & CONFIRM EXTRACTED EXPERIENCE TERRITORIES
+  // ---------------------------------------------------------------------------
+  if (stage === 'review') {
+    const orderedEntries = [
+      ...EXPERIENCE_BUCKETS.map((b) =>
+        entries.find((e) => e.experienceKey === b.key)
+      ).filter((e): e is ExperienceBucketEntry => Boolean(e)),
+      ...entries.filter(
+        (e) => !EXPERIENCE_BUCKETS.some((b) => b.key === e.experienceKey)
+      ),
+    ];
 
-          return (
-            <div
-              key={experience.id}
-              className={`relative self-start rounded-2xl border transition-all ${
-                isSelected
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                  : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => openReflection(experience)}
-                disabled={isSaving || Boolean(isRemoving) || isCompleting}
-                aria-label={
-                  isSelected
-                    ? `Edit response: ${experience.title}`
-                    : `Reflect on: ${experience.title}`
-                }
-                className="flex w-full flex-col items-start p-4 text-left sm:p-5"
+    return (
+      <div className="w-full max-w-3xl space-y-10 pb-16 animate-in fade-in duration-300">
+        <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Your Experience Territory
+          </p>
+
+          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            Here is the ground you already know.
+          </h1>
+
+          <p className="text-lg leading-8 text-muted-foreground">
+            We pulled out the environments, groups, and problem spaces from your stories.
+            Remove anything that feels off, add territories we missed, or edit your original notes.
+          </p>
+        </div>
+
+        <div className="space-y-6">
+          {orderedEntries.map((entry) => {
+            const bucketMeta = EXPERIENCE_BUCKETS.find(
+              (b) => b.key === entry.experienceKey
+            );
+            const displayTitle = bucketMeta?.title ?? 'Additional Experience';
+            const bucketIndex = EXPERIENCE_BUCKETS.findIndex(
+              (b) => b.key === entry.experienceKey
+            );
+
+            return (
+              <div
+                key={entry.experienceKey}
+                className="rounded-2xl border border-border bg-card p-6 space-y-5"
               >
-                <h3 className="font-heading text-xl font-medium leading-snug">
-                  {experience.title}
-                </h3>
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="font-heading text-xl font-semibold text-foreground">
+                    {displayTitle}
+                  </h2>
 
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  {experience.description}
-                </p>
-
-                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
-                  {isSelected ? (
-                    <>
+                  {bucketIndex >= 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLastCapturedBanner(null);
+                        goToBucket(bucketIndex);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+                    >
                       <Pencil className="h-3.5 w-3.5" />
-                      Edit your response
-                    </>
-                  ) : (
-                    <>
-                      <PlusCircle className="h-3.5 w-3.5" />
-                      Add an example
-                    </>
+                      Edit story
+                    </button>
                   )}
                 </div>
 
-                {isSelected && response && (
-                  <p className="mt-4 line-clamp-3 w-full border-t border-border/70 pt-3 text-sm leading-6 text-muted-foreground">
-                    {response}
+                {/* Preserved raw founder words */}
+                <blockquote className="border-l-2 border-border pl-4 text-sm leading-6 text-muted-foreground italic whitespace-pre-wrap">
+                  &ldquo;{entry.rawUserInput}&rdquo;
+                </blockquote>
+
+                {/* Extracted & founder-editable territory tags */}
+                <div className="space-y-3 pt-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Territories &amp; Domains
                   </p>
-                )}
-              </button>
 
-              {isSelected && (
-                <button
-                  type="button"
-                  aria-label={`Remove ${experience.title}`}
-                  title="Remove this experience"
-                  disabled={Boolean(isRemoving) || isSaving || isCompleting}
-                  onClick={() => void removeExperience(experience.id)}
-                  className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-                >
-                  {isRemovingThis ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <X className="h-4 w-4" />
-                  )}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  <div className="flex flex-wrap gap-2">
+                    {entry.tags.map((tag, idx) => (
+                      <span
+                        key={`${tag.name}-${idx}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-foreground"
+                      >
+                        {tag.name}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${tag.name}`}
+                          onClick={() =>
+                            void handleRemoveTag(entry.experienceKey, idx)
+                          }
+                          className="rounded-full p-0.5 text-muted-foreground transition hover:bg-primary/20 hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
 
-      {selectedExperiences.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          {selectedExperiences.length}{' '}
-          {selectedExperiences.length === 1 ? 'experience' : 'experiences'}{' '}
-          saved. You can still edit or remove them.
-        </p>
-      )}
-
-      {error && (
-        <p role="alert" className="max-w-4xl text-sm text-destructive">
-          {error}
-        </p>
-      )}
-
-      <div className="flex max-w-4xl justify-end">
-        <Button
-          onClick={handleContinue}
-          disabled={
-            selectedIds.length === 0 ||
-            isCompleting ||
-            isSaving ||
-            Boolean(isRemoving)
-          }
-          className="h-12 gap-2 rounded-full px-8 text-base"
-        >
-          {isCompleting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="h-5 w-5" />
-            </>
-          )}
-        </Button>
-      </div>
-
-      {activeExperience && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeReflection();
-            }
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="experience-dialog-title"
-            className="my-auto w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-xl sm:p-8"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  Your experience
-                </p>
-
-                <h2
-                  id="experience-dialog-title"
-                  className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl"
-                >
-                  {activeExperience.title}
-                </h2>
-
-                <p className="leading-7 text-muted-foreground">
-                  {activeExperience.description}
-                </p>
+                  {/* Inline add tag input */}
+                  <div className="flex max-w-sm items-center gap-2 pt-1">
+                    <Input
+                      value={newTagInputs[entry.experienceKey] ?? ''}
+                      onChange={(e) =>
+                        setNewTagInputs((prev) => ({
+                          ...prev,
+                          [entry.experienceKey]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleAddTag(entry.experienceKey);
+                        }
+                      }}
+                      placeholder="Add another territory..."
+                      className="h-9 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleAddTag(entry.experienceKey)}
+                      disabled={!(newTagInputs[entry.experienceKey] ?? '').trim()}
+                      className="h-9 shrink-0 gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
               </div>
+            );
+          })}
+        </div>
 
+        {/* Optional Custom Experience Area */}
+        {isAddingCustom ? (
+          <div className="rounded-2xl border border-primary/40 bg-primary/[0.03] p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-lg font-semibold">
+                Add another environment or lived experience
+              </h3>
               <button
                 type="button"
-                onClick={closeReflection}
-                disabled={isSaving}
-                aria-label="Close reflection"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                onClick={() => {
+                  setIsAddingCustom(false);
+                  setCustomDraftText('');
+                  setError(null);
+                }}
+                className="text-muted-foreground hover:text-foreground"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-7 space-y-4">
-              <label
-                htmlFor="experience-evidence"
-                className="block text-base font-medium leading-7"
+            <SpeechTextarea
+              value={customDraftText}
+              onChange={(e) => setCustomDraftText(e.target.value)}
+              placeholder="Describe another industry, group, or problem you know from the inside..."
+              rows={4}
+              disabled={isExtractingCustom}
+              className="resize-y text-base leading-7"
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsAddingCustom(false)}
+                disabled={isExtractingCustom}
               >
-                {activeExperience.reflectionPrompt}
-              </label>
-
-              <Textarea
-                id="experience-evidence"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder={activeExperience.placeholder}
-                className="min-h-[160px] resize-y text-base leading-7"
-                disabled={isSaving}
-                autoFocus
-              />
-
-              <p className="text-sm leading-6 text-muted-foreground">
-                It does not need to be a big achievement. A specific example
-                of something you experienced, did, or learned is enough.
-              </p>
-
-              {error && (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={saveReflection}
-                  disabled={!canSave || isSaving}
-                  className="h-12 gap-2 rounded-full px-8 text-base"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      Save experience
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleSaveCustomEntry()}
+                disabled={isExtractingCustom || customDraftText.trim().length < 15}
+                className="gap-2"
+              >
+                {isExtractingCustom ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Extracting...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Extract &amp; add
+                  </>
+                )}
+              </Button>
             </div>
-          </section>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsAddingCustom(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
+          >
+            <Plus className="h-4 w-4" />
+            Another environment or problem you know well? Add another story
+          </button>
+        )}
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between border-t border-border pt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => goToBucket(0)}
+            disabled={isCompleting}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Revisit prompts
+          </Button>
+
+          <Button
+            type="button"
+            onClick={() => void handleCompleteNode()}
+            disabled={entries.length === 0 || isCompleting}
+            className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
+          >
+            {isCompleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Confirm &amp; continue
+                <ArrowRight className="h-5 w-5" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // STAGE 1: PROGRESSIVE SINGLE-CARD CAPTURE
+  // ---------------------------------------------------------------------------
+  return (
+    <div className="w-full max-w-3xl space-y-8 pb-16 animate-in fade-in duration-300">
+      {/* Header & Bridge from Capabilities */}
+      <div className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          {node.title || 'What have you already lived through?'}
+        </p>
+
+        {capabilityBridgeTags.length > 0 && (
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-4 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              You mapped how you operate ({capabilityBridgeTags.join(', ')}). Now look at <span className="text-foreground font-medium">where</span> you have spent enough time to see what is broken from the inside.
+            </p>
+          </div>
+        )}
+
+        {/* Stepper Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {EXPERIENCE_BUCKETS.map((bucket, idx) => {
+            const isCompletedBucket = entries.some(
+              (e) => e.experienceKey === bucket.key
+            );
+            const isCurrent = idx === activeBucketIndex;
+
+            return (
+              <button
+                key={bucket.key}
+                type="button"
+                onClick={() => {
+                  if (!isExtracting) {
+                    setLastCapturedBanner(null);
+                    goToBucket(idx);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+                  isCurrent
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : isCompletedBucket
+                      ? 'bg-primary/15 text-foreground hover:bg-primary/25'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {isCompletedBucket && !isCurrent && (
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                )}
+                <span>
+                  {idx + 1}. {bucket.shortLabel}
+                </span>
+              </button>
+            );
+          })}
+
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setStage('review')}
+              disabled={isExtracting}
+              className="ml-auto text-xs font-medium text-primary hover:underline"
+            >
+              Review saved ({entries.length})
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Subtle confirmation banner from previous card */}
+      {lastCapturedBanner && lastCapturedBanner.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.04] px-4 py-3 text-xs text-muted-foreground animate-in fade-in duration-200">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span>
+            Saved <strong className="text-foreground">{lastCapturedBanner.bucketTitle}</strong>:
+          </span>
+          {lastCapturedBanner.tags.map((t, i) => (
+            <span
+              key={i}
+              className="rounded-full bg-background px-2.5 py-0.5 font-medium text-foreground border border-border"
+            >
+              {t.name}
+            </span>
+          ))}
         </div>
       )}
+
+      {/* Active Single Experience Card */}
+      <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-6 shadow-xs">
+        <div className="space-y-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Arena {activeBucketIndex + 1} of {EXPERIENCE_BUCKETS.length} ·{' '}
+            {currentBucket.title}
+          </span>
+
+          <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl text-foreground">
+            {currentBucket.prompt}
+          </h1>
+
+          {/* Why this matters callout */}
+          <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
+            <span className="font-semibold text-foreground">Why we ask: </span>
+            {currentBucket.whyItMatters}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {currentBucket.helperText}
+          </p>
+
+          <SpeechTextarea
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+            placeholder={currentBucket.placeholder}
+            rows={6}
+            disabled={isExtracting}
+            className="resize-y text-base leading-7"
+          />
+
+          <p className="text-xs text-muted-foreground">
+            You can type or tap the microphone icon to speak naturally. Your answer saves automatically when you move forward.
+          </p>
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        {/* Navigation Controls */}
+        <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            {activeBucketIndex > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setLastCapturedBanner(null);
+                  goToBucket(activeBucketIndex - 1);
+                }}
+                disabled={isExtracting}
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Previous
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleSkipBucket}
+              disabled={isExtracting}
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <SkipForward className="h-4 w-4" />
+              Skip for now
+            </Button>
+          </div>
+
+          <Button
+            type="button"
+            onClick={() => void handleSaveAndNext()}
+            disabled={isExtracting || draftText.trim().length < 15}
+            className="h-11 gap-2 rounded-full px-7 text-base shadow-sm"
+          >
+            {isExtracting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Capturing territory...
+              </>
+            ) : (
+              <>
+                {activeBucketIndex === EXPERIENCE_BUCKETS.length - 1
+                  ? 'Save & review all'
+                  : 'Save & next'}
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
