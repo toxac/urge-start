@@ -10,7 +10,8 @@ import type {
   FrictionSynthesisResult,
   LearningActionResult,
   RejectionSynthesisResult,
-  AskPreparationGuide
+  AskPreparationGuide,
+  CapabilityTag
 } from '@/lib/types/ai';
 
 // HELPER FUNCTIONS
@@ -265,6 +266,88 @@ ${formatItemsList(otherQuitConditions)}
     throw new Error('Failed to interpret the synthesis response.');
   }
 }
+
+// Add CapabilityTag to your imports from '@/lib/types/ai' in src/actions/responses/mission1.ts
+
+export async function extractCapabilityTags(
+  input: {
+    bucketKey: string;
+    bucketTitle: string;
+    rawUserInput: string;
+  },
+  sourceNodeKey: string
+): Promise<CapabilityTag[]> {
+  const systemPrompt = `
+You are helping Urge, a program for first-time entrepreneurs.
+
+The founder has shared a real-world story or reflection about how they operate in a specific area.
+Your job is to extract the distinct, practical capabilities—and any honest friction points or limits—that are directly evidenced in their story.
+
+RULES:
+- Extract 1 to 5 concise, concrete capability tags based ONLY on what the founder actually wrote.
+- If the founder describes multiple distinct abilities in one story (e.g., both hardware prototyping and backend web development), extract each as a separate tag.
+- If the founder honestly describes a limit or where they struggle (e.g., freezing under high-stakes financial pressure), include that neutrally as a tag (e.g., "Sensitive to ambiguous financial risk").
+- Keep tag names short, natural, and jargon-free (2–5 words each).
+- Do NOT invent skills they did not mention.
+- Do NOT assign skill levels, grades, or flattering adjectives (e.g., do not write "Expert coder" or "Amazing leader").
+- Do NOT include advice or commentary.
+
+Return ONLY valid JSON matching this schema:
+{
+  "tags": [
+    { "name": "Short capability name" }
+  ]
+}
+`;
+
+  const userPrompt = `
+CAPABILITY AREA: ${input.bucketTitle} (${input.bucketKey})
+
+FOUNDER'S STORY:
+"${input.rawUserInput.trim()}"
+`;
+
+  const { success, content, error } = await invokeAILight({
+    systemPrompt,
+    userPrompt,
+    componentKey: 'capability_inventory',
+    sourceNodeKey,
+    purpose: `extract_capabilities_${input.bucketKey}`,
+    requireJson: true,
+    temperature: 0.2,
+  });
+
+  if (!success || !content) {
+    throw new Error(error || 'Failed to extract capabilities from your response.');
+  }
+
+  try {
+    const parsed = JSON.parse(content);
+
+    if (!parsed || !Array.isArray(parsed.tags)) {
+      throw new Error('Invalid capability extraction format.');
+    }
+
+    const cleanedTags: CapabilityTag[] = parsed.tags
+      .filter(
+        (t: unknown): t is { name: string } =>
+          typeof t === 'object' &&
+          t !== null &&
+          typeof (t as { name?: unknown }).name === 'string' &&
+          (t as { name: string }).name.trim().length > 0
+      )
+      .map((t: { name: string }) => ({
+        name: t.name.trim(),
+      }));
+
+    return cleanedTags;
+  } catch (err) {
+    console.error('[EXTRACT CAPABILITY TAGS]', err);
+    throw new Error('Could not structure the extracted capabilities.');
+  }
+}
+
+
 
 export async function generateAssetReveal(
   assets: {
