@@ -52,6 +52,30 @@ export type CapabilitiesContext = {
 };
 
 
+// Experience types
+
+export type ExperienceBucketKey =
+  | 'work_industry'
+  | 'customers_served'
+  | 'communities'
+  | 'lived_friction'
+  | 'custom'
+  | (string & {});
+
+export type ExperienceTag = {
+  name: string;
+};
+
+export type ExperienceBucketEntry = {
+  experienceKey: ExperienceBucketKey;
+  rawUserInput: string;
+  tags: ExperienceTag[];
+};
+
+export type ExperienceContext = {
+  entries: ExperienceBucketEntry[];
+};
+
 
 export type FrictionSynthesisResult = {
   headline: string;
