@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -22,7 +21,7 @@ import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { updateUserProgramContext } from '@/actions/user-context';
 import {
@@ -210,8 +209,8 @@ export function NetworkMapper({
 
     const initialNetworks = contextNetworks
       ? contextNetworks
-        .map(normalizeNetwork)
-        .filter((item): item is NetworkEntry => item !== null)
+          .map(normalizeNetwork)
+          .filter((item): item is NetworkEntry => item !== null)
       : getSavedNetworks(progress);
 
     setNetworks(initialNetworks);
@@ -364,6 +363,15 @@ export function NetworkMapper({
     }
   }
 
+  if (!contextState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your connections...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full space-y-10 pb-12">
       <div className="max-w-3xl space-y-5">
@@ -448,8 +456,9 @@ export function NetworkMapper({
             <p className="mt-1 text-sm text-muted-foreground">
               {networks.length === 0
                 ? 'Your saved connections will appear here.'
-                : `${networks.length} ${networks.length === 1 ? 'connection' : 'connections'
-                } added`}
+                : `${networks.length} ${
+                    networks.length === 1 ? 'connection' : 'connections'
+                  } added`}
             </p>
           </div>
         </div>
@@ -661,7 +670,7 @@ export function NetworkMapper({
                   </span>
                 </label>
 
-                <Textarea
+                <SpeechTextarea
                   id="network-description"
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
