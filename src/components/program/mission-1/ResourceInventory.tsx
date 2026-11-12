@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +12,7 @@ import {
 import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { updateUserProgramContext } from '@/actions/user-context';
 import { $userContext, userContextActions } from '@/lib/stores/user-context';
@@ -122,8 +121,6 @@ export function ResourceInventory({
   const activeResource = RESOURCE_OPTIONS.find(
     (resource) => resource.id === activeResourceId,
   );
-
-  const selectedIds = items.map((item) => item.type);
 
   const canSave = draft.trim().length > 0;
 
@@ -269,6 +266,15 @@ export function ResourceInventory({
     } finally {
       setIsCompleting(false);
     }
+  }
+
+  if (!contextState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your resources...</span>
+      </div>
+    );
   }
 
   return (
@@ -469,7 +475,7 @@ export function ResourceInventory({
                 {activeResource.prompt}
               </label>
 
-              <Textarea
+              <SpeechTextarea
                 id="resource-reflection"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
