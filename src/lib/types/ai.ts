@@ -27,6 +27,32 @@ export type CommitmentSynthesisResult = {
   interpretation: string;
 };
 
+// Capability types
+export type CapabilityBucketKey =
+  | 'making'
+  | 'people'
+  | 'uncertainty'
+  | 'learning'
+  | 'custom'
+  | (string & {});
+
+export type CapabilityTag = {
+  name: string;
+  level?: 'beginner' | 'competent' | 'expert' | null;
+};
+
+export type CapabilityBucketEntry = {
+  capabilityKey: CapabilityBucketKey;
+  rawUserInput: string;
+  tags: CapabilityTag[];
+};
+
+export type CapabilitiesContext = {
+  entries: CapabilityBucketEntry[];
+};
+
+
+
 export type FrictionSynthesisResult = {
   headline: string;
   interpretation: string;
