@@ -13,7 +13,10 @@ import type {
   AskPreparationGuide,
   CapabilityTag,
   ExperienceTag,
-  AssetRevealInput
+  AssetRevealInput,
+  GapTaskOption,
+  GapTaskPillar,
+  GapTasksInput
 } from '@/lib/types/ai';
 
 // HELPER FUNCTIONS
@@ -527,44 +530,197 @@ Synthesize these assets into a single paragraph defining their concrete starting
 }
 
 export async function generateGapTasks(
-  assets: {
-    resources: any;
-    networks: any;
-    capabilities: any;
-    experience: any;
-  },
+  input: GapTasksInput,
   sourceNodeKey: string
-) {
-  const systemPrompt = `
-    You are Urge. The user has mapped out their resources, networks, traits, and past experiences.
-    Your job is to generate exactly 3 small, highly specific, behavioral tasks they can do this week to leverage their assets and fill their gaps.
+): Promise<GapTaskOption[]> {
+  const founderNameClause = input.userName
+    ? `The founder's name is ${input.userName}. Write directly to them ("you") in a calm, practical tone.`
+    : `Write directly to the founder ("you") in a calm, practical tone.`;
 
-    RULES FOR TASKS:
-    - Make them unglamorous and immediate (e.g., "Text one person from your alumni network", "Spend 30 minutes researching X", "Write down 5 things that frustrate you about Y").
-    - DO NOT suggest building an MVP, writing a business plan, or spending money.
-    - Tailor them to the specific assets they provided.
-    - Return ONLY a valid JSON object matching this schema:
-      {
-        "tasks": [
-          { "title": "string (The concrete action)", "description": "string (Why this leverages their specific assets)" }
-        ]
-      }
-  `;
+  const systemPrompt = `
+You are Urge, helping a first-time founder take small, concrete preparatory moves based on the starting inventory they just mapped out.
+
+Your job is to generate exactly 4 low-stakes, unglamorous behavioral actions they can do this week—one grounded in each of the four asset pillars:
+1. "network" — Re-opening a dormant connection, checking in with a listed contact, or listening inside a community they already belong to.
+2. "resources" — Ring-fencing a realistic block of time, confirming conditional access (e.g., a space, tool, or person), or setting a clear spend/energy boundary.
+3. "capabilities" — Doing a small, throwaway rep using one of their natural strengths, or setting a simple guardrail around a friction point/limit they admitted.
+4. "experience" — Mining an environment, workplace, customer group, or lived struggle they already know from the inside for recurring frustrations.
+
+${founderNameClause}
+
+STRICT RULES:
+- Ground every single action in the SPECIFIC names, groups, tools, constraints, tags, or stories the founder provided. Never give generic advice like "Reach out to your network" or "Set aside time."
+- Make every action small, concrete, and completable in 15–60 minutes this week without spending money.
+- DO NOT suggest building an MVP, coding a product, writing a business plan, pitching investors, or launching a landing page.
+- Respect any limits or anxieties they mentioned (e.g., if they freeze under financial ambiguity, keep the action zero-cost and exploratory).
+- Keep "assetReference" very short (2–5 words naming the exact asset used, e.g., "ESP32 Discord & Lab", "Two evenings a week").
+- Keep "title" crisp and action-oriented (5–10 words).
+- Keep "description" to 1–2 practical sentences explaining what to do and why it puts their asset to work.
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "tasks": [
+    {
+      "id": "network_move",
+      "pillar": "network",
+      "assetReference": "string",
+      "title": "string",
+      "description": "string"
+    },
+    {
+      "id": "resources_move",
+      "pillar": "resources",
+      "assetReference": "string",
+      "title": "string",
+      "description": "string"
+    },
+    {
+      "id": "capabilities_move",
+      "pillar": "capabilities",
+      "assetReference": "string",
+      "title": "string",
+      "description": "string"
+    },
+    {
+      "id": "experience_move",
+      "pillar": "experience",
+      "assetReference": "string",
+      "title": "string",
+      "description": "string"
+    }
+  ]
+}
+`;
+
+  const resourcesText =
+    input.resources.length > 0
+      ? input.resources.map((r) => `• ${r.title}: ${r.detail}`).join('\n')
+      : 'None listed.';
+
+  const networksText =
+    input.networks.length > 0
+      ? input.networks
+          .map(
+            (n) =>
+              `• ${n.name} (${n.type})${n.description ? ` — ${n.description}` : ''}`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const capabilitiesText =
+    input.capabilities.length > 0
+      ? input.capabilities
+          .map(
+            (c) =>
+              `• [${c.area}] Tags: ${c.tags.join(', ') || 'None'} | Story: "${c.story}"`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const experienceText =
+    input.experience.length > 0
+      ? input.experience
+          .map(
+            (e) =>
+              `• [${e.arena}] Territories: ${e.tags.join(', ') || 'None'} | Story: "${e.story}"`
+          )
+          .join('\n')
+      : 'None listed.';
+
+  const userPrompt = `
+FOUNDER: ${input.userName || 'Not specified'}
+
+1. RESOURCES:
+${resourcesText}
+
+2. NETWORKS & COMMUNITIES:
+${networksText}
+
+3. CAPABILITIES (Strengths & Limits):
+${capabilitiesText}
+
+4. LIVED EXPERIENCE:
+${experienceText}
+
+5. LEVERAGE SYNTHESIS FROM PREVIOUS STEP:
+${input.revealSynthesis || 'Not provided.'}
+
+6. ADDITIONAL NOTES / GAPS MENTIONED BY FOUNDER:
+${input.additionalNotes || 'None.'}
+
+Generate 4 tailored, low-stakes preparatory actions (one for each pillar: network, resources, capabilities, experience).
+`;
 
   const { success, content, error } = await invokeAILight({
     systemPrompt,
-    userPrompt: `Generate 3 tasks based on this inventory: ${JSON.stringify(assets)}`,
+    userPrompt,
     componentKey: 'gap_action',
     sourceNodeKey,
     purpose: 'generate_gap_tasks',
     requireJson: true,
+    temperature: 0.3,
   });
 
   if (!success || !content) {
-    throw new Error(error || 'Failed to generate tasks');
+    throw new Error(error || 'Failed to generate tailored actions.');
   }
 
-  return JSON.parse(content).tasks;
+  try {
+    const parsed = JSON.parse(content);
+
+    if (!parsed || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+      throw new Error('Invalid gap tasks response format.');
+    }
+
+    const validPillars: GapTaskPillar[] = [
+      'network',
+      'resources',
+      'capabilities',
+      'experience',
+    ];
+
+    const cleaned: GapTaskOption[] = parsed.tasks
+      .filter(
+        (item: unknown): item is Record<string, unknown> =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as { title?: unknown }).title === 'string' &&
+          typeof (item as { description?: unknown }).description === 'string'
+      )
+      .map((item, index) => {
+        const rawPillar =
+          typeof item.pillar === 'string' ? item.pillar : 'capabilities';
+        const pillar: GapTaskPillar = validPillars.includes(
+          rawPillar as GapTaskPillar
+        )
+          ? (rawPillar as GapTaskPillar)
+          : validPillars[index % validPillars.length];
+
+        return {
+          id:
+            typeof item.id === 'string' && item.id.trim()
+              ? item.id.trim()
+              : `${pillar}_${index + 1}`,
+          pillar,
+          assetReference:
+            typeof item.assetReference === 'string' && item.assetReference.trim()
+              ? item.assetReference.trim()
+              : 'Your inventory',
+          title: (item.title as string).trim(),
+          description: (item.description as string).trim(),
+        };
+      })
+      .slice(0, 4);
+
+    if (cleaned.length === 0) {
+      throw new Error('No valid actions were returned.');
+    }
+
+    return cleaned;
+  } catch (err) {
+    console.error('[GENERATE GAP TASKS]', err);
+    throw new Error('Could not parse your tailored action suggestions.');
+  }
 }
 
 export async function getQuest3Reflections() {

@@ -113,6 +113,27 @@ export type AssetRevealInput = {
   }>;
 };
 
+// Gap action tasks
+export type GapTaskPillar =
+  | 'network'
+  | 'resources'
+  | 'capabilities'
+  | 'experience';
+
+export type GapTaskOption = {
+  id: string;
+  pillar: GapTaskPillar;
+  assetReference: string;
+  title: string;
+  description: string;
+  isCustom?: boolean;
+};
+
+export type GapTasksInput = AssetRevealInput & {
+  revealSynthesis?: string;
+  additionalNotes?: string;
+};
+
 export type LearningActionResult = {
   options: LearningActionOption[];
 };
