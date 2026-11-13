@@ -1,531 +1,259 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Ear,
+  HandHeart,
+  Loader2,
+  MessageCircle,
+  Sparkles,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechContent } from '@/components/ui/speech-content';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $progress } from '@/lib/stores/progress';
-import { saveUserTasks } from '@/actions/tasks';
-import {
-  generateLearningActions,
-  getQuest3Reflections,
-} from '@/actions/responses/mission1';
-
-type LearningActionOption = {
-  id: string;
-  title: string;
-  description: string;
-};
-
-type LearningActionPayload = {
-  selectedOption?: LearningActionOption;
-  customResponse?: string;
-  taskId?: string;
-  completed?: boolean;
-};
 
 type RevealPayload = {
   synthesis?: {
     headline?: string;
     interpretation?: string;
   };
-  completed?: boolean;
 };
+
+const ASKING_PRACTICES = [
+  {
+    title: 'Ask while things are still rough',
+    detail:
+      'You do not need a finished idea or all the answers before talking to someone. Conversations are easier and more honest when you are trying to understand, not trying to impress.',
+  },
+  {
+    title: 'Keep the ask small and clear',
+    detail:
+      'People are more willing to help when they know what you are asking for. One clear question or 15 minutes around a specific topic is much easier to say yes to than a vague request.',
+  },
+  {
+    title: 'Act before you overthink it',
+    detail:
+      'The longer you wait to reach out, the bigger the ask feels in your head. When you catch yourself rewriting a message to make it sound better, send the simpler version.',
+  },
+  {
+    title: 'Follow up afterward',
+    detail:
+      'When someone gives you their time or perspective, let them know later what you did with it. It is a simple habit that turns a one-off conversation into a real connection.',
+  },
+] as const;
+
+const PRESENCE_PRACTICES = [
+  {
+    title: 'Listen without waiting to talk',
+    detail:
+      'Pay attention to what the other person is dealing with, what frustrates them, and what they care about—without steering the conversation back to yourself.',
+  },
+  {
+    title: 'Show up when you need nothing',
+    detail:
+      'Check in on people without an agenda. Reply to something they shared, pass along a useful link, or offer a second pair of eyes when someone is stuck.',
+  },
+  {
+    title: 'Notice what people put up with',
+    detail:
+      'When you spend time listening in real communities and conversations, people start mentioning the everyday frustrations they tolerate. That is often where real opportunities begin.',
+  },
+] as const;
 
 export function LearningAction({
   node,
-  nodeKey,
-  progress,
   onComplete,
 }: NodeComponentProps) {
   const progressState = useStore($progress);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  /*
-   * The reveal is the immediate source of learning for this action.
-   */
   const reveal = (progressState.payloads['m1-q3-reveal'] ??
     {}) as RevealPayload;
 
   const headline =
     typeof reveal.synthesis?.headline === 'string'
-      ? reveal.synthesis.headline
+      ? reveal.synthesis.headline.trim()
       : '';
 
   const interpretation =
     typeof reveal.synthesis?.interpretation === 'string'
-      ? reveal.synthesis.interpretation
+      ? reveal.synthesis.interpretation.trim()
       : '';
 
-  /*
-   * This node's saved response.
-   */
-  const saved = (progress.payload ?? {}) as LearningActionPayload;
+  const readAloudText = [
+    headline
+      ? `What this experience showed you. ${headline}. ${interpretation}`
+      : '',
+    'Ways to make asking part of normal life.',
+    ...ASKING_PRACTICES.map((item) => `${item.title}. ${item.detail}`),
+    'It is not always about asking.',
+    ...PRESENCE_PRACTICES.map((item) => `${item.title}. ${item.detail}`),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const [options, setOptions] = useState<LearningActionOption[]>([]);
-
-  const [selectedId, setSelectedId] = useState<string | null>(
-    saved.selectedOption?.id ?? null
-  );
-
-  const [customResponse, setCustomResponse] = useState(
-    typeof saved.customResponse === 'string'
-      ? saved.customResponse
-      : ''
-  );
-
-  const [isWritingOwn, setIsWritingOwn] = useState(
-    Boolean(saved.customResponse)
-  );
-
-  const [isGenerating, setIsGenerating] = useState(
-    !saved.completed
-  );
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [retryCount, setRetryCount] = useState(0);
-
-  /*
-   * Generate specific behavioural responses from the Q3 experience.
-   *
-   * This is deliberately separate from the reveal.
-   * The reveal tells the founder what the experience may mean.
-   * This step turns that learning into possible behaviour.
-   */
-  useEffect(() => {
-    if (saved.completed) return;
-
-    let cancelled = false;
-
-    if (!headline.trim() || !interpretation.trim()) {
-      setIsGenerating(false);
-      setError(
-        'We could not find the learning from the previous step. Please go back and complete it first.'
-      );
-      return;
-    }
-
-    async function generate() {
-      setIsGenerating(true);
-      setError(null);
-
-      try {
-        const reflections = await getQuest3Reflections();
-
-        const result = await generateLearningActions(
-          { headline, interpretation },
-          reflections,
-          nodeKey
-        );
-
-        if (cancelled) return;
-
-        if (!Array.isArray(result?.options) || result.options.length === 0) {
-          throw new Error('No practice suggestions were returned.');
-        }
-
-        setOptions(result.options);
-      } catch (err) {
-        if (cancelled) return;
-
-        console.error('[LEARNING ACTION GENERATION ERROR]', err);
-        setError(
-          'We could not generate the next choices. Please try again.'
-        );
-      } finally {
-        if (!cancelled) setIsGenerating(false);
-      }
-    }
-
-    void generate();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [headline, interpretation, nodeKey, saved.completed, retryCount]);
-
-  const selectedOption = options.find(
-    (option) => option.id === selectedId
-  );
-
-  const canContinue =
-    Boolean(selectedOption) ||
-    (isWritingOwn && customResponse.trim().length > 0);
-
-  function handleSelect(option: LearningActionOption) {
-    setSelectedId(option.id);
-    setIsWritingOwn(false);
-    setCustomResponse('');
-    setError(null);
-  }
-
-  function handleWriteOwn() {
-    setSelectedId(null);
-    setIsWritingOwn(true);
-    setError(null);
-  }
-
-  async function handleComplete() {
-    if (!canContinue || isSubmitting) return;
+  async function handleContinue() {
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      let taskId: string | undefined;
-
-      const response = selectedOption
-        ? selectedOption.title
-        : customResponse.trim();
-
-      const description = selectedOption
-        ? selectedOption.description
-        : 'A behavioural response chosen from the Q3 real-world asking experiment.';
-
-      /*
-       * The chosen response becomes a practice task.
-       *
-       * We do not save the AI-generated options themselves.
-       * Only the founder's choice becomes durable data.
-       */
-      const result = await saveUserTasks([
-        {
-          title: response,
-          description,
-          task_type: 'practice',
-          source_node_key: nodeKey,
-          metadata: {
-            source_experiment_node: 'm1-q3-ask',
-            source_reveal_node: 'm1-q3-reveal',
-            response_type: selectedOption
-              ? 'suggested'
-              : 'custom',
-            learning_headline: headline,
-          },
-        },
-      ]);
-
-      taskId = result.tasks?.[0]?.id;
-
       await onComplete({
-        ...(selectedOption
-          ? { selectedOption }
-          : { customResponse: customResponse.trim() }),
-        ...(taskId ? { taskId } : {}),
         completed: true,
       });
     } catch (err) {
-      console.error('[LEARNING ACTION ERROR]', err);
-
-      setError(
-        'Something went wrong while saving this. Please try again.'
-      );
-    } finally {
+      console.error('[LEARNING ACTION COMPLETE]', err);
+      setError('Something went wrong while saving this. Please try again.');
       setIsSubmitting(false);
     }
   }
 
-  /*
-   * Revisit state.
-   *
-   * We deliberately show the founder's chosen response rather than
-   * regenerating the AI options.
-   */
-  if (progress.completed || saved.completed === true) {
-    const savedResponse =
-      saved.selectedOption?.title ||
-      saved.customResponse ||
-      '';
-
-    const savedDescription =
-      saved.selectedOption?.description || '';
-
-    return (
-      <div className="w-full max-w-4xl space-y-10">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Carry the learning forward
-          </p>
-
-          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            {node.title}
-          </h2>
-        </div>
-
-        {headline && (
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              What this experience showed you
-            </p>
-
-            <p className="text-xl font-semibold leading-8">
-              {headline}
-            </p>
-
-            {interpretation && (
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
-                {interpretation}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            What you will carry forward
-          </p>
-
-          <div className="flex items-start gap-3">
-            <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
-
-            <div>
-              <p className="text-lg font-semibold">
-                {savedResponse}
-              </p>
-
-              {savedDescription && (
-                <p className="mt-2 max-w-3xl text-lg leading-8 text-muted-foreground">
-                  {savedDescription}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={() => onComplete(saved)}
-            className="h-12 gap-2 rounded-full px-8 text-base"
-          >
-            Continue
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  /*
-   * Loading state.
-   */
-  if (isGenerating) {
-    return (
-      <div className="w-full max-w-4xl space-y-12">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Carry the learning forward
-          </p>
-
-          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            {node.title}
-          </h2>
-
-          <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-            You have seen what this experience revealed. Now we are
-            turning that learning into a few specific ways you could
-            respond differently next time.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 border-t border-border pt-8">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-
-          <p className="text-lg text-muted-foreground">
-            Looking for the behaviours that fit this experience...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /*
-   * Error state.
-   */
-  if (error && options.length === 0) {
-    return (
-      <div className="w-full max-w-4xl space-y-10">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Carry the learning forward
-          </p>
-
-          <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            {node.title}
-          </h2>
-
-          <p className="max-w-3xl text-lg leading-8 text-destructive">
-            {error}
-          </p>
-        </div>
-
-        <Button
-          onClick={() => {
-            setError(null);
-            setIsGenerating(true);
-            setRetryCount((count) => count + 1);
-          }}
-          className="h-12 rounded-full px-8 text-base"
-        >
-          Try again
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-4xl space-y-12">
-      <div className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="w-full max-w-3xl space-y-10 pb-16 animate-in fade-in duration-300">
+      <header className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Carry the learning forward
         </p>
 
-        <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          {node.title}
-        </h2>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+          {node.title || 'Make reaching out part of how you work.'}
+        </h1>
 
-        <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You have seen what happened when you made a real ask.
-          Now choose one small behaviour to practise the next time
-          you feel yourself hesitating.
+        <p className="text-lg leading-8 text-muted-foreground">
+          You do not need another task from this step. What matters is how you
+          relate to people from here—both when you have something to ask and
+          when you do not.
         </p>
-      </div>
+      </header>
 
-      {headline && (
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            What this experience showed you
-          </p>
-
-          <p className="text-xl font-semibold leading-8">
-            {headline}
-          </p>
-
-          {interpretation && (
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
-              {interpretation}
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="space-y-5">
-        <div>
-          <h3 className="text-xl font-semibold">
-            What will you practise next time?
-          </h3>
-
-          <p className="mt-2 text-muted-foreground">
-            Choose one specific, repeatable behaviour for the moment
-            when you feel yourself hesitating to ask.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {options.map((option) => {
-            const selected = selectedId === option.id;
-
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => handleSelect(option)}
-                disabled={isSubmitting}
-                className={[
-                  'w-full rounded-2xl border p-6 text-left transition-colors',
-                  'hover:border-foreground/40',
-                  selected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-card',
-                ].join(' ')}
-              >
-                <div className="flex items-start justify-between gap-5">
-                  <div className="space-y-2">
-                    <p className="text-lg font-semibold">
-                      {option.title}
-                    </p>
-
-                    <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                      {option.description}
-                    </p>
-                  </div>
-
-                  {selected && (
-                    <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
-                  )}
-                </div>
-              </button>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={handleWriteOwn}
-            disabled={isSubmitting}
-            className={[
-              'w-full rounded-2xl border p-6 text-left transition-colors',
-              'hover:border-foreground/40',
-              isWritingOwn
-                ? 'border-primary bg-primary/5'
-                : 'border-border bg-card',
-            ].join(' ')}
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div className="space-y-2">
-                <p className="text-lg font-semibold">
-                  I want to write my own
-                </p>
-
-                <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-                  Write a small behaviour that you can practise the
-                  next time you feel yourself hesitating.
-                </p>
-              </div>
-
-              {isWritingOwn && (
-                <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
-              )}
+      <SpeechContent
+        textToRead={readAloudText}
+        showControls="always"
+        controlsPosition="top-right"
+        className="space-y-10"
+      >
+        {headline && (
+          <section className="rounded-2xl border border-border bg-card p-6 sm:p-7 space-y-3">
+            <div className="flex items-center gap-2 pr-16 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>What this experience showed you</span>
             </div>
-          </button>
-        </div>
-      </div>
 
-      {isWritingOwn && (
-        <div className="max-w-3xl space-y-4">
+            <h2 className="font-heading text-xl font-semibold leading-snug sm:text-2xl">
+              {headline}
+            </h2>
+
+            {interpretation && (
+              <p className="text-base leading-7 text-muted-foreground">
+                {interpretation}
+              </p>
+            )}
+          </section>
+        )}
+
+        <section className="space-y-5">
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">
-              What will you do differently?
-            </h3>
+            <div className="flex items-center gap-2 text-primary">
+              <MessageCircle className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-wider">
+                Reaching out
+              </span>
+            </div>
 
-            <p className="text-muted-foreground">
-              Make it concrete and repeatable. Start with:
-              “When I notice myself hesitating, I will...”
+            <h2 className="font-heading text-2xl font-semibold tracking-tight">
+              Ways to make asking part of normal life
+            </h2>
+
+            <p className="text-base leading-7 text-muted-foreground">
+              Most people treat asking as a rare, high-stakes event. It becomes
+              much easier when it is a small, ordinary habit.
             </p>
           </div>
 
-          <Textarea
-            value={customResponse}
-            onChange={(event) => setCustomResponse(event.target.value)}
-            placeholder="When I notice myself hesitating, I will..."
-            className="min-h-[150px] resize-none text-lg leading-8"
-            disabled={isSubmitting}
-          />
-        </div>
-      )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ASKING_PRACTICES.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-border bg-card p-5 space-y-2"
+              >
+                <h3 className="font-heading text-base font-semibold leading-snug">
+                  {item.title}
+                </h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {item.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-5 border-t border-border pt-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-primary">
+              <Ear className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-wider">
+                Being present
+              </span>
+            </div>
+
+            <h2 className="font-heading text-2xl font-semibold tracking-tight">
+              It is not always about asking
+            </h2>
+
+            <p className="text-base leading-7 text-muted-foreground">
+              Building relationships is not only about what you need. It also
+              comes from listening, staying present, and being available to
+              others.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {PRESENCE_PRACTICES.map((item) => (
+              <div
+                key={item.title}
+                className="flex items-start gap-3.5 rounded-2xl border border-border bg-muted/25 p-5"
+              >
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <HandHeart className="h-4 w-4" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-heading text-base font-semibold leading-snug">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {item.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
+          <p className="text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+            Ask early, listen closely, and be someone others are glad to talk
+            to. You do not need to force anything beyond that.
+          </p>
+        </section>
+      </SpeechContent>
 
       {error && (
-        <p className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <div className="flex max-w-3xl justify-end">
+      <div className="flex justify-end border-t border-border pt-6">
         <Button
-          onClick={handleComplete}
-          disabled={!canContinue || isSubmitting}
+          type="button"
+          onClick={() => void handleContinue()}
+          disabled={isSubmitting}
           className="h-12 gap-2 rounded-full px-8 text-base"
         >
           {isSubmitting ? (
@@ -535,7 +263,7 @@ export function LearningAction({
             </>
           ) : (
             <>
-              Carry this forward
+              Continue
               <ArrowRight className="h-4 w-4" />
             </>
           )}
