@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,8 +5,10 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 
 import { Button } from '@/components/ui/button';
+import { SpeechContent } from '@/components/ui/speech-content';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $progress } from '@/lib/stores/progress';
+import { $userContext } from '@/lib/stores/user-context';
 import {
   getQuest3Reflections,
   generateFrictionSynthesis,
@@ -21,6 +22,7 @@ type ExperimentPayload = {
   actionTaken?: string;
   outcome?: string;
   reaction?: string;
+  reflection?: string;
 };
 
 type ReflectionRecord = {
@@ -39,6 +41,15 @@ type RevealPayload = {
   completed?: boolean;
 };
 
+function extractStandaloneReflection(rawContent: string): string {
+  const marker = 'What Stood Out:';
+  const idx = rawContent.indexOf(marker);
+  if (idx >= 0) {
+    return rawContent.slice(idx + marker.length).trim();
+  }
+  return rawContent.trim();
+}
+
 export function PredictionRealityReveal({
   node,
   nodeKey,
@@ -46,6 +57,12 @@ export function PredictionRealityReveal({
   onComplete,
 }: NodeComponentProps) {
   const progressState = useStore($progress);
+  const contextState = useStore($userContext);
+
+  const founderName =
+    contextState.profile?.display_name?.trim() ||
+    contextState.profile?.username?.trim() ||
+    null;
 
   // The experiment's structured answers are stored in the previous node.
   const experiment = (
@@ -60,8 +77,9 @@ export function PredictionRealityReveal({
   const actionTaken = experiment.actionTaken ?? '';
   const outcome = experiment.outcome ?? '';
   const reaction = experiment.reaction ?? '';
+  const payloadReflection = experiment.reflection ?? '';
 
-  const [reflection, setReflection] = useState('');
+  const [reflection, setReflection] = useState(payloadReflection);
 
   const [headline, setHeadline] = useState(
     savedSynthesis?.headline ?? '',
@@ -80,7 +98,17 @@ export function PredictionRealityReveal({
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    if (payloadReflection) {
+      setReflection(payloadReflection);
+    }
+  }, [payloadReflection]);
+
+  useEffect(() => {
+    if (!progressState.isHydrated) return;
+
     if (savedSynthesis) {
+      setHeadline(savedSynthesis.headline);
+      setInterpretation(savedSynthesis.interpretation);
       setIsGenerating(false);
       return;
     }
@@ -92,15 +120,18 @@ export function PredictionRealityReveal({
       setError(null);
 
       try {
-        const observations = await getQuest3Reflections();
+        let finalReflection = payloadReflection.trim();
 
-        const experimentReflection = observations.find(
-          (item: ReflectionRecord) =>
-            item.source_node_key === 'm1-q3-ask',
-        );
-
-        const finalReflection =
-          experimentReflection?.content?.trim() ?? '';
+        if (!finalReflection) {
+          const observations = await getQuest3Reflections();
+          const experimentReflection = observations.find(
+            (item: ReflectionRecord) =>
+              item.source_node_key === 'm1-q3-ask',
+          );
+          finalReflection = extractStandaloneReflection(
+            experimentReflection?.content ?? '',
+          );
+        }
 
         if (!finalReflection) {
           throw new Error(
@@ -200,6 +231,7 @@ export function PredictionRealityReveal({
       cancelled = true;
     };
   }, [
+    progressState.isHydrated,
     savedSynthesis,
     nodeKey,
     retryCount,
@@ -207,6 +239,7 @@ export function PredictionRealityReveal({
     actionTaken,
     outcome,
     reaction,
+    payloadReflection,
     experiment.target,
     experiment.intention,
     experiment.why,
@@ -216,7 +249,6 @@ export function PredictionRealityReveal({
     setError(null);
     setHeadline('');
     setInterpretation('');
-    setReflection('');
     setIsGenerating(true);
     setRetryCount((count) => count + 1);
   }
@@ -257,11 +289,11 @@ export function PredictionRealityReveal({
     }
   }
 
-  if (isGenerating) {
+  if (!progressState.isHydrated || isGenerating) {
     return (
       <div className="w-full max-w-4xl space-y-10">
         <div className="space-y-4">
-          <p className="text-sm font-medium text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             LOOKING AT WHAT HAPPENED
           </p>
 
@@ -276,8 +308,8 @@ export function PredictionRealityReveal({
           </p>
         </div>
 
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div className="flex items-center gap-3 rounded-2xl border bg-muted/30 p-6 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
           <span>Looking for the interesting part...</span>
         </div>
       </div>
@@ -288,7 +320,7 @@ export function PredictionRealityReveal({
     return (
       <div className="w-full max-w-4xl space-y-8">
         <div className="space-y-4">
-          <p className="text-sm font-medium text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-destructive">
             SOMETHING WENT WRONG
           </p>
 
@@ -311,9 +343,9 @@ export function PredictionRealityReveal({
   }
 
   return (
-    <div className="w-full max-w-4xl space-y-12">
+    <div className="w-full max-w-4xl space-y-12 pb-16 animate-in fade-in duration-300">
       <div className="space-y-4">
-        <p className="text-sm font-medium text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           WHAT WE NOTICE
         </p>
 
@@ -322,8 +354,9 @@ export function PredictionRealityReveal({
         </h2>
 
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          You had a prediction. You acted. Now you have something
-          better than a prediction: evidence.
+          {founderName
+            ? `${founderName}, you had a prediction and you acted. Now you have something better than a prediction: evidence.`
+            : 'You had a prediction. You acted. Now you have something better than a prediction: evidence.'}
         </p>
       </div>
 
@@ -373,21 +406,27 @@ export function PredictionRealityReveal({
         </div>
       )}
 
-      <div className="border-t border-border pt-10">
-        <div className="max-w-3xl space-y-6">
-          <p className="text-sm font-medium text-muted-foreground">
-            THE CONNECTION WE SEE
-          </p>
+      <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <SpeechContent
+          textToRead={`${headline}. ${interpretation}`}
+          showControls="always"
+          controlsPosition="top-right"
+        >
+          <div className="max-w-3xl space-y-4">
+            <p className="pr-16 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              THE CONNECTION WE SEE
+            </p>
 
-          <h3 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-            {headline}
-          </h3>
+            <h3 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+              {headline}
+            </h3>
 
-          <p className="text-lg leading-8 text-foreground">
-            {interpretation}
-          </p>
-        </div>
-      </div>
+            <p className="text-lg leading-8 text-foreground">
+              {interpretation}
+            </p>
+          </div>
+        </SpeechContent>
+      </section>
 
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -398,13 +437,13 @@ export function PredictionRealityReveal({
       <div className="flex justify-end border-t border-border pt-8">
         <Button
           type="button"
-          onClick={handleContinue}
+          onClick={() => void handleContinue()}
           disabled={
             !headline.trim() ||
             !interpretation.trim() ||
             isSubmitting
           }
-          className="h-12 gap-2 rounded-full px-8 text-base"
+          className="h-12 gap-2 rounded-full px-8 text-base shadow-sm"
         >
           {isSubmitting ? (
             <>
