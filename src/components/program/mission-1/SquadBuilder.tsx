@@ -7,7 +7,6 @@ import {
   Copy,
   ExternalLink,
   Globe,
-  Linkedin,
   Loader2,
   Mail,
   MessageSquarePlus,
@@ -22,6 +21,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LinkedinBoxFillIcon } from '@/components/ui/icons/akar-icons-linkedin-box-fill';
 import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import {
@@ -34,6 +34,7 @@ import {
 import { createUserContent } from '@/actions/user-content';
 import type {
   SquadPersona,
+  SquadRoleContext,
   UserContact,
   UserContactStatus,
 } from '@/lib/types/user-contacts';
@@ -319,11 +320,11 @@ export function SquadBuilder({
     setIsSavingContact(true);
     setError(null);
 
-    const roleLabels = selectedRoles
+    const roleLabels: string[] = selectedRoles
       .map((id) => SQUAD_ROLES.find((r) => r.id === id)?.label)
-      .filter((label): label is string => Boolean(label));
+      .filter((label): label is NonNullable<typeof label> => Boolean(label));
 
-    const squadContext = {
+    const squadContext: SquadRoleContext = {
       personas: selectedRoles,
       persona_labels: roleLabels,
       // Keep primary legacy keys populated for backward compatibility
@@ -1028,7 +1029,7 @@ export function SquadBuilder({
               </>
             ) : (
               <>
-                <Linkedin className="h-4 w-4 text-primary" />
+                <LinkedinBoxFillIcon className="h-4 w-4 text-primary" />
                 Share open call on LinkedIn
               </>
             )}
@@ -1114,7 +1115,7 @@ export function SquadBuilder({
           <div className="mt-4 rounded-xl border border-border bg-background p-5 space-y-4 animate-in fade-in duration-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Linkedin className="h-4 w-4 text-primary" />
+                <LinkedinBoxFillIcon className="h-4 w-4 text-primary" />
                 <h3 className="font-semibold text-sm">
                   Share an open call on LinkedIn
                 </h3>
