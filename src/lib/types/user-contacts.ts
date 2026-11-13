@@ -55,11 +55,13 @@ export const SQUAD_PERSONAS = [
 export type SquadPersona = (typeof SQUAD_PERSONAS)[number];
 
 export type SquadRoleContext = {
+  personas?: SquadPersona[];
+  persona_labels?: string[];
+  // Legacy single-role fields kept for backward compatibility
   persona?: SquadPersona;
   persona_label?: string;
   notes?: string;
 };
-
 /**
  * Context is organised by the contact's roles.
  * Not every role needs context immediately.

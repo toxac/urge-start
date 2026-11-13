@@ -1,183 +1,212 @@
-# Mission 1 Quest 2 Enhancement nased on feedback
+## user_content table
+```sql
+create table public.user_content (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  title text null,
+  body text not null,
+  category text null,
+  post_intent text null,
+  status text not null default 'draft'::text,
+  source_type text null,
+  source_id uuid null,
+  metadata jsonb not null default '{}'::jsonb,
+  published_at timestamp with time zone null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint user_content_pkey primary key (id),
+  constraint user_content_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
+  constraint user_content_post_intent_check check (
+    (
+      (post_intent is null)
+      or (
+        post_intent = any (
+          array[
+            'insight'::text,
+            'experiment'::text,
+            'question'::text,
+            'reflection'::text,
+            'milestone'::text
+          ]
+        )
+      )
+    )
+  ),
+  constraint user_content_body_length_check check (
+    (
+      (
+        char_length(
+          TRIM(
+            both
+            from
+              body
+          )
+        ) > 0
+      )
+      and (char_length(body) <= 20000)
+    )
+  ),
+  constraint user_content_status_check check (
+    (
+      status = any (
+        array[
+          'draft'::text,
+          'published'::text,
+          'hidden'::text,
+          'archived'::text
+        ]
+      )
+    )
+  ),
+  constraint user_content_title_length_check check (
+    (
+      (title is null)
+      or (char_length(title) <= 200)
+    )
+  ),
+  constraint user_content_published_intent_check check (
+    (
+      (status <> 'published'::text)
+      or (category = 'introduction'::text)
+      or (post_intent is not null)
+    )
+  ),
+  constraint user_content_category_check check (
+    (
+      (category is null)
+      or (
+        category = any (
+          array[
+            'introduction'::text,
+            'opportunity'::text,
+            'test'::text,
+            'planning'::text,
+            'build'::text,
+            'launch'::text,
+            'operate'::text
+          ]
+        )
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
-## node-m1-q2-capabilities
-component mapping: 'capability_inventory': CapabilityInventory
+create index IF not exists user_content_feed_idx on public.user_content using btree (published_at desc) TABLESPACE pg_default
+where
+  (status = 'published'::text);
 
-Right now the capability node is quite basic and we are missing out quite a lot of strengths users might have. We need to make the list capture all the kay ability we think would be constructive for users. They dont need to have everything. We don't want to keep adding new ability cards which will make the task cumbersome. I have another idea as well we can have key theme and let users tell us in free form and we can extract things from it in structured manner. So we can have a textbox for creativity and innovation and then we can grab details from users input like what kind of creativity, if they have some experience and if they have applied it somewhere. Its and idea. Some of the additional ability which is not currenty explicit in the node component.
+create index IF not exists user_content_category_feed_idx on public.user_content using btree (category, published_at desc) TABLESPACE pg_default
+where
+  (status = 'published'::text);
 
-- Ability to be creative
-- Come up with innovation solutions
-- being able to evaluate and mitigate risks and roadblocks
-- Ability to strategise and plan
-- Ability to communicate clearly
-- Connect and network with strangers
-- Good listener
-- persuasiveness
-- empathy and conviction.
+create index IF not exists user_content_intent_feed_idx on public.user_content using btree (post_intent, published_at desc) TABLESPACE pg_default
+where
+  (status = 'published'::text);
 
+create index IF not exists user_content_author_feed_idx on public.user_content using btree (user_id, published_at desc) TABLESPACE pg_default
+where
+  (status = 'published'::text);
 
-### Node Entry
-```ts
-{
-          key: 'm1-q2-capabilities',
-          sequence: 4,
-          role: 'investigation',
-          title: 'What can you already do?',
-          description:
-            'You have probably learned more useful things than you give yourself credit for. Look for capabilities you already use to solve problems.',
-          prompt:
-            'What can you already do that could be useful?',
-          intent:
-            'Surface practical capabilities through problems the user already solves.',
-          component: 'capability_inventory',
-          dependencies: ['m1-q2-network'],
-        },
-```
+create index IF not exists user_content_author_status_idx on public.user_content using btree (user_id, status) TABLESPACE pg_default;
 
-## Tasks
-- Evaluate component based on feedback
-- Evaluate my suggestion of having struture textboxes and we extract data using AI and then format and save it
-- We will need to also figure out how to implment STT for textarea
-- lets address each of these before we update the component
-
-
-## mission1 quest 2 nodes
-
-```ts
-{
-      key: 'q2',
-      sequence: 2,
-      title: 'What You Already Have',
-      description:
-        'Look beyond what you think you lack. Find the people, skills, experience, resources, and access already within reach.',
-
-      nodes: [
-        {
-          key: 'm1-q2-setup',
-          sequence: 1,
-          role: 'setup',
-          title: 'You are not starting from zero.',
-          description: `Before you decide what you need to start a business, take stock of what you already have.
-
-In this quest, you'll explore the skills you've built, the experiences you've had, the people you know, and the resources you can draw on. You might discover useful strengths you take for granted, or realise you have more to work with than you thought.
-
-You don't need to have everything. The goal is to see what you can build on—and where there may be gaps to work around.`,
-          prompt:
-            'What are you starting with?',
-          intent:
-            'Shift the user from thinking about what they lack to noticing the resources, people, capabilities, and experience already within reach.',
-          component: 'asset_inventory_intro',
-          dependencies: ['m1-q1-action'],
-        },
-
-        {
-          key: 'm1-q2-inventory',
-          sequence: 2,
-          role: 'investigation',
-          title: 'What resources are already within reach?',
-          description:
-            'Resources are not just money. Time, tools, spaces, information, technology, and other forms of access can all change what is possible.',
-          prompt:
-            'What resources could you use right now?',
-          intent:
-            'Identify current resources and perceived constraints.',
-          component: 'resource_inventory',
-          dependencies: ['m1-q2-setup'],
-        },
-
-        {
-          key: 'm1-q2-network',
-          sequence: 3,
-          role: 'investigation',
-          title: 'Who is already within reach?',
-          description: `Think about the people you know, the groups you're part of, and the communities you can access.
-
-You don't need to know how these connections might help you yet. For now, the goal is to recognise who's already around you and make a record you can return to as you explore opportunities.`,
-          prompt:
-            'Who could you talk to, learn from, or ask for help?',
-          intent:
-            'Build an inventory of the people, groups and communities the user already has connections to.',
-          component: 'contact_inventory',
-          dependencies: ['m1-q2-inventory'],
-        },
-
-        {
-          key: 'm1-q2-capabilities',
-          sequence: 4,
-          role: 'investigation',
-          title: 'What can you already do?',
-          description:
-            'You have probably learned more useful things than you give yourself credit for. Look for capabilities you already use to solve problems.',
-          prompt:
-            'What can you already do that could be useful?',
-          intent:
-            'Surface practical capabilities through problems the user already solves.',
-          component: 'capability_inventory',
-          dependencies: ['m1-q2-network'],
-        },
-
-        {
-          key: 'm1-q2-experience',
-          sequence: 5,
-          role: 'investigation',
-          title: 'What have you already lived through?',
-          description:
-            'Your experience is bigger than your job history. Work, hobbies, side projects, communities, failures, and problems you have solved can all give you useful context.',
-          prompt:
-            'What experiences might give you an advantage here?',
-          intent:
-            'Find useful experience across work, hobbies, side projects, failures, communities, and personal problems.',
-          component: 'experience_inventory',
-          dependencies: ['m1-q2-capabilities'],
-        },
-
-        {
-          key: 'm1-q2-reveal',
-          sequence: 6,
-          role: 'reveal',
-          title: 'You have more to work with than you thought.',
-          description:
-            'Now compare what you thought you were missing with what you actually have available.',
-          intent:
-            'Compare perceived gaps with actual assets while making genuine remaining gaps visible.',
-          component: 'asset_reveal',
-          dependencies: ['m1-q2-experience'],
-        },
-
-        {
-          key: 'm1-q2-action',
-          sequence: 7,
-          role: 'action',
-          title: 'What still needs attention?',
-          description:
-            'You do not need to close every gap before you begin. Identify the ones that actually matter now.',
-          prompt:
-            'Which gap is worth doing something about first?',
-          intent:
-            'Turn genuine gaps into concrete next steps without forcing the user to solve everything now.',
-          component: 'gap_action',
-          dependencies: ['m1-q2-reveal'],
-        },
-      ],
-    },
+create trigger user_content_updated_at BEFORE
+update on user_content for EACH row
+execute FUNCTION set_updated_at ();
 
 ```
 
-
-**component registry**
-```ts
-export const programComponentRegistry: Record<string, ComponentType<NodeComponentProps>> = {
-  ...
-  'why_havent_you_started': WhyHaventYouStarted,
-  'motivation_explorer': MotivationExplorer,
-  'future_reflection': FutureStateExplorer,
-  'quit_condition_explorer': QuitConditionExplorer,
-  'commitment_synthesis': CommitmentSynthesis,
-  'commitment_builder': CommitmentBuilder,
-  ...
-};
+## forum_posts view
+```sql
+create view public.forum_posts
+with
+  (security_invoker = true) as
+select
+  c.id,
+  c.user_id,
+  c.title,
+  c.body,
+  c.category,
+  c.post_intent,
+  c.published_at,
+  c.created_at,
+  c.updated_at,
+  p.username,
+  p.display_name,
+  p.avatar_url,
+  p.city,
+  p.country,
+  (
+    select
+      count(*) as count
+    from
+      content_reactions r
+    where
+      r.content_id = c.id
+  ) as reaction_count,
+  (
+    select
+      count(*) as count
+    from
+      content_comments cm
+    where
+      cm.content_id = c.id
+      and cm.status = 'published'::text
+  ) as comment_count,
+  (
+    select
+      r.reaction_type
+    from
+      content_reactions r
+    where
+      r.content_id = c.id
+      and r.user_id = (
+        (
+          select
+            auth.uid () as uid
+        )
+      )
+    limit
+      1
+  ) as my_reaction
+from
+  user_content c
+  left join user_profile_public p on p.user_id = c.user_id
+where
+  c.status = 'published'::text;
 
 ```
-## Attached files
-- node componenets and action files
-- ask me if you need to refer to other files
+
+## user_contact schema
+
+```sql
+create table public.user_contacts (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  name text not null,
+  organization text null,
+  context jsonb null,
+  contact_details jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  status text not null default 'pending'::text,
+  metadata jsonb not null default '{}'::jsonb,
+  email text null,
+  roles text[] not null default '{}'::text[],
+  constraint user_contacts_pkey primary key (id),
+  constraint user_contacts_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
+  constraint user_contacts_status_check check (
+    (
+      status = any (
+        array[
+          'not_invited'::text,
+          'prepared'::text,
+          'sent'::text,
+          'accepted'::text,
+          'declined'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+```
