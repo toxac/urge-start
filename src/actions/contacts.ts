@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type {
   CreateUserContactInput,
+  UpdateUserContactInput,
   UserContact,
   UserContactDetails,
   UserContactStatus,
@@ -135,57 +136,44 @@ export async function inviteContact(
     throw new Error('Contact not found');
   }
 
-  if (contact.status === 'prepared' || contact.status === 'sent') {
+  if (contact.status !== 'not_invited' && contact.status !== 'prepared') {
     return {
       success: true,
       status: contact.status as UserContactStatus,
-      message: 'An invitation has already been prepared.',
+      message: 'This invitation has already been sent or responded to.',
     };
   }
 
-  if (contact.status !== 'not_invited') {
-    throw new Error(
-      `Contact cannot be invited from status "${contact.status}".`,
-    );
-  }
-
-  const invitationToken = crypto.randomBytes(32).toString('hex');
   const contactDetails = getContactDetails(contact.contact_details);
+  const existingToken =
+    typeof contactDetails.invitation_token === 'string' &&
+    contactDetails.invitation_token
+      ? contactDetails.invitation_token
+      : crypto.randomBytes(32).toString('hex');
 
   const updatedContactDetails: UserContactDetails = {
     ...contactDetails,
-    invitation_token: invitationToken,
+    invitation_token: existingToken,
     invitation_message: message,
   };
 
-  const { data: updatedContact, error: updateError } = await supabase
+  const { error: updateError } = await supabase
     .from('user_contacts')
     .update({
       status: 'prepared',
       contact_details: updatedContactDetails,
     })
     .eq('id', contactId)
-    .eq('user_id', user.id)
-    .eq('status', 'not_invited')
-    .select('id')
-    .maybeSingle();
+    .eq('user_id', user.id);
 
   if (updateError) {
-    throw new Error(
-      `Failed to prepare invitation: ${updateError.message}`,
-    );
-  }
-
-  if (!updatedContact) {
-    throw new Error(
-      'The contact status changed before the invitation could be prepared. Please try again.',
-    );
+    throw new Error(`Failed to prepare invitation: ${updateError.message}`);
   }
 
   return {
     success: true,
     status: 'prepared' as const,
-    confirmationToken: invitationToken,
+    confirmationToken: existingToken,
   };
 }
 
@@ -306,4 +294,64 @@ export async function getUserContacts(): Promise<UserContact[]> {
   }
 
   return (data ?? []) as unknown as UserContact[];
+}
+
+
+
+export async function updateUserContact(
+  contactId: string,
+  input: UpdateUserContactInput,
+) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data, error } = await supabase
+    .from('user_contacts')
+    .update(input)
+    .eq('id', contactId)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update contact: ${error.message}`);
+  }
+
+  return {
+    success: true,
+    contact: data as unknown as UserContact,
+  };
+}
+
+export async function deleteUserContact(contactId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { error } = await supabase
+    .from('user_contacts')
+    .delete()
+    .eq('id', contactId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    throw new Error(`Failed to delete contact: ${error.message}`);
+  }
+
+  return { success: true };
 }
