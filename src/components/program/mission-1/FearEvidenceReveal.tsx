@@ -5,9 +5,11 @@ import { useStore } from '@nanostores/react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechContent } from '@/components/ui/speech-content';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { $progress } from '@/lib/stores/progress';
+import { $userContext } from '@/lib/stores/user-context';
 import {
   generateRejectionSynthesis,
   getQuest4Reflections,
@@ -45,11 +47,20 @@ type EvidenceItem = {
 
 export function FearEvidenceReveal({
   node,
+  nodeKey,
   progress,
   onComplete,
 }: NodeComponentProps) {
   const progressState = useStore($progress);
+  const contextState = useStore($userContext);
   const saved = (progress.payload ?? {}) as RevealPayload;
+
+  const activeNodeKey = nodeKey || node.key;
+
+  const founderName =
+    contextState.profile?.display_name?.trim() ||
+    contextState.profile?.username?.trim() ||
+    null;
 
   const warmup = (progressState.payloads['m1-q4-warmup'] ?? {}) as ExperimentPayload;
   const stretch = (progressState.payloads['m1-q4-stretch'] ?? {}) as ExperimentPayload;
@@ -62,12 +73,22 @@ export function FearEvidenceReveal({
       : undefined,
   );
   const [reflection, setReflection] = useState(saved.reflection ?? '');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(!saved.synthesis);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const experimentEvidence = useMemo<EvidenceItem[]>(() => {
+  useEffect(() => {
+    if (saved.synthesis?.headline && saved.synthesis?.interpretation) {
+      setSynthesis(saved.synthesis);
+      setIsGenerating(false);
+    }
+    if (typeof saved.reflection === 'string' && saved.reflection && !reflection) {
+      setReflection(saved.reflection);
+    }
+  }, [saved.synthesis, saved.reflection]);
+
+  const { warmupEvidence, stretchEvidence, experimentEvidence } = useMemo(() => {
     const fields: Array<[keyof ExperimentPayload, string]> = [
       ['target', 'Who they approached'],
       ['intention', 'What they asked for'],
@@ -79,20 +100,25 @@ export function FearEvidenceReveal({
       ['reflection', 'What they noticed'],
     ];
 
-    return [
-      ...fields
-        .filter(([key]) => Boolean(warmup[key]?.toString().trim()))
-        .map(([key, title]) => ({
-          title: `Warmup · ${title}`,
-          content: String(warmup[key]).trim(),
-        })),
-      ...fields
-        .filter(([key]) => Boolean(stretch[key]?.toString().trim()))
-        .map(([key, title]) => ({
-          title: `Harder ask · ${title}`,
-          content: String(stretch[key]).trim(),
-        })),
-    ];
+    const warmupItems: EvidenceItem[] = fields
+      .filter(([key]) => Boolean(warmup[key]?.toString().trim()))
+      .map(([key, title]) => ({
+        title: `Warmup · ${title}`,
+        content: String(warmup[key]).trim(),
+      }));
+
+    const stretchItems: EvidenceItem[] = fields
+      .filter(([key]) => Boolean(stretch[key]?.toString().trim()))
+      .map(([key, title]) => ({
+        title: `Harder ask · ${title}`,
+        content: String(stretch[key]).trim(),
+      }));
+
+    return {
+      warmupEvidence: warmupItems,
+      stretchEvidence: stretchItems,
+      experimentEvidence: [...warmupItems, ...stretchItems],
+    };
   }, [
     warmup.target,
     warmup.intention,
@@ -113,6 +139,7 @@ export function FearEvidenceReveal({
   ]);
 
   useEffect(() => {
+    if (!progressState.isHydrated) return;
     if (saved.completed || progress.completed) return;
 
     if (saved.synthesis?.headline && saved.synthesis?.interpretation) {
@@ -128,25 +155,26 @@ export function FearEvidenceReveal({
       setError(null);
 
       try {
-        const observations = (await getQuest4Reflections()) as ReflectionRecord[];
-        if (cancelled) return;
-
-        const observationEvidence: EvidenceItem[] = observations
-          .filter((item) => item.content?.trim())
-          .map((item) => ({
-            title: item.title || `Reflection · ${item.source_node_key ?? 'experiment'}`,
-            content: item.content.trim(),
-          }));
-
         const combined = [...experimentEvidence];
 
-        // The observation is the durable reflection record. Avoid adding the same
-        // reflection twice when its content is already present in the progress payload.
-        for (const observation of observationEvidence) {
-          const alreadyIncluded = combined.some(
-            (item) => item.content.trim() === observation.content.trim(),
-          );
-          if (!alreadyIncluded) combined.push(observation);
+        // Only pull from user_observations as a fallback if one of the two
+        // experiment payloads is missing from progressState.
+        if (warmupEvidence.length === 0 || stretchEvidence.length === 0) {
+          const observations = (await getQuest4Reflections()) as ReflectionRecord[];
+          if (cancelled) return;
+
+          for (const item of observations) {
+            if (!item.content?.trim()) continue;
+            const isWarmup = item.source_node_key === 'm1-q4-warmup';
+            const isStretch = item.source_node_key === 'm1-q4-stretch';
+
+            if ((isWarmup && warmupEvidence.length === 0) || (isStretch && stretchEvidence.length === 0)) {
+              combined.push({
+                title: isWarmup ? 'Warmup · Full record' : 'Harder ask · Full record',
+                content: item.content.trim(),
+              });
+            }
+          }
         }
 
         if (combined.length === 0) {
@@ -155,7 +183,7 @@ export function FearEvidenceReveal({
           );
         }
 
-        const result = await generateRejectionSynthesis(combined, node.key);
+        const result = await generateRejectionSynthesis(combined, activeNodeKey);
         if (cancelled) return;
 
         setSynthesis(result);
@@ -178,8 +206,11 @@ export function FearEvidenceReveal({
       cancelled = true;
     };
   }, [
+    progressState.isHydrated,
     experimentEvidence,
-    node.key,
+    warmupEvidence.length,
+    stretchEvidence.length,
+    activeNodeKey,
     progress.completed,
     retryCount,
     saved.completed,
@@ -212,17 +243,24 @@ export function FearEvidenceReveal({
     }
   }
 
+  if (!progressState.isHydrated) {
+    return (
+      <div className="flex items-center gap-3 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading your experiments...</span>
+      </div>
+    );
+  }
+
   if (progress.completed || saved.completed === true) {
     return (
-      <div className="w-full max-w-4xl space-y-12">
-        <Header nodeTitle={node.title} />
+      <div className="w-full max-w-4xl space-y-12 pb-16 animate-in fade-in duration-300">
+        <Header nodeTitle={node.title} founderName={founderName} />
 
         <ExperimentSection title="The warmup" experiment={warmup} />
         <ExperimentSection title="The harder ask" experiment={stretch} />
 
-        {saved.synthesis && (
-          <SynthesisSection synthesis={saved.synthesis} />
-        )}
+        {saved.synthesis && <SynthesisSection synthesis={saved.synthesis} />}
 
         <section className="max-w-3xl space-y-3 border-t border-border pt-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -231,7 +269,7 @@ export function FearEvidenceReveal({
           <p className="text-lg leading-8">{saved.reflection}</p>
         </section>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end border-t border-border pt-6">
           <Button
             onClick={() => onComplete(saved)}
             className="h-12 gap-2 rounded-full px-8 text-base"
@@ -245,8 +283,8 @@ export function FearEvidenceReveal({
   }
 
   return (
-    <div className="w-full max-w-4xl space-y-12">
-      <Header nodeTitle={node.title} />
+    <div className="w-full max-w-4xl space-y-12 pb-16 animate-in fade-in duration-300">
+      <Header nodeTitle={node.title} founderName={founderName} />
 
       <section className="space-y-8">
         <div className="max-w-3xl space-y-2">
@@ -275,8 +313,8 @@ export function FearEvidenceReveal({
           </p>
 
           {isGenerating && (
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-3 rounded-2xl border bg-muted/30 p-5 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span>Looking across what you expected and what happened...</span>
             </div>
           )}
@@ -313,11 +351,12 @@ export function FearEvidenceReveal({
           </p>
         </div>
 
-        <Textarea
+        <SpeechTextarea
           value={reflection}
           onChange={(event) => setReflection(event.target.value)}
           placeholder="What I take from these two experiences..."
-          className="min-h-[180px] resize-none text-lg leading-8"
+          rows={5}
+          className="resize-y text-lg leading-8"
           disabled={isGenerating || isSubmitting || !synthesis}
         />
       </section>
@@ -326,9 +365,9 @@ export function FearEvidenceReveal({
         <p className="max-w-3xl text-sm text-destructive">{error}</p>
       )}
 
-      <div className="flex max-w-3xl justify-end">
+      <div className="flex max-w-3xl justify-end border-t border-border pt-6">
         <Button
-          onClick={handleComplete}
+          onClick={() => void handleComplete()}
           disabled={!canContinue || isGenerating || isSubmitting}
           className="h-12 gap-2 rounded-full px-8 text-base"
         >
@@ -349,16 +388,23 @@ export function FearEvidenceReveal({
   );
 }
 
-function Header({ nodeTitle }: { nodeTitle: string }) {
+function Header({
+  nodeTitle,
+  founderName,
+}: {
+  nodeTitle: string;
+  founderName: string | null;
+}) {
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
         {nodeTitle}
       </h2>
       <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-        Compare what you expected with what actually happened in both asks.
-        The point is not to make either experience sound positive. It is to
-        look at the evidence and notice what stands out to you.
+        {founderName ? `${founderName}, compare ` : 'Compare '}
+        what you expected with what actually happened in both asks. The point
+        is not to make either experience sound positive. It is to look at the
+        evidence and notice what stands out to you.
       </p>
     </div>
   );
@@ -396,12 +442,12 @@ function ExperimentSection({
   }
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="max-w-3xl rounded-2xl border border-border bg-card p-6 space-y-5">
       <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h4>
       {available.map(([label, value]) => (
-        <div key={label} className="space-y-2">
+        <div key={label} className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
@@ -418,13 +464,21 @@ function SynthesisSection({
   synthesis: RejectionSynthesisResult;
 }) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-2xl font-semibold leading-tight">
-        {synthesis.headline}
-      </h3>
-      <p className="text-lg leading-8 text-muted-foreground">
-        {synthesis.interpretation}
-      </p>
+    <div className="rounded-2xl border border-border bg-card p-6 sm:p-7">
+      <SpeechContent
+        textToRead={`${synthesis.headline}. ${synthesis.interpretation}`}
+        showControls="always"
+        controlsPosition="top-right"
+      >
+        <div className="space-y-4">
+          <h3 className="pr-16 font-heading text-2xl font-semibold leading-tight">
+            {synthesis.headline}
+          </h3>
+          <p className="text-lg leading-8 text-muted-foreground">
+            {synthesis.interpretation}
+          </p>
+        </div>
+      </SpeechContent>
     </div>
   );
 }

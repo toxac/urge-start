@@ -8,11 +8,12 @@ import {
   Loader2,
   MessageCircle,
   NotebookPen,
+  Pencil,
   Target,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 import { saveCommitment } from '@/actions/commitments';
 
@@ -27,16 +28,26 @@ type FearAuditPayload = {
   completed?: boolean;
 };
 
-export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponentProps) {
+export function FearAudit({
+  node,
+  nodeKey,
+  progress,
+  onComplete,
+}: NodeComponentProps) {
   const saved = (progress.payload ?? {}) as FearAuditPayload;
   const savedCommitment =
-    saved.commitment ?? saved.customResponse ?? saved.selectedOption?.title ?? '';
+    saved.commitment ??
+    saved.customResponse ??
+    saved.selectedOption?.title ??
+    '';
 
   const [commitment, setCommitment] = useState(savedCommitment);
+  const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isCompleted = progress.completed || saved.completed === true;
+  const isCompleted =
+    (progress.completed || saved.completed === true) && !isEditing;
   const canContinue = commitment.trim().length > 0;
 
   async function handleComplete() {
@@ -56,6 +67,8 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
         commitment: statement,
         completed: true,
       });
+
+      setIsEditing(false);
     } catch (err) {
       console.error('[FEAR AUDIT ERROR]', err);
       setError('We could not save your commitment. Please try again.');
@@ -65,7 +78,7 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
   }
 
   return (
-    <div className="w-full max-w-4xl space-y-8">
+    <div className="w-full max-w-4xl space-y-8 pb-16">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Fear audit
@@ -74,8 +87,8 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
           {node.title || 'Build your rejection routine'}
         </h2>
         <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-          Rejection is part of building a business. You can’t control every response,
-          but you can decide how you handle it and what you do next.
+          Rejection is part of building a business. You can’t control every
+          response, but you can decide how you handle it and what you do next.
         </p>
       </div>
 
@@ -104,7 +117,8 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
         <div className="min-w-0 flex-1 space-y-1">
           <h3 className="font-semibold">Keep the playbook handy</h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            Practical responses, simple routines, and a rejection log to use whenever you need them.
+            Practical responses, simple routines, and a rejection log to use
+            whenever you need them.
           </p>
         </div>
         <a
@@ -119,27 +133,58 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
 
       <div className="space-y-4 border-t border-border pt-7">
         <div className="space-y-2">
-          <h3 className="text-xl font-semibold">What will you do differently next time?</h3>
+          <h3 className="text-xl font-semibold">
+            What will you do differently next time?
+          </h3>
           <p className="text-muted-foreground">
             Choose one approach you’ll use the next time asking feels difficult.
           </p>
         </div>
 
         {isCompleted ? (
-          <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4">
-            <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
-            <p className="text-base leading-7">{savedCommitment}</p>
+          <div className="space-y-6">
+            <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4">
+              <Check className="mt-1 h-5 w-5 shrink-0 text-primary" />
+              <p className="text-base leading-7">{savedCommitment}</p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsEditing(true)}
+                className="gap-2 text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit commitment
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() =>
+                  onComplete({
+                    commitment: savedCommitment,
+                    completed: true,
+                  })
+                }
+                className="h-12 gap-2 rounded-full px-7 text-base"
+              >
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ) : (
           <>
-            <Textarea
+            <SpeechTextarea
               value={commitment}
               onChange={(event) => {
                 setCommitment(event.target.value);
                 setError(null);
               }}
               placeholder="The next time I hesitate to ask, I will…"
-              className="min-h-[120px] resize-y text-base leading-7"
+              rows={4}
+              className="resize-y text-base leading-7"
               disabled={isSubmitting}
             />
 
@@ -147,7 +192,7 @@ export function FearAudit({ node, nodeKey, progress, onComplete }: NodeComponent
 
             <div className="flex justify-end">
               <Button
-                onClick={handleComplete}
+                onClick={() => void handleComplete()}
                 disabled={!canContinue || isSubmitting}
                 className="h-12 gap-2 rounded-full px-7 text-base"
               >
@@ -185,7 +230,9 @@ function ApproachRow({ icon, title, description }: ApproachRowProps) {
       </div>
       <div className="space-y-1 pt-0.5">
         <h3 className="font-semibold">{title}</h3>
-        <p className="max-w-3xl leading-7 text-muted-foreground">{description}</p>
+        <p className="max-w-3xl leading-7 text-muted-foreground">
+          {description}
+        </p>
       </div>
     </div>
   );
