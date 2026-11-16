@@ -82,6 +82,8 @@ export type UserContactDetails = {
   invitation_token?: string | null;
   invitation_message?: string;
   invitation_accepted_at?: string;
+  invitation_declined_at?: string;
+  invitee_reply_note?: string;
   [key: string]: Json | undefined;
 };
 
