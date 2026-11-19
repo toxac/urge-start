@@ -107,12 +107,13 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'conversations_reveal': ConversationReflection,
   'conversation_action': ConversationAction,
 
-  // Mission 2: Quest 3 & Close
+  // Mission 2: Quest 3 
   'path_setup': PathSetup,
   'help_approach': HelpApproach,
   'path_assessment': PathAssessment,
   'path_reveal': PathReveal,
   'choose_opportunity': ChooseOpportunity,
+  // Mission 2 Action
   'opportunity_synthesis': Mission2Reveal,
   'opportunity_action': Mission2Action,
 };
