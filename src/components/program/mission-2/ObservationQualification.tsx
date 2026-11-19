@@ -1,9 +1,9 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import {
+  ArrowRight,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -28,9 +28,8 @@ import type {
   QualificationAnswers,
 } from '@/lib/types/observations';
 
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 
 const OPTIONS: { value: QualificationAnswer; label: string }[] = [
   { value: 'yes', label: 'Yes' },
@@ -140,7 +139,7 @@ function TextField({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
-      <Textarea
+      <SpeechTextarea
         id={id}
         rows={2}
         value={value}
@@ -208,6 +207,11 @@ export function ObservationQualification({
     observations.length > 0 &&
     qualifiedCount === observations.length;
 
+  const currentAnswersComplete =
+    qualificationDraft.understands !== null &&
+    qualificationDraft.cares !== null &&
+    qualificationDraft.can_solve !== null;
+
   function updateDetail<K extends keyof DetailDraft>(
     key: K,
     value: DetailDraft[K],
@@ -225,8 +229,13 @@ export function ObservationQualification({
     }));
   }
 
-  async function saveAnswers() {
+  async function saveAnswers(advanceAfterSave = false) {
     if (!observation || isSaving || isCompleting) return;
+
+    if (!currentAnswersComplete) {
+      setError('Answer all three qualification questions before saving.');
+      return;
+    }
 
     setIsSaving(true);
     setError(null);
@@ -254,7 +263,6 @@ export function ObservationQualification({
         detailsResult.observation as UserObservation,
       );
 
-      // Keep qualification judgements separate from descriptive details.
       const qualificationResult = await qualifyProblem(
         observation.id,
         qualificationDraft,
@@ -264,7 +272,11 @@ export function ObservationQualification({
         qualificationResult as UserObservation,
       );
 
-      setNotice('Your problem details and qualification have been saved.');
+      if (advanceAfterSave && index < observations.length - 1) {
+        setIndex((current) => current + 1);
+      } else {
+        setNotice('Your problem details and qualification have been saved.');
+      }
     } catch (err) {
       console.error('[OBSERVATION QUALIFICATION] Save failed', err);
       setError(
@@ -309,7 +321,7 @@ export function ObservationQualification({
 
   if (observations.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto w-full max-w-3xl space-y-4">
         <p>You don't have any problem observations to qualify yet.</p>
         <p className="text-sm text-muted-foreground">
           Add observations first, then come back to decide which are worth exploring.
@@ -319,9 +331,10 @@ export function ObservationQualification({
   }
 
   const details = observation ? getDetails(observation) : {};
+  const hasNext = index < observations.length - 1;
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-3xl space-y-8 pb-12">
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
@@ -504,27 +517,37 @@ export function ObservationQualification({
                 Previous
               </button>
 
-              <button
-                type="button"
-                disabled={isSaving || isCompleting}
-                onClick={saveAnswers}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Check size={16} />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSaving || isCompleting}
+                  onClick={() => void saveAnswers(false)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-muted/40 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Check size={16} />
+                  )}
+                  {isSaving ? 'Saving…' : 'Save qualification'}
+                </button>
+
+                {hasNext && (
+                  <button
+                    type="button"
+                    disabled={isSaving || isCompleting}
+                    onClick={() => void saveAnswers(true)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {isSaving ? 'Saving…' : 'Save & next'}
+                    <ArrowRight size={16} />
+                  </button>
                 )}
-                {isSaving ? 'Saving…' : 'Save qualification'}
-              </button>
+              </div>
 
               <button
                 type="button"
-                disabled={
-                  index >= observations.length - 1 ||
-                  isSaving ||
-                  isCompleting
-                }
+                disabled={!hasNext || isSaving || isCompleting}
                 onClick={() => setIndex((current) => current + 1)}
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground disabled:opacity-40"
               >
@@ -567,7 +590,7 @@ export function ObservationQualification({
         <button
           type="button"
           disabled={!allQualified || isSaving || isCompleting}
-          onClick={continueNode}
+          onClick={() => void continueNode()}
           className="w-full rounded-lg bg-primary px-5 py-3 font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isCompleting ? 'Saving progress…' : 'Continue'}
