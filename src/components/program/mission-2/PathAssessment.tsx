@@ -1,46 +1,59 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { fetchUserOpportunities, updateOpportunityFeasibility } from '@/actions/opportunities';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
+import {
+  fetchUserOpportunities,
+  updateOpportunityFeasibility,
+} from '@/actions/opportunities';
 import { checkRegulatoryFactors } from '@/actions/responses/mission2';
-import { $opportunities, opportunitiesActions } from '@/lib/stores/opportunities';
+import { opportunitiesActions } from '@/lib/stores/opportunities';
 import type { UserOpportunity } from '@/lib/types/opportunities';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+
+type FeasibilityDraft = {
+  hasSkills: 'yes' | 'partial' | 'no';
+  skillsNotes: string;
+  hasCollaborators: boolean;
+  collaboratorNotes: string;
+  timeCommitment: string;
+  hasTime: boolean;
+  capitalRequirement: 'minimal' | 'moderate' | 'significant';
+  capitalNotes: string;
+  regulatoryNotes: string;
+};
 
 export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps) {
   const [opportunities, setOpportunities] = useState<UserOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [savedIds, setSavedIds] = useState<Record<string, boolean>>({});
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
-  const [drafts, setDrafts] = useState<Record<string, {
-    hasSkills: 'yes' | 'partial' | 'no';
-    skillsNotes: string;
-    hasCollaborators: boolean;
-    collaboratorNotes: string;
-    timeCommitment: string;
-    hasTime: boolean;
-    capitalRequirement: 'minimal' | 'moderate' | 'significant';
-    capitalNotes: string;
-    regulatoryNotes: string;
-  }>>({});
+  const [drafts, setDrafts] = useState<Record<string, FeasibilityDraft>>({});
 
   const [regulatoryTips, setRegulatoryTips] = useState<Record<string, string[]>>({});
   const [isCheckingRegs, setIsCheckingRegs] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let alive = true;
     fetchUserOpportunities()
       .then((opps) => {
+        if (!alive) return;
         setOpportunities(opps);
         opportunitiesActions.hydrate(opps);
 
-        const initial: Record<string, any> = {};
+        const initial: Record<string, FeasibilityDraft> = {};
+        const alreadySaved: Record<string, boolean> = {};
         for (const opp of opps) {
           const feas = (opp.metadata as Record<string, any>)?.feasibility;
+          if (feas) {
+            alreadySaved[opp.id] = true;
+          }
           initial[opp.id] = {
             hasSkills: feas?.hasSkills || 'partial',
             skillsNotes: feas?.skillsNotes || '',
@@ -54,20 +67,32 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
           };
         }
         setDrafts(initial);
+        setSavedIds(alreadySaved);
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message);
-        setLoading(false);
+        if (alive) {
+          setError(err.message);
+          setLoading(false);
+        }
       });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const currentOpp = opportunities[activeIdx];
   const currentDraft = currentOpp ? drafts[currentOpp.id] : null;
-  const currentApproach = currentOpp ? (currentOpp.metadata as Record<string, any>)?.approach : null;
+  const currentApproach = currentOpp
+    ? (currentOpp.metadata as Record<string, any>)?.approach
+    : null;
 
-  const updateField = (field: string, val: any) => {
+  const updateField = <K extends keyof FeasibilityDraft>(
+    field: K,
+    val: FeasibilityDraft[K],
+  ) => {
     if (!currentOpp) return;
+    setSavedNotice(null);
     setDrafts((prev) => ({
       ...prev,
       [currentOpp.id]: { ...prev[currentOpp.id], [field]: val },
@@ -93,16 +118,30 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
     }
   };
 
+  async function persistOpportunityFeasibility(opp: UserOpportunity) {
+    const draft = drafts[opp.id];
+    if (!draft) return;
+
+    const updated = await updateOpportunityFeasibility(opp.id, draft);
+    opportunitiesActions.upsert(updated);
+    setOpportunities((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    setSavedIds((prev) => ({ ...prev, [opp.id]: true }));
+  }
+
   const saveCurrent = async () => {
-    if (!currentOpp || !currentDraft) return;
+    if (!currentOpp || !currentDraft || saving) return;
     setSaving(true);
     setError(null);
+    setSavedNotice(null);
     try {
-      const updated = await updateOpportunityFeasibility(currentOpp.id, currentDraft);
-      opportunitiesActions.upsert(updated);
+      await persistOpportunityFeasibility(currentOpp);
 
       if (activeIdx < opportunities.length - 1) {
         setActiveIdx((prev) => prev + 1);
+      } else {
+        setSavedNotice('Saved.');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to save feasibility');
@@ -111,9 +150,34 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
     }
   };
 
+  const handleSelectTab = async (nextIdx: number) => {
+    if (nextIdx === activeIdx || saving) return;
+    if (currentOpp) {
+      setSaving(true);
+      setError(null);
+      try {
+        await persistOpportunityFeasibility(currentOpp);
+      } catch (err: any) {
+        setError(err.message || 'Failed to save feasibility');
+        setSaving(false);
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+    setSavedNotice(null);
+    setActiveIdx(nextIdx);
+  };
+
   const handleFinish = async () => {
+    if (saving) return;
     setSaving(true);
+    setError(null);
     try {
+      // Ensure every opportunity's feasibility draft is persisted before PathReveal loads
+      for (const opp of opportunities) {
+        await persistOpportunityFeasibility(opp);
+      }
       await onComplete({ completed: true });
     } catch (err: any) {
       setError(err.message || 'Failed to complete node');
@@ -142,13 +206,16 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
         {opportunities.map((opp, idx) => (
           <button
             key={opp.id}
-            onClick={() => setActiveIdx(idx)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+            type="button"
+            disabled={saving}
+            onClick={() => void handleSelectTab(idx)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
               activeIdx === idx
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             }`}
           >
+            {savedIds[opp.id] && <Check className="h-3.5 w-3.5" />}
             {opp.title}
           </button>
         ))}
@@ -164,13 +231,13 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
 
           {/* 1. Skills */}
           <div className="space-y-4 rounded-2xl border border-border p-6">
-            <h3 className="text-lg font-semibold">1. Skills & Capabilities</h3>
+            <h3 className="text-lg font-semibold">1. Skills &amp; Capabilities</h3>
             <p className="text-sm text-muted-foreground">Do you have the skills required to deliver this first version?</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { val: 'yes', label: 'Yes, fully' },
-                { val: 'partial', label: 'Partially / Need to learn' },
-                { val: 'no', label: 'No, completely new' },
+                { val: 'yes' as const, label: 'Yes, fully' },
+                { val: 'partial' as const, label: 'Partially / Need to learn' },
+                { val: 'no' as const, label: 'No, completely new' },
               ].map(({ val, label }) => (
                 <button
                   key={val}
@@ -187,20 +254,20 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
               ))}
             </div>
 
-            <Textarea
+            <SpeechTextarea
               rows={2}
               value={currentDraft.skillsNotes}
               onChange={(e) => updateField('skillsNotes', e.target.value)}
               placeholder="What specific skills do you need to learn or borrow?"
-              className="resize-none text-base"
+              className="resize-y text-base"
             />
           </div>
 
           {/* 2. Collaborators */}
           <div className="space-y-4 rounded-2xl border border-border p-6">
-            <h3 className="text-lg font-semibold">2. Collaborators & Network</h3>
+            <h3 className="text-lg font-semibold">2. Collaborators &amp; Network</h3>
             <p className="text-sm text-muted-foreground">If you lack any required skills, do you know someone in your network who could help?</p>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="radio"
@@ -222,7 +289,7 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
 
           {/* 3. Time */}
           <div className="space-y-4 rounded-2xl border border-border p-6">
-            <h3 className="text-lg font-semibold">3. Time & Bandwidth</h3>
+            <h3 className="text-lg font-semibold">3. Time &amp; Bandwidth</h3>
             <p className="text-sm text-muted-foreground">How much time does this need weekly, and do you realistically have it?</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <input
@@ -248,9 +315,9 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
             <p className="text-sm text-muted-foreground">Does this require upfront cash before serving one customer?</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { val: 'minimal', label: 'Near £0 / sweat equity' },
-                { val: 'moderate', label: 'Small (£100–£500)' },
-                { val: 'significant', label: 'Large (£1,000+)' },
+                { val: 'minimal' as const, label: 'Near £0 / sweat equity' },
+                { val: 'moderate' as const, label: 'Small (£100–£500)' },
+                { val: 'significant' as const, label: 'Large (£1,000+)' },
               ].map(({ val, label }) => (
                 <button
                   key={val}
@@ -270,19 +337,24 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
 
           {/* 5. Regulatory & Legal Assistant */}
           <div className="space-y-4 rounded-2xl border border-border p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold">5. Regulations & Legal Considerations</h3>
+                <h3 className="text-lg font-semibold">5. Regulations &amp; Legal Considerations</h3>
                 <p className="text-sm text-muted-foreground">Any specific licenses, data rules, or liability considerations?</p>
               </div>
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleCheckRegulatory}
+                onClick={() => void handleCheckRegulatory()}
                 disabled={isCheckingRegs}
-                className="gap-2"
+                className="shrink-0 gap-2"
               >
-                {isCheckingRegs ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
+                {isCheckingRegs ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-primary" />
+                )}
                 Check considerations
               </Button>
             </div>
@@ -298,29 +370,54 @@ export function PathAssessment({ node, nodeKey, onComplete }: NodeComponentProps
               </div>
             )}
 
-            <Textarea
+            <SpeechTextarea
               rows={2}
               value={currentDraft.regulatoryNotes}
               onChange={(e) => updateField('regulatoryNotes', e.target.value)}
               placeholder="Notes on insurance, permits, GDPR, or compliance requirements..."
-              className="resize-none text-base"
+              className="resize-y text-base"
             />
           </div>
+
+          {savedNotice && (
+            <p role="status" className="flex items-center gap-2 text-sm text-emerald-600">
+              <Check className="h-4 w-4" />
+              {savedNotice}
+            </p>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex items-center justify-between border-t border-border pt-6">
-            <span className="text-xs text-muted-foreground">Opportunity {activeIdx + 1} of {opportunities.length}</span>
-            <Button onClick={saveCurrent} disabled={saving} className="rounded-full px-6">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-              Save & Next Opportunity
+            <span className="text-xs text-muted-foreground">
+              Opportunity {activeIdx + 1} of {opportunities.length}
+            </span>
+            <Button
+              type="button"
+              onClick={() => void saveCurrent()}
+              disabled={saving}
+              className="rounded-full px-6"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
+              {activeIdx < opportunities.length - 1
+                ? 'Save & Next Opportunity'
+                : 'Save Assessment'}
             </Button>
           </div>
         </div>
       )}
 
       <div className="flex justify-end border-t border-border pt-6">
-        <Button onClick={handleFinish} disabled={saving} className="h-12 rounded-full px-8 text-base">
+        <Button
+          type="button"
+          onClick={() => void handleFinish()}
+          disabled={saving}
+          className="h-12 rounded-full px-8 text-base"
+        >
           Continue to Side-by-Side Reveal
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>

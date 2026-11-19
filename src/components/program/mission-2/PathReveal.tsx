@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SpeechContent } from '@/components/ui/speech-content';
 import { fetchUserOpportunities } from '@/actions/opportunities';
-import { generateFeasibilityAssessment, type FeasibilityAssessmentResult } from '@/actions/responses/mission2';
+import {
+  generateFeasibilityAssessment,
+  type FeasibilityAssessmentResult,
+} from '@/actions/responses/mission2';
 import { getNodeAILogs } from '@/actions/ai-logs';
 import { useStore } from '@nanostores/react';
 import { $userContext } from '@/lib/stores/user-context';
@@ -17,40 +21,61 @@ export function PathReveal({ node, nodeKey, onComplete }: NodeComponentProps) {
   const [analysis, setAnalysis] = useState<FeasibilityAssessmentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
 
-  const runAnalysis = async (opps: UserOpportunity[]) => {
-    try {
-      const payload = {
-        opportunities: opps.map((o) => ({
-          id: o.id,
-          title: o.title,
-          approach: (o.metadata as Record<string, any>)?.approach || {},
-          feasibility: (o.metadata as Record<string, any>)?.feasibility || {},
-        })),
-        userContext: contextState.userContext || {},
-        nodeKey,
-      };
-      const result = await generateFeasibilityAssessment(payload);
-      setAnalysis(result);
-    } catch (err: any) {
-      setError(err.message || 'Could not generate reflection');
-    }
-  };
+  const runAnalysis = useCallback(
+    async (opps: UserOpportunity[]) => {
+      if (opps.length === 0) return;
+      setError(null);
+      try {
+        const latestContext = $userContext.get().userContext || {};
+        const payload = {
+          opportunities: opps.map((o) => ({
+            id: o.id,
+            title: o.title,
+            approach: (o.metadata as Record<string, any>)?.approach || {},
+            feasibility: (o.metadata as Record<string, any>)?.feasibility || {},
+          })),
+          userContext: latestContext,
+          nodeKey,
+        };
+        const result = await generateFeasibilityAssessment(payload);
+        setAnalysis(result);
+      } catch (err: any) {
+        setError(err.message || 'Could not generate reflection');
+      }
+    },
+    [nodeKey],
+  );
 
   useEffect(() => {
+    if (!contextState.isHydrated || startedRef.current) return;
+    startedRef.current = true;
+
     async function load() {
       try {
         const opps = await fetchUserOpportunities();
         setOpportunities(opps);
 
-        // Check ai_logs first
+        if (opps.length === 0) {
+          setLoading(false);
+          return;
+        }
+
         const logs = await getNodeAILogs(nodeKey);
-        const saved = logs.find((l) => l.purpose === 'feasibility_assessment' && l.response);
+        const saved = logs.find(
+          (l) => l.purpose === 'feasibility_assessment' && l.response,
+        );
 
         if (saved && saved.response) {
-          const resp = typeof saved.response === 'string' ? JSON.parse(saved.response) : saved.response;
-          const parsed = typeof resp.content === 'string' ? JSON.parse(resp.content) : resp;
+          const resp =
+            typeof saved.response === 'string'
+              ? JSON.parse(saved.response)
+              : saved.response;
+          const parsed =
+            typeof resp.content === 'string' ? JSON.parse(resp.content) : resp;
           setAnalysis(parsed);
         } else {
           await runAnalysis(opps);
@@ -62,15 +87,26 @@ export function PathReveal({ node, nodeKey, onComplete }: NodeComponentProps) {
       }
     }
     void load();
-  }, [nodeKey]);
+  }, [contextState.isHydrated, nodeKey, runAnalysis]);
 
   const handleRegenerate = async () => {
+    if (regenerating || opportunities.length === 0) return;
     setRegenerating(true);
     await runAnalysis(opportunities);
     setRegenerating(false);
   };
 
-  if (loading) {
+  const handleContinue = async () => {
+    if (isContinuing) return;
+    setIsContinuing(true);
+    try {
+      await onComplete({ completed: true });
+    } finally {
+      setIsContinuing(false);
+    }
+  };
+
+  if (!contextState.isHydrated || loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -89,11 +125,17 @@ export function PathReveal({ node, nodeKey, onComplete }: NodeComponentProps) {
 
       {analysis && (
         <section className="max-w-3xl rounded-2xl border border-primary/30 bg-primary/[0.04] p-6 sm:p-8">
-          <div className="flex items-center gap-2 text-primary">
-            <Sparkles className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">A Mirror On Feasibility</span>
-          </div>
-          <p className="mt-3 text-lg leading-8 text-foreground">{analysis.overallReflection}</p>
+          <SpeechContent
+            textToRead={analysis.overallReflection}
+            showControls="always"
+            controlsPosition="top-right"
+          >
+            <div className="flex items-center gap-2 pr-16 text-primary">
+              <Sparkles className="h-5 w-5" />
+              <span className="text-xs font-semibold uppercase tracking-wider">A Mirror On Feasibility</span>
+            </div>
+            <p className="mt-3 text-lg leading-8 text-foreground">{analysis.overallReflection}</p>
+          </SpeechContent>
         </section>
       )}
 
@@ -113,14 +155,14 @@ export function PathReveal({ node, nodeKey, onComplete }: NodeComponentProps) {
                 <h2 className="text-xl font-bold">{opp.title}</h2>
                 <p className="text-sm leading-6 text-muted-foreground">{approach?.description || opp.problem}</p>
 
-                <div className="border-t border-border pt-3 text-xs space-y-1.5 text-muted-foreground">
+                <div className="space-y-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
                   <p><strong>Skills:</strong> {feas?.hasSkills} {feas?.skillsNotes && `(${feas.skillsNotes})`}</p>
                   <p><strong>Time:</strong> {feas?.timeCommitment} {feas?.hasTime ? '✓ Available' : '⚠️ Strained'}</p>
                   <p><strong>Capital:</strong> {feas?.capitalRequirement}</p>
                 </div>
 
                 {note && (
-                  <div className="mt-4 rounded-xl bg-muted/40 p-3 text-xs space-y-1">
+                  <div className="mt-4 space-y-1 rounded-xl bg-muted/40 p-3 text-xs">
                     <p className="font-semibold text-foreground">Observations:</p>
                     <p className="text-muted-foreground">{note.strengths}</p>
                     <p className="text-amber-600 dark:text-amber-400">{note.blindSpots}</p>
@@ -146,14 +188,38 @@ export function PathReveal({ node, nodeKey, onComplete }: NodeComponentProps) {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
-        <Button variant="outline" onClick={handleRegenerate} disabled={regenerating} className="gap-2">
-          {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void handleRegenerate()}
+          disabled={regenerating}
+          className="gap-2"
+        >
+          {regenerating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Refresh reflection
         </Button>
 
-        <Button onClick={() => onComplete({ completed: true })} className="h-12 rounded-full px-8 text-base">
-          Next: Research & Pause
-          <ArrowRight className="ml-2 h-4 w-4" />
+        <Button
+          type="button"
+          onClick={() => void handleContinue()}
+          disabled={isContinuing}
+          className="h-12 rounded-full px-8 text-base"
+        >
+          {isContinuing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Continuing…
+            </>
+          ) : (
+            <>
+              Next: Research &amp; Pause
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </>
+          )}
         </Button>
       </div>
     </div>
