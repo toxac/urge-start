@@ -1,15 +1,32 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Loader2, Sparkles, UserCheck, Wrench, Share2, GraduationCap } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  GraduationCap,
+  Loader2,
+  Share2,
+  UserCheck,
+  Wrench,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { fetchUserOpportunities, updateOpportunityApproach } from '@/actions/opportunities';
-import { $opportunities, opportunitiesActions } from '@/lib/stores/opportunities';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
+import {
+  fetchUserOpportunities,
+  updateOpportunityApproach,
+} from '@/actions/opportunities';
+import { opportunitiesActions } from '@/lib/stores/opportunities';
 import type { UserOpportunity } from '@/lib/types/opportunities';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 type ApproachType = 'do_for_them' | 'tool' | 'connect' | 'teach';
+
+type ApproachDraft = {
+  type: ApproachType;
+  description: string;
+  rationale: string;
+};
 
 const ARCHETYPES: {
   key: ApproachType;
@@ -58,16 +75,19 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
-  const [drafts, setDrafts] = useState<Record<string, { type: ApproachType; description: string; rationale: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, ApproachDraft>>({});
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let alive = true;
     fetchUserOpportunities()
       .then((opps) => {
+        if (!alive) return;
         setOpportunities(opps);
         opportunitiesActions.hydrate(opps);
 
-        const initialDrafts: Record<string, any> = {};
+        const initialDrafts: Record<string, ApproachDraft> = {};
         for (const opp of opps) {
           const savedApproach = (opp.metadata as Record<string, any>)?.approach;
           initialDrafts[opp.id] = {
@@ -80,16 +100,26 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message || 'Failed to load opportunities');
-        setLoading(false);
+        if (alive) {
+          setError(err.message || 'Failed to load opportunities');
+          setLoading(false);
+        }
       });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const currentOpp = opportunities[activeIdx];
   const currentDraft = currentOpp ? drafts[currentOpp.id] : null;
 
-  const updateCurrentDraft = (field: string, value: any) => {
+  const updateCurrentDraft = <K extends keyof ApproachDraft>(
+    field: K,
+    value: ApproachDraft[K],
+  ) => {
     if (!currentOpp) return;
+    setSavedNotice(null);
+    setError(null);
     setDrafts((prev) => ({
       ...prev,
       [currentOpp.id]: {
@@ -99,8 +129,33 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
     }));
   };
 
+  async function persistOpportunity(opp: UserOpportunity): Promise<boolean> {
+    const draft = drafts[opp.id];
+    if (!draft || !draft.description.trim()) return true;
+
+    const existing = (opp.metadata as Record<string, any>)?.approach;
+    const isUnchanged =
+      existing?.type === draft.type &&
+      (existing?.description ?? '').trim() === draft.description.trim() &&
+      (existing?.rationale ?? '').trim() === draft.rationale.trim();
+
+    if (isUnchanged) return true;
+
+    const updated = await updateOpportunityApproach(opp.id, {
+      type: draft.type,
+      description: draft.description.trim(),
+      rationale: draft.rationale.trim(),
+    });
+
+    opportunitiesActions.upsert(updated);
+    setOpportunities((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    return true;
+  }
+
   const saveCurrentOpportunity = async () => {
-    if (!currentOpp || !currentDraft) return;
+    if (!currentOpp || !currentDraft || saving) return;
     if (!currentDraft.description.trim()) {
       setError('Please describe what this solution looks like.');
       return;
@@ -108,16 +163,14 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
 
     setSaving(true);
     setError(null);
+    setSavedNotice(null);
     try {
-      const updated = await updateOpportunityApproach(currentOpp.id, {
-        type: currentDraft.type,
-        description: currentDraft.description.trim(),
-        rationale: currentDraft.rationale.trim(),
-      });
-      opportunitiesActions.upsert(updated);
+      await persistOpportunity(currentOpp);
 
       if (activeIdx < opportunities.length - 1) {
         setActiveIdx((prev) => prev + 1);
+      } else {
+        setSavedNotice('Saved.');
       }
     } catch (err: any) {
       setError(err.message || 'Could not save approach.');
@@ -126,15 +179,44 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
     }
   };
 
-  const allFilled = opportunities.every((opp) => drafts[opp.id]?.description?.trim().length > 0);
+  const handleSelectTab = async (nextIdx: number) => {
+    if (nextIdx === activeIdx || saving) return;
+    if (currentOpp && currentDraft?.description.trim()) {
+      setSaving(true);
+      setError(null);
+      try {
+        await persistOpportunity(currentOpp);
+      } catch (err: any) {
+        setError(err.message || 'Could not save approach.');
+        setSaving(false);
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+    setSavedNotice(null);
+    setActiveIdx(nextIdx);
+  };
+
+  const allFilled = opportunities.every(
+    (opp) => drafts[opp.id]?.description?.trim().length > 0,
+  );
 
   const handleFinish = async () => {
-    if (!allFilled) {
-      setError('Please define your approach for all opportunities before moving forward.');
+    if (!allFilled || saving) {
+      if (!allFilled) {
+        setError(
+          'Please define your approach for all opportunities before moving forward.',
+        );
+      }
       return;
     }
     setSaving(true);
+    setError(null);
     try {
+      for (const opp of opportunities) {
+        await persistOpportunity(opp);
+      }
       await onComplete({ completed: true });
     } catch (err: any) {
       setError(err.message || 'Failed to complete node');
@@ -178,7 +260,9 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
           return (
             <button
               key={opp.id}
-              onClick={() => setActiveIdx(idx)}
+              type="button"
+              disabled={saving}
+              onClick={() => void handleSelectTab(idx)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeIdx === idx
                   ? 'bg-primary text-primary-foreground'
@@ -213,7 +297,15 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
                 return (
                   <div
                     key={arch.key}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => updateCurrentDraft('type', arch.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        updateCurrentDraft('type', arch.key);
+                      }
+                    }}
                     className={`cursor-pointer rounded-2xl border p-5 transition ${
                       isSelected
                         ? 'border-primary bg-primary/[0.05] ring-2 ring-primary/20'
@@ -221,7 +313,13 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`rounded-xl p-2.5 ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                      <div
+                        className={`rounded-xl p-2.5 ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
                         <Icon className="h-5 w-5" />
                       </div>
                       <div>
@@ -242,25 +340,32 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
             <p className="text-sm text-muted-foreground">
               Describe the simplest version you can imagine delivering to one person in two weeks.
             </p>
-            <Textarea
+            <SpeechTextarea
               rows={4}
               value={currentDraft.description}
               onChange={(e) => updateCurrentDraft('description', e.target.value)}
               placeholder="e.g. I will personally review their menu, rewrite dish descriptions, take 10 photos, and print laminated cards..."
-              className="resize-none text-base leading-7"
+              className="resize-y text-base leading-7"
             />
           </div>
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">3. Why does this approach make sense for you? (Optional)</h3>
-            <Textarea
+            <SpeechTextarea
               rows={2}
               value={currentDraft.rationale}
               onChange={(e) => updateCurrentDraft('rationale', e.target.value)}
               placeholder="e.g. I already have design skills and can do this without writing any code..."
-              className="resize-none text-base leading-7"
+              className="resize-y text-base leading-7"
             />
           </div>
+
+          {savedNotice && (
+            <p role="status" className="flex items-center gap-2 text-sm text-emerald-600">
+              <Check className="h-4 w-4" />
+              {savedNotice}
+            </p>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -268,9 +373,20 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
             <span className="text-xs text-muted-foreground">
               Opportunity {activeIdx + 1} of {opportunities.length}
             </span>
-            <Button onClick={saveCurrentOpportunity} disabled={saving} className="rounded-full px-6">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-              Save & Next Opportunity
+            <Button
+              type="button"
+              onClick={() => void saveCurrentOpportunity()}
+              disabled={saving}
+              className="rounded-full px-6"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
+              {activeIdx < opportunities.length - 1
+                ? 'Save & Next Opportunity'
+                : 'Save Approach'}
             </Button>
           </div>
         </div>
@@ -278,7 +394,12 @@ export function HelpApproach({ node, onComplete }: NodeComponentProps) {
 
       {allFilled && (
         <div className="flex justify-end border-t border-border pt-6">
-          <Button onClick={handleFinish} disabled={saving} className="h-12 rounded-full px-8 text-base">
+          <Button
+            type="button"
+            onClick={() => void handleFinish()}
+            disabled={saving}
+            className="h-12 rounded-full px-8 text-base"
+          >
             Continue to Feasibility Assessment
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
