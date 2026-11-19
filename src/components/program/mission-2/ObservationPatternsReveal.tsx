@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,6 +14,7 @@ import {
 import { getNodeAILogs } from '@/actions/ai-logs';
 import { generateObservationPatterns } from '@/actions/responses/mission2';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+import { SpeechContent } from '@/components/ui/speech-content';
 import { $observations } from '@/lib/stores/observations';
 import { $userContext } from '@/lib/stores/user-context';
 import type {
@@ -90,8 +90,6 @@ function buildInput(
     );
   }
 
-  // Check every problem observation, not only the first 50.
-  // A newly added, unqualified observation must block progression.
   const unqualified = observations.filter(
     (item) => !isQualified(getProblemDetails(item)),
   );
@@ -134,7 +132,6 @@ function parseSavedResult(
   const response = parseJson(log.response);
   if (!isRecord(response)) return null;
 
-  // The AI logger stores responses as { content: "<JSON string>" }.
   const candidate = parseJson(response.content ?? response);
 
   if (
@@ -190,9 +187,6 @@ export function ObservationPatternsReveal({
     [observationState.byId],
   );
 
-  // Keep the latest hydrated data available to stable callbacks.
-  // This prevents the initial-load effect from being cancelled and
-  // restarted whenever the observations store changes.
   const recordsRef = useRef(records);
   const contextRef = useRef(contextState.userContext);
 
@@ -251,9 +245,6 @@ export function ObservationPatternsReveal({
     }
   }, []);
 
-  // Load the latest saved reflection once the required stores are hydrated.
-  // The stable generate callback and one-time guard prevent store updates
-  // from cancelling the initial load or triggering duplicate generations.
   useEffect(() => {
     if (
       started.current ||
@@ -332,8 +323,19 @@ export function ObservationPatternsReveal({
         result.questions.length > 0),
   );
 
+  const readAloudText = result
+    ? [
+        `One thing to sit with. ${result.overallReflection}`,
+        result.patterns[0]
+          ? `A possible pattern: ${result.patterns[0].title}. ${result.patterns[0].description}`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : '';
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6 pb-12">
       <header className="flex items-start gap-3">
         <div className="mt-1 rounded-xl bg-primary/10 p-2.5 text-primary">
           <Sparkles className="h-5 w-5" aria-hidden="true" />
@@ -399,36 +401,43 @@ export function ObservationPatternsReveal({
         </div>
       ) : result ? (
         <div className="space-y-5">
-          <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              One thing to sit with
-            </p>
-
-            <p className="mt-3 text-lg leading-8">
-              {result.overallReflection}
-            </p>
-          </section>
-
-          {result.patterns[0] && (
-            <section className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5 sm:p-7">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                A possible pattern
+          <SpeechContent
+            textToRead={readAloudText}
+            showControls="always"
+            controlsPosition="top-right"
+            className="space-y-5"
+          >
+            <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
+              <p className="pr-16 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                One thing to sit with
               </p>
 
-              <h3 className="mt-2 text-xl font-semibold">
-                {result.patterns[0].title}
-              </h3>
-
-              <p className="mt-2 leading-7 text-muted-foreground">
-                {result.patterns[0].description}
+              <p className="mt-3 text-lg leading-8">
+                {result.overallReflection}
               </p>
-
-              <Evidence
-                ids={result.patterns[0].evidenceObservationIds}
-                observations={observationState.byId}
-              />
             </section>
-          )}
+
+            {result.patterns[0] && (
+              <section className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5 sm:p-7">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  A possible pattern
+                </p>
+
+                <h3 className="mt-2 text-xl font-semibold">
+                  {result.patterns[0].title}
+                </h3>
+
+                <p className="mt-2 leading-7 text-muted-foreground">
+                  {result.patterns[0].description}
+                </p>
+
+                <Evidence
+                  ids={result.patterns[0].evidenceObservationIds}
+                  observations={observationState.byId}
+                />
+              </section>
+            )}
+          </SpeechContent>
 
           {hasMore && (
             <section className="overflow-hidden rounded-2xl border border-border">
