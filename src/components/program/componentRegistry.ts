@@ -41,7 +41,7 @@ import {
   HelpApproach,
   PathAssessment,
   PathReveal,
-  ChooseOpportunity,
+  OpportunityResearchPause,
   Mission2Reveal,
   Mission2Action,
 } from '@/components/program/mission-2';
@@ -112,7 +112,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'help_approach': HelpApproach,
   'path_assessment': PathAssessment,
   'path_reveal': PathReveal,
-  'choose_opportunity': ChooseOpportunity,
+  'choose_opportunity': OpportunityResearchPause,
   // Mission 2 Action
   'opportunity_synthesis': Mission2Reveal,
   'opportunity_action': Mission2Action,
