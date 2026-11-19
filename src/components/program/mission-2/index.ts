@@ -17,6 +17,7 @@ export * from './PathSetup';
 export * from './HelpApproach';
 export * from './PathAssessment';
 export * from './PathReveal';
-export * from './ChooseOpportunity';
+
 export * from './Mission2Reveal';
 export * from './Mission2Action';
+export * from './OpportunityResearchPause';
