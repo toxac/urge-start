@@ -112,7 +112,7 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'help_approach': HelpApproach,
   'path_assessment': PathAssessment,
   'path_reveal': PathReveal,
-  'choose_opportunity': OpportunityResearchPause,
+  'opportunity_research_pause': OpportunityResearchPause,
   // Mission 2 Action
   'opportunity_synthesis': Mission2Reveal,
   'opportunity_action': Mission2Action,

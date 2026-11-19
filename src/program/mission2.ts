@@ -274,9 +274,9 @@ You don't need to be an expert. You need to know what you'd have to learn, who y
 Look at all four for each opportunity, then choose the one that's closest to what you'd actually do first.`,
           prompt: `Which of these is closest to what you'd actually do first?`,
           intent:
-            'Per opportunity, think about the solution broadly across four ways of helping: do it for them (product or service), give them a tool (software), connect them (marketplace or matching), teach them (information or course). The user picks a primary approach (optionally a second), describes what it would look like for the person with the problem, and says why. This is what makes the final choice a reasoned one. Prefilled with their smallest version. "I\'m not sure yet" is allowed and shown in the reveal.',
+            'Per opportunity, think about the solution broadly across four ways of helping: do it for them (product or service), give them a tool (software), connect them (marketplace or matching), teach them (information or course). The user picks a primary approach, describes what it would look like for the person with the problem, and says why.',
           component: 'help_approach',
-          dependencies: ['m2-q3-assessment'],
+          dependencies: ['m2-q3-setup'],
           metadata: {
             observation: {
               type: 'research',
@@ -296,12 +296,12 @@ Look at all four for each opportunity, then choose the one that's closest to wha
           sequence: 3,
           role: 'investigation',
           title: 'What would it take?',
-          description: `One opportunity at a time, a few questions, one at a time. At the end you'll get a short summary in your own words to correct.`,
+          description: `Look honestly at the skills, people, time, money, and practical rules each opportunity would need from you.`,
           prompt: 'What would it take?',
           intent:
-            'Guided conversation per remaining opportunity covering what they know, what they would need to learn and how long, who they would need, who already does something about it (prefilled from their conversations), the smallest version they could do for one person in two weeks, and what they would need to hear to stop. Ends in an editable summary. One feasibility observation per opportunity. The smallest-version step can be skipped, which is flagged in the reveal.',
+            'Assess skills, collaborators, weekly time, upfront capital, and regulatory considerations per opportunity after choosing an approach.',
           component: 'path_assessment',
-          dependencies: ['m2-q3-setup'],
+          dependencies: ['m2-q3-approach'],
           pacing: { delay_days: 1 },
           metadata: {
             guidance: 'Take your time with each one. There is no rush.',
@@ -312,7 +312,6 @@ Look at all four for each opportunity, then choose the one that's closest to wha
             },
           },
         },
-        
         {
           key: 'm2-q3-reveal',
           sequence: 4,
@@ -320,27 +319,27 @@ Look at all four for each opportunity, then choose the one that's closest to wha
           title: 'Where do you have a way in?',
           description: `Here are your opportunities side by side, in your own words.`,
           intent:
-            'Show each remaining opportunity against what the user said they know, need, have access to, how long it would take, who already does something, the smallest version and how they would help. No scores and no winner. Mirrors mismatches and gaps against the user program context. Persisted in ai_logs (purpose feasibility_assessment) with regenerate.',
+            'Show each remaining opportunity against its chosen approach, skills, time, capital, and program context. No scores and no winner. Persisted in ai_logs (purpose feasibility_assessment) with regenerate.',
           component: 'path_reveal',
-          dependencies: ['m2-q3-approach'],
+          dependencies: ['m2-q3-assessment'],
         },
         {
           key: 'm2-q3-action',
           sequence: 5,
           role: 'action',
-          title: 'Which one will you work on?',
-          description: `You've noticed, qualified, talked to people, looked at what it would take, and thought about how you'd help. Now choose the opportunity that becomes your project.
+          title: 'Step back and check what is out there.',
+          description: `You've noticed, qualified, talked to people, thought about how you'd help, and looked at what it would take.
 
-You're not marrying it. You'll test it with real people next, and you can come back to the others.`,
-          prompt: 'Which one will you work on?',
+Before you pick one to commit to, take a little time to look at how people talk about these problems in the wild—and what they complain about with what already exists.`,
+          prompt: 'What did you notice when you looked closer?',
           intent:
-            'Short reflection first, then choose one, or choose none, not now, or start over. Choosing creates the project and carries the evidence and the chosen approach forward. Enforced two-day gap after the reveal so the choice is not made on impulse.',
-          component: 'choose_opportunity',
+            'Encourage a 24–48 hour pause to check communities, reviews, and search intent before making the final project choice in m2-action. Supports optional research tasks and freeform research notes.',
+          component: 'opportunity_research_pause',
           dependencies: ['m2-q3-reveal'],
-          pacing: { delay_days: 2, isStrict: true },
+          pacing: { delay_days: 2 },
           metadata: {
             guidance:
-              `Whatever you choose, you'll spend real time on it. Take a couple of days.`,
+              `Whatever you choose next, you'll spend real time on it. Take a day or two to look around before deciding.`,
           },
         },
       ],
