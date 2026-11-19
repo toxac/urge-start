@@ -1,25 +1,25 @@
-
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
-  BookOpen,
-  Check,
-  CalendarPlus,
-  CheckCircle2,
-  CircleDashed,
-  Lightbulb,
-  PencilLine,
-  Save,
-  Trash2,
-  X,
+    ArrowRight,
+    BookOpen,
+    Check,
+    CalendarPlus,
+    CheckCircle2,
+    CircleDashed,
+    Lightbulb,
+    PencilLine,
+    Save,
+    Trash2,
+    X,
 } from 'lucide-react';
 
 import { deleteObservation, getObservations } from '@/actions/observations';
 import { saveUserTasks } from '@/actions/tasks';
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
+import { observationsActions } from '@/lib/stores/observations';
 import type {
     ProblemObservationFocus,
     UserObservation,
@@ -214,14 +214,17 @@ export function ObservationCapture({
 
         try {
             const rows = await getObservations();
-
-            setObservations(
-                rows.filter(
-                    (row) =>
-                        row.type === 'observation' &&
-                        row.domain === 'problem',
-                ),
+            const problemRows = rows.filter(
+                (row) =>
+                    row.type === 'observation' &&
+                    row.domain === 'problem',
             );
+
+            setObservations(problemRows);
+
+            for (const row of problemRows) {
+                observationsActions.upsert(row);
+            }
         } catch (e) {
             setError(
                 e instanceof Error
@@ -330,6 +333,10 @@ export function ObservationCapture({
             setObservations((current) =>
                 current.filter((item) => item.id !== observation.id),
             );
+            observationsActions.upsert({
+                ...observation,
+                type: 'deleted',
+            });
             if (editingObservation?.id === observation.id) {
                 setCaptureOpen(false);
                 setEditingObservation(null);
@@ -359,8 +366,6 @@ export function ObservationCapture({
         setError(null);
 
         try {
-            // The shared progress manager owns completion and navigation,
-            // including when this node has already been completed.
             await onComplete({
                 observation_count: observations.length,
             });
@@ -370,7 +375,6 @@ export function ObservationCapture({
     };
 
     const openResource = (slug: string) => {
-        // Resource route will be implemented separately.
         window.open(
             `/resources/${slug}`,
             '_blank',
@@ -663,6 +667,7 @@ export function ObservationCapture({
                                     setNotice('Observation updated.');
                                     setEditingObservation(null);
                                     setActivePrompt(null);
+                                    observationsActions.upsert(savedObservation);
                                     setObservations((current) => {
                                         const withoutSaved = current.filter(
                                             (item) => item.id !== savedObservation.id,
@@ -686,6 +691,7 @@ export function ObservationCapture({
                                     );
                                     setEditingObservation(null);
                                     setActivePrompt(null);
+                                    observationsActions.upsert(savedObservation);
                                     setObservations((current) => {
                                         const withoutSaved = current.filter(
                                             (item) => item.id !== savedObservation.id,
