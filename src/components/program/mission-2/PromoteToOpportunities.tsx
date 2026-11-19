@@ -1,10 +1,10 @@
-
 'use client';
 
 import { useMemo, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import {
   AlertCircle,
+  ArrowRight,
   Check,
   CircleHelp,
   Loader2,
@@ -206,28 +206,42 @@ export function PromoteToOpportunities({
 }: NodeComponentProps) {
   const observationState = useStore($observations);
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [confirmedNoIds, setConfirmedNoIds] = useState<string[]>([]);
-  const [completing, setCompleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Keep the result if progress persistence fails, so a retry can
-  // retry completion without inserting the same opportunities again
-  // during this mounted session.
-  const [createdOpportunityIds, setCreatedOpportunityIds] =
-    useState<string[] | null>(null);
-
-  const observations = useMemo(
-    () => Object.values(observationState.byId),
-    [observationState.byId],
-  );
-
   const alreadyCompletedIds = useMemo(
     () =>
       Array.isArray(progress.payload?.opportunity_ids)
         ? (progress.payload.opportunity_ids as string[])
         : [],
     [progress.payload],
+  );
+
+  const savedSelectedObservationIds = useMemo(
+    () =>
+      Array.isArray(progress.payload?.selected_observation_ids)
+        ? (progress.payload.selected_observation_ids as string[])
+        : [],
+    [progress.payload],
+  );
+
+  const isAlreadyCompleted =
+    progress.completed === true ||
+    progress.payload?.completed === true ||
+    alreadyCompletedIds.length > 0;
+
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    savedSelectedObservationIds,
+  );
+  const [confirmedNoIds, setConfirmedNoIds] = useState<string[]>([]);
+  const [completing, setCompleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [createdOpportunityIds, setCreatedOpportunityIds] =
+    useState<string[] | null>(
+      alreadyCompletedIds.length > 0 ? alreadyCompletedIds : null,
+    );
+
+  const observations = useMemo(
+    () => Object.values(observationState.byId),
+    [observationState.byId],
   );
 
   const { qualified, skipped } = useMemo(() => {
@@ -243,7 +257,6 @@ export function PromoteToOpportunities({
         const aDetails = getProblemDetails(a);
         const bDetails = getProblemDetails(b);
 
-        // Prioritise more "yes" answers, then whether the user cares.
         const scoreDifference =
           yesCount(bDetails) - yesCount(aDetails);
 
@@ -283,7 +296,7 @@ export function PromoteToOpportunities({
   );
 
   function toggleObservation(id: string) {
-    if (completing || createdOpportunityIds) return;
+    if (completing || isAlreadyCompleted || createdOpportunityIds) return;
 
     setError(null);
 
@@ -320,6 +333,22 @@ export function PromoteToOpportunities({
 
   async function handleContinue() {
     if (completing) return;
+
+    if (isAlreadyCompleted) {
+      setCompleting(true);
+      try {
+        await onComplete({
+          completed: true,
+          opportunity_ids: alreadyCompletedIds,
+          ...(savedSelectedObservationIds.length > 0
+            ? { selected_observation_ids: savedSelectedObservationIds }
+            : {}),
+        });
+      } finally {
+        setCompleting(false);
+      }
+      return;
+    }
 
     if (selectedIds.length !== MAX_SELECTIONS) {
       setError('Choose exactly three observations to continue.');
@@ -360,6 +389,7 @@ export function PromoteToOpportunities({
       await onComplete({
         completed: true,
         opportunity_ids: opportunityIds,
+        selected_observation_ids: selectedIds,
       });
     } catch (err) {
       setError(
@@ -381,10 +411,68 @@ export function PromoteToOpportunities({
     );
   }
 
+  if (isAlreadyCompleted) {
+    const chosenObservations = savedSelectedObservationIds
+      .map((id) => observationState.byId[id])
+      .filter((item): item is UserObservation => Boolean(item));
+
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-7">
+        <header className="space-y-3">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            {node.title}
+          </h2>
+          <p className="text-base leading-7 text-muted-foreground">
+            You have already chosen three problems to investigate in the next quest.
+          </p>
+        </header>
+
+        {chosenObservations.length > 0 && (
+          <section className="space-y-3">
+            {chosenObservations.map((observation) => (
+              <div
+                key={observation.id}
+                className="rounded-xl border border-primary/30 bg-primary/[0.04] p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                  <div>
+                    <p className="font-medium">{observation.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {observation.content}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <footer className="flex justify-end border-t border-border pt-5">
+          <button
+            type="button"
+            disabled={completing}
+            onClick={() => void handleContinue()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {completing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </button>
+        </footer>
+      </div>
+    );
+  }
+
   const selectionComplete = selectedIds.length === MAX_SELECTIONS;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-7">
+    <div className="mx-auto w-full max-w-3xl space-y-7 pb-12">
       <header className="space-y-3">
         <h2 className="text-2xl font-semibold tracking-tight">
           {node.title}
