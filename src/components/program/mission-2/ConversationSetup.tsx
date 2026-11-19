@@ -1,10 +1,23 @@
 'use client';
 
-import { ArrowRight, Ear, MessageCircle, Lightbulb } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, Ear, Lightbulb, Loader2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 export function ConversationSetup({ node, onComplete }: NodeComponentProps) {
+  const [isContinuing, setIsContinuing] = useState(false);
+
+  async function handleContinue() {
+    if (isContinuing) return;
+    setIsContinuing(true);
+    try {
+      await onComplete({ completed: true });
+    } finally {
+      setIsContinuing(false);
+    }
+  }
+
   return (
     <div className="w-full space-y-8 pb-12">
       <div className="max-w-3xl space-y-4">
@@ -57,8 +70,21 @@ export function ConversationSetup({ node, onComplete }: NodeComponentProps) {
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={() => onComplete({ completed: true })} className="rounded-full">
-          Continue <ArrowRight className="ml-2 h-4 w-4" />
+        <Button
+          onClick={() => void handleContinue()}
+          disabled={isContinuing}
+          className="rounded-full"
+        >
+          {isContinuing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Continuing…
+            </>
+          ) : (
+            <>
+              Continue <ArrowRight className="ml-2 h-4 w-4" />
+            </>
+          )}
         </Button>
       </div>
     </div>

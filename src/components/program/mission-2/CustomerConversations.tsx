@@ -1,64 +1,53 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Loader2, Save, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Check, Loader2, Plus, Save, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import { fetchUserOpportunities } from '@/actions/opportunities';
 import { createUserContact } from '@/actions/contacts';
 import { saveUserTasks } from '@/actions/tasks';
 import {
+  getInterviewContacts,
   getOpportunityInteractions,
   saveOpportunityInteraction,
-  getInterviewContacts,
 } from '@/actions/customer-interactions';
 
-import type {CustomerInteraction} from '@/lib/types/interactions';
+import type { CustomerInteraction } from '@/lib/types/interactions';
 import type { UserOpportunity } from '@/lib/types/opportunities';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 type ContactOption = { id: string; name: string };
 
+type InteractionWithContact = CustomerInteraction & {
+  contact_id?: string | null;
+};
+
 export function CustomerConversations({
   nodeKey,
   node,
-  progress,
   onComplete,
 }: NodeComponentProps) {
   const [opps, setOpps] = useState<UserOpportunity[]>([]);
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [selected, setSelected] = useState('');
-  const [rows, setRows] = useState<CustomerInteraction[]>([]);
+  const [rows, setRows] = useState<InteractionWithContact[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+
   const [notes, setNotes] = useState('');
   const [contactId, setContactId] = useState('');
   const [newContact, setNewContact] = useState('');
   const [task, setTask] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
-
-  async function loadNotes(id: string) {
-    if (!id) {
-      setRows([]);
-      return;
-    }
-    try {
-      setRows(await getOpportunityInteractions(id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load notes.');
-    }
-  }
+  const [savedNotice, setSavedNotice] = useState('');
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      fetchUserOpportunities(),
-      (async () => {
-        // Fetch contacts through the authenticated action; see add-contact below
-        // if no existing list is available.
-        return getInterviewContacts();
-      })(),
-    ])
+    Promise.all([fetchUserOpportunities(), getInterviewContacts()])
       .then(([o, c]) => {
         if (!alive) return;
         setOpps(o);
@@ -78,15 +67,51 @@ export function CustomerConversations({
   }, []);
 
   useEffect(() => {
-    void loadNotes(selected);
+    if (!selected) {
+      setRows([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingNotes(true);
+
+    getOpportunityInteractions(selected)
+      .then((interactions) => {
+        if (!cancelled) {
+          setRows(interactions as InteractionWithContact[]);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Could not load notes.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingNotes(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selected]);
+
+  const contactNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of contacts) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  }, [contacts]);
 
   const opportunity = opps.find((o) => o.id === selected);
 
   async function addContact() {
-    if (!newContact.trim()) return;
+    if (!newContact.trim() || saving) return;
     setSaving(true);
     setError('');
+    setSavedNotice('');
     try {
       const r = await createUserContact({
         name: newContact.trim(),
@@ -107,18 +132,22 @@ export function CustomerConversations({
   }
 
   async function saveNote() {
-    if (!selected || !notes.trim()) return;
+    if (!selected || !notes.trim() || saving) return;
     setSaving(true);
     setError('');
+    setSavedNotice('');
     try {
       const r = await saveOpportunityInteraction({
         opportunityId: selected,
         contactId: contactId || null,
-        notes,
+        notes: notes.trim(),
       });
-      setRows((old) => [r, ...old]);
+      setRows((old) => [
+        { ...(r as InteractionWithContact), contact_id: contactId || null },
+        ...old,
+      ]);
       setNotes('');
-      setSaved(true);
+      setSavedNotice('Note saved.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save note.');
     } finally {
@@ -127,9 +156,10 @@ export function CustomerConversations({
   }
 
   async function saveTask() {
-    if (!task.trim() || !selected) return;
+    if (!task.trim() || !selected || saving) return;
     setSaving(true);
     setError('');
+    setSavedNotice('');
     try {
       await saveUserTasks([
         {
@@ -141,10 +171,24 @@ export function CustomerConversations({
         },
       ]);
       setTask('');
+      setSavedNotice('Added to your tasks.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save task.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleContinue() {
+    if (isContinuing) return;
+    setIsContinuing(true);
+    try {
+      await onComplete({
+        completed: true,
+        selectedOpportunityId: selected || undefined,
+      });
+    } finally {
+      setIsContinuing(false);
     }
   }
 
@@ -171,22 +215,35 @@ export function CustomerConversations({
         </p>
       ) : (
         <>
-          <div className="max-w-3xl space-y-2">
-            <label className="text-sm font-medium">Opportunity</label>
-            <select
-              value={selected}
-              onChange={(e) => {
-                setSelected(e.target.value);
-                setSaved(false);
-              }}
-              className="w-full rounded-lg border bg-background p-3"
-            >
-              {opps.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.title}
-                </option>
-              ))}
-            </select>
+          <div className="max-w-3xl space-y-2.5">
+            <label className="text-sm font-medium">
+              Your opportunities ({opps.length})
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {opps.map((o) => {
+                const isSelected = o.id === selected;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => {
+                      setSelected(o.id);
+                      setSavedNotice('');
+                      setError('');
+                    }}
+                    aria-pressed={isSelected}
+                    className={[
+                      'rounded-full border px-4 py-2 text-left text-sm font-medium transition-colors',
+                      isSelected
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground',
+                    ].join(' ')}
+                  >
+                    {o.title}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {opportunity && (
@@ -244,12 +301,19 @@ export function CustomerConversations({
               <input
                 value={newContact}
                 onChange={(e) => setNewContact(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newContact.trim()) {
+                    e.preventDefault();
+                    void addContact();
+                  }
+                }}
                 placeholder="Add contact name"
                 className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2"
               />
               <Button
+                type="button"
                 variant="outline"
-                onClick={addContact}
+                onClick={() => void addContact()}
                 disabled={saving || !newContact.trim()}
               >
                 <Plus className="mr-1 h-4 w-4" />
@@ -257,19 +321,23 @@ export function CustomerConversations({
               </Button>
             </div>
 
-            <textarea
+            <SpeechTextarea
               rows={5}
               value={notes}
               onChange={(e) => {
                 setNotes(e.target.value);
-                setSaved(false);
+                setSavedNotice('');
               }}
               placeholder="What did they say? What stood out?"
               className="w-full rounded-lg border bg-background p-3 leading-6"
             />
 
             <div className="flex justify-end">
-              <Button onClick={saveNote} disabled={saving || !notes.trim()}>
+              <Button
+                type="button"
+                onClick={() => void saveNote()}
+                disabled={saving || !notes.trim()}
+              >
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -279,21 +347,37 @@ export function CustomerConversations({
               </Button>
             </div>
 
-            {saved && (
-              <p className="flex items-center gap-2 text-sm text-emerald-600">
+            {savedNotice && (
+              <p role="status" className="flex items-center gap-2 text-sm text-emerald-600">
                 <Check className="h-4 w-4" />
-                Saved.
+                {savedNotice}
               </p>
             )}
 
-            {rows.map((r) => (
-              <article key={r.id} className="rounded-lg bg-muted/40 p-4">
-                <p className="whitespace-pre-wrap">{r.notes}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {new Date(r.interaction_at).toLocaleDateString()}
-                </p>
-              </article>
-            ))}
+            {loadingNotes ? (
+              <p className="text-sm text-muted-foreground">Loading notes…</p>
+            ) : (
+              rows.map((r) => {
+                const personName = r.contact_id
+                  ? contactNameById.get(r.contact_id)
+                  : undefined;
+
+                return (
+                  <article key={r.id} className="space-y-2 rounded-lg bg-muted/40 p-4">
+                    <p className="whitespace-pre-wrap">{r.notes}</p>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      {personName && (
+                        <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                          <UserRound className="h-3 w-3" />
+                          {personName}
+                        </span>
+                      )}
+                      <span>{new Date(r.interaction_at).toLocaleDateString()}</span>
+                    </div>
+                  </article>
+                );
+              })
+            )}
           </section>
 
           <section className="max-w-3xl space-y-3 rounded-xl border p-4">
@@ -304,11 +388,25 @@ export function CustomerConversations({
             <div className="flex gap-2">
               <input
                 value={task}
-                onChange={(e) => setTask(e.target.value)}
+                onChange={(e) => {
+                  setTask(e.target.value);
+                  setSavedNotice('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && task.trim()) {
+                    e.preventDefault();
+                    void saveTask();
+                  }
+                }}
                 placeholder="Something you want to remember to do"
                 className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2"
               />
-              <Button variant="outline" onClick={saveTask} disabled={saving || !task.trim()}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void saveTask()}
+                disabled={saving || !task.trim()}
+              >
                 Add task
               </Button>
             </div>
@@ -324,8 +422,22 @@ export function CustomerConversations({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => onComplete({ completed: true })} className="rounded-full px-6">
-          Continue to reflection <Check className="ml-2 h-4 w-4" />
+        <Button
+          type="button"
+          onClick={() => void handleContinue()}
+          disabled={isContinuing}
+          className="rounded-full px-6"
+        >
+          {isContinuing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Continuing…
+            </>
+          ) : (
+            <>
+              Continue to reflection <Check className="ml-2 h-4 w-4" />
+            </>
+          )}
         </Button>
       </div>
     </div>
