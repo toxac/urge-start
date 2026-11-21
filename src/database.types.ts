@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -277,6 +277,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      experiments: {
+        Row: {
+          best_when: string
+          category: string
+          cost_estimate: string
+          created_at: string
+          heads_up: Json
+          id: string
+          involves_people: boolean
+          is_active: boolean
+          key: string
+          matching_rules: Json
+          metrics: Json
+          mission_key: string
+          name: string
+          one_line: string
+          prep_checklist: Json
+          prompt_template: string | null
+          resource_slug: string | null
+          sort_order: number
+          strong_signal_guide: string
+          tells_you: string
+          updated_at: string
+          weak_signal_guide: string
+        }
+        Insert: {
+          best_when: string
+          category?: string
+          cost_estimate: string
+          created_at?: string
+          heads_up?: Json
+          id?: string
+          involves_people?: boolean
+          is_active?: boolean
+          key: string
+          matching_rules?: Json
+          metrics?: Json
+          mission_key?: string
+          name: string
+          one_line: string
+          prep_checklist?: Json
+          prompt_template?: string | null
+          resource_slug?: string | null
+          sort_order?: number
+          strong_signal_guide: string
+          tells_you: string
+          updated_at?: string
+          weak_signal_guide: string
+        }
+        Update: {
+          best_when?: string
+          category?: string
+          cost_estimate?: string
+          created_at?: string
+          heads_up?: Json
+          id?: string
+          involves_people?: boolean
+          is_active?: boolean
+          key?: string
+          matching_rules?: Json
+          metrics?: Json
+          mission_key?: string
+          name?: string
+          one_line?: string
+          prep_checklist?: Json
+          prompt_template?: string | null
+          resource_slug?: string | null
+          sort_order?: number
+          strong_signal_guide?: string
+          tells_you?: string
+          updated_at?: string
+          weak_signal_guide?: string
+        }
+        Relationships: []
       }
       observation_links: {
         Row: {
@@ -581,6 +656,110 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_experiments: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          custom_metrics: Json
+          experiment_id: string | null
+          experiment_key: string
+          id: string
+          mission_key: string
+          opportunity_id: string | null
+          pass_number: number
+          previous_experiment_id: string | null
+          project_id: string | null
+          reflection: Json
+          results: Json
+          setup: Json
+          shared_content_id: string | null
+          source_node_key: string | null
+          started_at: string | null
+          status: string
+          threshold: Json
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          custom_metrics?: Json
+          experiment_id?: string | null
+          experiment_key: string
+          id?: string
+          mission_key?: string
+          opportunity_id?: string | null
+          pass_number?: number
+          previous_experiment_id?: string | null
+          project_id?: string | null
+          reflection?: Json
+          results?: Json
+          setup?: Json
+          shared_content_id?: string | null
+          source_node_key?: string | null
+          started_at?: string | null
+          status?: string
+          threshold?: Json
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          custom_metrics?: Json
+          experiment_id?: string | null
+          experiment_key?: string
+          id?: string
+          mission_key?: string
+          opportunity_id?: string | null
+          pass_number?: number
+          previous_experiment_id?: string | null
+          project_id?: string | null
+          reflection?: Json
+          results?: Json
+          setup?: Json
+          shared_content_id?: string | null
+          source_node_key?: string | null
+          started_at?: string | null
+          status?: string
+          threshold?: Json
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_experiments_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_experiments_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "user_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_experiments_previous_experiment_id_fkey"
+            columns: ["previous_experiment_id"]
+            isOneToOne: false
+            referencedRelation: "user_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_experiments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_interactions: {
         Row: {
