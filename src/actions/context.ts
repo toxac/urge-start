@@ -3,8 +3,11 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { ContextResource } from '@/lib/context/requirements';
-
 import type { ProblemDetails } from '@/lib/types/observations';
+import {
+  mapExperimentBlueprintRow,
+  mapUserExperimentRow,
+} from '@/actions/experiments';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
@@ -29,10 +32,29 @@ export async function fetchMissionContext(
     contextData.resources = resources ?? [];
   }
 
+  if (requirements.includes('experiments')) {
+    const { data: experiments, error } = await supabase
+      .from('experiments')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch experiment blueprints: ${error.message}`,
+      );
+    }
+
+    contextData.experiments = (experiments ?? []).map(
+      mapExperimentBlueprintRow,
+    );
+  }
+
   const needsObservations = requirements.includes('observations');
   const needsOpportunities = requirements.includes('opportunities');
+  const needsUserExperiments = requirements.includes('user_experiments');
 
-  if (needsObservations || needsOpportunities) {
+  if (needsObservations || needsOpportunities || needsUserExperiments) {
     const {
       data: { user },
       error: authError,
@@ -80,8 +102,25 @@ export async function fetchMissionContext(
         }),
       );
     }
+
+    if (needsUserExperiments) {
+      const { data: userExperiments, error } = await supabase
+        .from('user_experiments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(
+          `Failed to fetch user experiments: ${error.message}`,
+        );
+      }
+
+      contextData.user_experiments = (userExperiments ?? []).map(
+        mapUserExperimentRow,
+      );
+    }
   }
 
   return contextData;
 }
-
