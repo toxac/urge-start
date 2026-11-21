@@ -402,3 +402,15 @@ export function mapUserExperimentRow(row: UserExperimentRow): UserExperiment {
     updated_at: row.updated_at,
   };
 }
+
+export type PitchReviewResult = {
+  whatWorks: string[];
+  watchOut: string[];
+  sharperVersions: string[];
+};
+
+export type SignalReadingResult = {
+  shows: string;
+  mightMean: string;
+  unclear: string;
+};
