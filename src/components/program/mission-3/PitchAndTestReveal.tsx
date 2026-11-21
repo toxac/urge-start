@@ -18,8 +18,8 @@ import {
 import {
   fetchExperimentBlueprints,
   fetchMission3ContextSummary,
-  type Mission3ContextSummary,
 } from '@/actions/experiments';
+import type {Mission3ContextSummary} from '@/lib/types/experiments';
 import { reviewMission3Pitch } from '@/actions/responses/mission3';
 import {
   recommendExperimentsForFounder,

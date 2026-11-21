@@ -22,8 +22,8 @@ import {
   fetchExperimentBlueprints,
   fetchMission3ContextSummary,
   fetchUserExperiments,
-  type Mission3ContextSummary,
 } from '@/actions/experiments';
+import type {Mission3ContextSummary} from '@/lib/types/experiments';
 import {
   recommendExperimentsForFounder,
   type ExperimentBlueprint,

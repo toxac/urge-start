@@ -8,8 +8,9 @@ import { SpeechContent } from '@/components/ui/speech-content';
 import { $progress } from '@/lib/stores/progress';
 import {
   fetchMission3ContextSummary,
-  type Mission3ContextSummary,
 } from '@/actions/experiments';
+
+import type {Mission3ContextSummary} from '@/lib/types/experiments';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 const APPROACH_LABELS: Record<string, string> = {

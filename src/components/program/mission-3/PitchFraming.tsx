@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { SpeechTextarea } from '@/components/ui/speech-textarea';
 import {
   fetchMission3ContextSummary,
-  type Mission3ContextSummary,
 } from '@/actions/experiments';
+import type {Mission3ContextSummary} from '@/lib/types/experiments';
 import type { ExperimentPitchSetup } from '@/lib/types/experiments';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
