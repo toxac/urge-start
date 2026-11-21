@@ -1,13 +1,20 @@
-
 'use client';
 
 import { useEffect } from 'react';
 
 import type { ContextResource } from '@/lib/context/requirements';
 import type { UserObservation } from '@/lib/types/observations';
+import type {
+  ExperimentBlueprint,
+  UserExperiment,
+} from '@/lib/types/experiments';
 
 import { $nodeResources } from '@/lib/stores/resources';
 import { observationsActions } from '@/lib/stores/observations';
+import {
+  experimentBlueprintsActions,
+  userExperimentsActions,
+} from '@/lib/stores/experiments';
 
 interface MissionContextHydratorProps {
   contextData: Partial<Record<ContextResource, any>>;
@@ -25,9 +32,17 @@ export function MissionContextHydrator({
       observationsActions.hydrate(
         contextData.observations as UserObservation[],
       );
-      console.log(
-        '[OBSERVATIONS HYDRATED]',
-        observationsActions.getByNode('m2-setup'),
+    }
+
+    if (contextData.experiments !== undefined) {
+      experimentBlueprintsActions.hydrate(
+        contextData.experiments as ExperimentBlueprint[],
+      );
+    }
+
+    if (contextData.user_experiments !== undefined) {
+      userExperimentsActions.hydrate(
+        contextData.user_experiments as UserExperiment[],
       );
     }
   }, [contextData]);
