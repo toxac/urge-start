@@ -4,24 +4,20 @@ import type { ProgramMission } from './types';
 /**
  * Mission 3 — Test the Problem
  *
- * M3 asks one question: is this problem real enough to plan a business around?
- * It does NOT test a solution, ask for a price, or produce an offer. The offer
- * is designed in M4 and tested in M5 against the warm list this mission builds.
+ * M3 is not testing whether the problem exists (that started in M2) and is
+ * not locking in pricing or a finished product (that comes in M4). M3 puts the
+ * problem in front of real people to answer two practical questions:
+ *   1. Do people actually want this problem solved?
+ *   2. Does it hurt enough for them to take a real step (sign up, reply, DM, book)?
  *
- * Every test, whatever the channel, has five parts:
- *   who · where · framing · action · reading
- * and is read at three levels:
- *   reach (did it land?) · action (did anyone do something?) · evidence (what did they reveal?)
- *
- * Only people who take a STRONG action join the warm list (user_contacts).
+ * Entities:
+ *   - `experiments` (blueprint catalog) & `user_experiments` (founder runs)
+ *   - `user_observations` (`type: 'experiment'`, `focus: 'problem_test'`) for quotes
+ *   - `user_contacts` (`roles: ['warm']`) for people who took a real step
  *
  * AI appears at exactly two moments, both suggest-only:
- *   1. m3-q1-setup-test  — draft the five parts for the chosen test
- *   2. m3-q3-read        — read the signals back as: shows / might mean / unclear
- * Everything else is deterministic or the user's own work.
- *
- * Entities: the test (an `experiment` observation per pass), the people who
- * acted (observations + user_contacts with the 'warm' role), and the project.
+ *   1. m3-q1-reveal  — review & sharpen the founder's pitch framing
+ *   2. m3-q3-read    — organize logged signals into: shows / might mean / unclear
  */
 export const mission3: ProgramMission = {
   key: 'mission-3',
@@ -29,14 +25,14 @@ export const mission3: ProgramMission = {
   title: 'Test the Problem',
   sequence: 3,
 
-  question: 'Is this problem real enough to plan a business around?',
+  question: 'Do people want this problem solved enough to take action?',
 
   description:
-    'Put the problem in front of real people, see who acts, and find out whether it is real enough to plan a business around. You are not testing a solution or a price. You are finding out whether people who have this problem want it solved.',
+    'Put the problem in front of real people, see who takes a step, and find out whether people want it solved enough to act. You are not selling a finished product or locking in a price yet.',
 
   transformation: {
-    from: 'I think this problem might be worth working on.',
-    to: 'I know this problem is real, and people who have it want it solved.',
+    from: 'I think people might want this problem solved.',
+    to: 'I put it in front of real people, saw who took action, and know what their response means.',
   },
 
   setup: {
@@ -44,137 +40,185 @@ export const mission3: ProgramMission = {
     sequence: 1,
     role: 'setup',
     title: `You're about to put this in front of people.`,
-    description: `You chose a problem and talked to people about it. Now you'll put it in front of more of them, in a way that lets the ones who want it solved raise their hand.
+    description: `You chose a problem and explored how you might help. Now it's time to step away from your desk and put it in front of real people.
 
-You won't be selling anything or naming a price. You'll be finding out whether the problem is real enough to plan a business around. You'll leave with the problem confirmed, a list of people who acted, and what they told you.`,
+You aren't trying to prove the problem exists, and you don't need final pricing or a finished product yet. You're finding out two things: whether people want this solved, and whether it matters enough for them to take a real step—like signing up, replying, or claiming an early spot.`,
     intent:
-      'Orient the user: what M3 is for, what it is not (no offer, no price, no solution), and what they leave with. Shows the project, the way they said they would help (M2 approach), and a few things people said in M2 conversations in their own words. Read-only.',
+      'Orient the user: M3 tests willingness to act, not pricing or a finished product. Shows the active project from M2, their chosen approach, and their forward question. Read-only.',
     component: 'project_starting_point',
     dependencies: ['m2-action'],
   },
 
   quests: [
     // -------------------------------------------------------------------------
-    // Quest 1 — Design the Test
+    // Quest 1 — Frame Your Pitch & Pick Your Tests
     // -------------------------------------------------------------------------
     {
       key: 'q1',
       sequence: 1,
-      title: 'Design the Test',
+      title: 'Frame Your Pitch & Pick Your Tests',
       description:
-        'Decide how you will put the problem in front of people, and what a real response would look like before you see one.',
+        'Put what you are exploring into plain words, check how you can reach people this week, and choose the tests you will run.',
       nodes: [
         {
-          key: 'm3-q1-setup',
+          key: 'm3-q1-access',
           sequence: 1,
-          role: 'setup',
-          title: 'Same test, different places.',
-          description: `A test can happen in a conversation, on a page, in a community or in a message. The place changes. The parts don't.
-
-Every test has five: who it's for, where it happens, how you put the problem, what you ask people to do, and how you'll read what comes back.`,
+          role: 'investigation',
+          title: 'How can you reach people this week?',
+          description: `A few quick questions about where you can show up and what you're comfortable doing right now. There are no wrong answers—this just narrows down tests that actually fit you.`,
+          prompt: 'Which ways of reaching people are realistic for you this week?',
           intent:
-            'Introduce the five-part mechanic (who, where, framing, action, reading) and the idea that the channel is a variable. Read-only.',
-          component: 'test_design_setup',
+            'Capture practical channel access (online communities, simple web page, small ad budget, in-person/local access, warm contacts) and weekly hours. No AI.',
+          component: 'test_access_profile',
           dependencies: ['m3-setup'],
         },
         {
-          key: 'm3-q1-access',
+          key: 'm3-q1-pitch',
           sequence: 2,
           role: 'investigation',
-          title: 'What can you actually do?',
-          description: `A few questions about who you can reach and what you're comfortable doing. There are no wrong answers. They just pick a test that fits you.`,
-          prompt: 'Where do the people who have this problem spend their time?',
+          title: 'Frame how you will put it.',
+          description: `Before people can raise their hand, you need a clear, honest way to explain what you're exploring.
+
+You don't need pricing or big promises. Focus on who this is for, what frustrates them today, the rough direction of how you'd help, and one small action they can take.`,
+          prompt: 'How would you explain this to someone in a few plain sentences?',
           intent:
-            'Three to four short questions M2 did not answer: where the people with the problem gather (online, in person), what the user is comfortable doing (post publicly, message strangers, have conversations, put up a page), how much time they have in the next week or two, and whether the business would mostly find people online, in person or both. Produces an access profile and the business type (online, offline, hybrid). No AI.',
-          component: 'test_access_profile',
-          dependencies: ['m3-q1-setup'],
-        },
-        {
-          key: 'm3-q1-cards',
-          sequence: 3,
-          role: 'investigation',
-          title: 'Pick a way to test it.',
-          description: `Here are a few ways to test a problem like yours. Each one says what it costs you and what a real response looks like.`,
-          prompt: 'Which of these could you actually run this week?',
-          intent:
-            'Show the preset tests filtered by the solution type chosen in M2 and the business type from the access profile (three or four cards, never the whole library). Each card: name, one line, what it tells you, what it costs, what a real signal looks like, what a weak one looks like, best when. The user picks one, or chooses to design one from scratch using the five parts. No AI.',
-          component: 'test_preset_cards',
+            'Guide the founder to draft their core pitch framing (audience, pain, direction of help without premature pricing, and small call to action), pre-assisted by their M2 project and approach.',
+          component: 'pitch_framing',
           dependencies: ['m3-q1-access'],
         },
         {
-          key: 'm3-q1-setup-test',
-          sequence: 4,
-          role: 'investigation',
-          title: 'Make it yours.',
-          description: `We'll draft the five parts for your problem, using the words people used with you. Change anything that isn't right. It's your test.`,
-          prompt: 'What would you change?',
-          intent:
-            'AI moment 1. For the chosen card, AI drafts the five parts (who, where, framing from the user\'s own M2 quotes, action, how to read reach / action / evidence, and scope), adapted to the problem, evidence and access profile. May ask one or two clarifying questions first. Flags once, without blocking, if the test cannot fail or will not give a real signal, and offers an alternative. The draft is editable and the user\'s version wins. Produces the final test design as an experiment observation.',
-          component: 'test_setup_draft',
-          dependencies: ['m3-q1-cards'],
-        },
-        {
           key: 'm3-q1-reveal',
-          sequence: 5,
+          sequence: 3,
           role: 'reveal',
-          title: `Here's your test.`,
-          description: `Your test, and what a real response would look like.`,
+          title: 'How your pitch lands—and where to test it.',
+          description: `Here is a quick look at your framing, a cleaner version if helpful, and the tests that fit your project and reach.`,
           intent:
-            'Show the final design as a whole, and what reach, action and evidence would look like for this problem in the user\'s own terms, including which actions count as strong and which as weak. Deterministic, no AI. Read-only.',
-          component: 'test_design_reveal',
-          dependencies: ['m3-q1-setup-test'],
+            'AI Moment 1. Reviews the user pitch for clarity, jargon, or premature promises, offers 1–2 plain-spoken refinements, and pairs with deterministic experiment recommendations from $experimentBlueprints based on access profile and M2 approach.',
+          component: 'pitch_and_test_reveal',
+          dependencies: ['m3-q1-pitch'],
         },
         {
           key: 'm3-q1-action',
-          sequence: 6,
+          sequence: 4,
           role: 'action',
-          title: 'Ready to run it?',
-          description: `If it's ready, run it. If something feels off, change it now.`,
-          prompt: 'Will you run this?',
+          title: 'Choose the tests you will run.',
+          description: `Pick one or more tests that you can realistically run over the next week. Each test you choose will be saved so you can prepare it, launch it, and track what comes back.`,
+          prompt: 'Which tests do you want to run?',
           intent:
-            'The user commits to running the test, which marks the design as the one to run, or routes back to revise it.',
-          component: 'test_commit_action',
+            'Allow the founder to select one or more tests from the recommended blueprint cards (or add a custom test), creating draft rows in user_experiments linked to the active project.',
+          component: 'select_tests_action',
           dependencies: ['m3-q1-reveal'],
         },
       ],
     },
 
     // -------------------------------------------------------------------------
-    // Quest 2 — Run the Test
+    // Quest 2 — Get Ready & Go Live
     // -------------------------------------------------------------------------
     {
       key: 'q2',
       sequence: 2,
-      title: 'Run the Test',
+      title: 'Get Ready & Go Live',
       description:
-        'Do it for real, then write down what actually happened.',
+        'Set your bar before you start, prepare what you need for each test, and put it out into the world.',
       nodes: [
         {
           key: 'm3-q2-setup',
           sequence: 1,
           role: 'setup',
-          title: `Now it's real.`,
-          description: `Run the test, and keep a log as things come in. Write down how many people stopped, who did something, and what they told you in their own words.
+          title: 'Set things up before you go live.',
+          description: `It's easy to look at a handful of likes afterward and talk yourself into thinking a test worked. Setting a clear bar beforehand keeps you honest.
 
-This takes days, not minutes. Come back as things happen.`,
+In the next steps, you'll decide what counts as a real signal, get your page, post, or outreach ready, and put your test live.`,
           intent:
-            'Frame the run: what to watch for, how to log it, and that it takes days. Read-only.',
-          component: 'test_run_setup',
+            'Frame Quest 2: why locking in thresholds before launch matters and what preparing each test involves. Read-only.',
+          component: 'test_prep_setup',
           dependencies: ['m3-q1-action'],
         },
         {
-          key: 'm3-q2-run',
+          key: 'm3-q2-thresholds',
           sequence: 2,
           role: 'investigation',
-          title: 'Run it. Write down what happens.',
-          description: `Send it, post it, put it up, have the conversations. Then log what comes back: how many people stopped, who did something, and what they said about the problem.
-
-An honest zero is a real result.`,
-          prompt: 'What happened?',
+          title: 'Decide what counts as a real signal.',
+          description: `For each test you chose, set a realistic number that would tell you people genuinely want this solved. You can adjust the suggested starting point to match your reach.`,
+          prompt: 'What would make you say this worked?',
           intent:
-            'The user runs the test in the real world and logs it as they go: reach (how many were reached and how many stopped), action (who did something, what, and whether it is a strong or weak action), and evidence (what each person revealed about the problem in their own words: a recent instance, how often, what it costs, what they do now). Strong actions add the person to the warm list. Saved continuously over days. No AI.',
-          component: 'test_run_log',
+            'Per selected test in user_experiments, pre-fill the benchmark targets from blueprint metrics and let the user customize and lock in their target count, timeframe, and strong/weak signal notes.',
+          component: 'test_thresholds',
           dependencies: ['m3-q2-setup'],
+        },
+        {
+          key: 'm3-q2-prep',
+          sequence: 3,
+          role: 'investigation',
+          title: 'Get everything in place.',
+          description: `Use the checklist, guide, and copy-paste prompts for each test so everything is ready before you launch. You don't have to launch yet—just get the pieces ready.`,
+          prompt: 'What do you need ready before going live?',
+          intent:
+            'Render a prep card per test in user_experiments with its readiness checklist, link to /resources/[slug], and a tailored copy-paste prompt for external LLM/builder tools.',
+          component: 'test_preparation',
+          dependencies: ['m3-q2-thresholds'],
+        },
+        {
+          key: 'm3-q2-reveal',
+          sequence: 4,
+          role: 'reveal',
+          title: 'A few things to watch out for.',
+          description: `Before you hit publish or start reaching out, keep these practical heads-ups in mind for the tests you picked.`,
+          intent:
+            'Deterministic reveal assembled from blueprint heads_up rules for the user’s chosen test types—common pitfalls to avoid and small ways to get cleaner signals. No AI.',
+          component: 'test_heads_up_reveal',
+          dependencies: ['m3-q2-prep'],
+        },
+        {
+          key: 'm3-q2-action',
+          sequence: 5,
+          role: 'action',
+          title: 'Put your test live.',
+          description: `Once your post is up, your page is published, or your outreach is underway, mark each test as live. If you have a public link or post, you can also share it with your peers in the forum.`,
+          prompt: 'Ready to mark your tests live?',
+          intent:
+            'Mark selected user_experiments as live (recording started_at and optional live_url), optionally share to the forum via user_content, and advance to Quest 3.',
+          component: 'test_launch_action',
+          dependencies: ['m3-q2-reveal'],
+        },
+      ],
+    },
+
+    // -------------------------------------------------------------------------
+    // Quest 3 — Log What Came Back & Decide
+    // -------------------------------------------------------------------------
+    {
+      key: 'q3',
+      sequence: 3,
+      title: 'Log What Came Back & Decide',
+      description:
+        'Give your live tests a few days, record what people actually did and said, and decide your next move.',
+      nodes: [
+        {
+          key: 'm3-q3-setup',
+          sequence: 1,
+          role: 'setup',
+          title: `What happened isn't the same as what it means.`,
+          description: `Real responses take a few days to come in. As they do, keep three things separate: what people actually did, what that might mean, and what you still don't know.
+
+An honest zero is still a real result.`,
+          intent:
+            'Frame Quest 3: patience during the multi-day run and separating facts from interpretation. Read-only.',
+          component: 'signal_reading_setup',
+          dependencies: ['m3-q2-action'],
+        },
+        {
+          key: 'm3-q3-log',
+          sequence: 2,
+          role: 'investigation',
+          title: 'Log what came back.',
+          description: `Return here as responses come in over the next few days. Record the numbers for each live test, add anyone who took a real step to your warm list, and save notable things people said.`,
+          prompt: 'What happened when you put it out there?',
+          intent:
+            'Multi-day result logger updating user_experiments.results (metric values + notes), saving people who acted to user_contacts with role "warm", and saving quotes to user_observations (type: "experiment", focus: "problem_test").',
+          component: 'test_run_log',
+          dependencies: ['m3-q3-setup'],
           pacing: { delay_days: 5 },
           metadata: {
             guidance:
@@ -184,90 +228,40 @@ An honest zero is a real result.`,
               domain: 'problem',
               focus: 'problem_test',
             },
-            signal_levels: ['reach', 'action', 'evidence'],
           },
         },
         {
-          key: 'm3-q2-reveal',
-          sequence: 3,
-          role: 'reveal',
-          title: 'What came back.',
-          description: `Here is everything that came back, split into three: how many stopped, who did something, and what they told you. Nothing is interpreted yet.`,
-          intent:
-            'Show the raw results separated by level (reach, action split into strong and weak, evidence), with the people and their words. No interpretation, no AI. Read-only.',
-          component: 'test_results_reveal',
-          dependencies: ['m3-q2-run'],
-        },
-        {
-          key: 'm3-q2-action',
-          sequence: 4,
-          role: 'action',
-          title: 'Read it now, or run it again?',
-          description: `If you've got enough to read, move on. If the test didn't really get a fair run, a second pass with a different framing, channel or audience is fine.`,
-          prompt: 'Is this enough to read, or do you want another pass?',
-          intent:
-            'The user decides: read the signals now, or run a second pass. A second pass routes back to m3-q1-setup-test with the existing design as the starting point and creates the next test pass. No cap, but after the second pass the user is asked whether to keep iterating.',
-          component: 'test_results_action',
-          dependencies: ['m3-q2-reveal'],
-        },
-      ],
-    },
-
-    // -------------------------------------------------------------------------
-    // Quest 3 — Read the Signals
-    // -------------------------------------------------------------------------
-    {
-      key: 'q3',
-      sequence: 3,
-      title: 'Read the Signals',
-      description:
-        'Work out what happened, what it might mean, and what you want to do next.',
-      nodes: [
-        {
-          key: 'm3-q3-setup',
-          sequence: 1,
-          role: 'setup',
-          title: `What happened isn't the same as what it means.`,
-          description: `There's what the signals show. There's what they might mean. And there's what you still don't know. It's worth keeping those three apart.
-
-You were there. You saw things no summary can. Your read matters more than anyone else's.`,
-          intent:
-            'Frame reading as a skill: the difference between what the signals show, what they might mean and what is still unclear. Read-only.',
-          component: 'signal_reading_setup',
-          dependencies: ['m3-q2-action'],
-        },
-        {
           key: 'm3-q3-read',
-          sequence: 2,
+          sequence: 3,
           role: 'investigation',
           title: 'What do you make of it?',
-          description: `Here's a read of what came back. Correct anything that's wrong, and add what you noticed that a summary could not.`,
-          prompt: 'What do you make of it?',
+          description: `Here is a structured read comparing what came back against the bar you set before launching. Correct anything that's off and add what you noticed firsthand.`,
+          prompt: 'What do you make of what came back?',
           intent:
-            'AI moment 2. AI offers a read in three parts: what the signals show (facts), what they might mean (possibilities, not conclusions), and what is still unclear. It does not route the user or decide whether the problem is real. The user corrects it, adds what they noticed, and writes their own interpretation, which wins where they disagree. Persisted in ai_logs with regenerate.',
+            'AI Moment 2. Organizes user_experiments results, locked thresholds, and logged quotes into: what the signals show (facts), what they might mean (possibilities), and what is still unclear. The user edits and saves their own read, which overrides the AI.',
           component: 'signal_reading',
-          dependencies: ['m3-q3-setup'],
+          dependencies: ['m3-q3-log'],
         },
         {
           key: 'm3-q3-reveal',
-          sequence: 3,
+          sequence: 4,
           role: 'reveal',
-          title: 'Where are you?',
-          description: `Here's the honest read: what the signals show, what you take from them, and what's still unclear.`,
+          title: 'Where do you stand?',
+          description: `Here is the honest read across your tests: what the signals show, what you take from them, and where things stand.`,
           intent:
-            'Show the honest read assembled from stored data (no new AI call). Names plainly which of four situations the user is in (problem confirmed and people acting; confirmed but nobody acting; people acting but the problem is vague; neither) and what each means. The system suggests the closest one and the user confirms or changes it. If nobody acted, separates nobody stopped (framing), people stopped but nobody acted (urgency) and people acted but said little (depth). Read-only apart from recording the confirmed situation.',
+            'Deterministic readout from stored experiment results and thresholds. Names plainly which of four situations applies (wanted and people acting; wanted but nobody acting; acting but problem is vague; neither yet) and lets the user confirm or adjust it. No AI.',
           component: 'signal_reading_reveal',
           dependencies: ['m3-q3-read'],
         },
         {
           key: 'm3-q3-action',
-          sequence: 4,
+          sequence: 5,
           role: 'action',
-          title: 'What do you want to do?',
-          description: `There's no right answer. Move on to planning, run a better test, go back and look at a different opportunity, or stop for now. Say why in your own words.`,
+          title: 'What do you want to do next?',
+          description: `There's no right answer. Move forward to planning, run a sharper test, go back and look at a different opportunity, or stop for now. Say why in your own words.`,
           prompt: 'What are you taking from this?',
           intent:
-            'The user chooses a route and records the reasoning in their own words: continue to M4, iterate the test (change framing, channel, audience, or the kind of test), go back to M2 (the opportunity is parked, parked ones can be brought back), or pause (a follow-up task is created). Continuing on a thin signal is allowed and recorded as thin.',
+            'User selects a route and records their reasoning in their own words: continue to M4, iterate a test (creates pass_number + 1), switch to another M2 opportunity, or pause (creates a follow-up task). Continuing on a thin signal is allowed and recorded honestly.',
           component: 'signal_route_action',
           dependencies: ['m3-q3-reveal'],
         },
@@ -281,8 +275,8 @@ You were there. You saw things no summary can. Your read matters more than anyon
     role: 'reveal',
     title: 'You put it in front of people.',
     intent:
-      'Tell the story of what the user did: who they reached, who acted, what those people revealed, and what the user took from it, in their own words and evidence. States the transformation honestly, and says plainly when the signal was thin. Assembled from stored data, no AI.',
-    component: 'mission_transformation_synthesis',
+      'Assembles the complete Mission 3 story from user_experiments, user_observations, and user_contacts: what was tested, who responded, what they revealed, and an honest summary of signal strength. No AI.',
+    component: 'mission3_synthesis',
     dependencies: ['m3-q3-action'],
   },
 
@@ -294,8 +288,8 @@ You were there. You saw things no summary can. Your read matters more than anyon
     description: `You're not designing the business yet. In the next mission you'll plan it around what you've learned here, and the people who raised their hand will be the first ones you go back to.`,
     prompt: 'What do you most need to plan around?',
     intent:
-      'Capture what the user carries into M4: the problem in their own words, the warm list, the evidence (quotes, recent instances, costs, workarounds, who has it worst), and the one thing they most need to plan around. Advances to m4-setup.',
-    component: 'mission_transfer_action',
+      'Confirm the refined problem framing, review the warm list in user_contacts, and record the key thing to plan around entering Mission 4. Advances to m4-setup.',
+    component: 'mission3_action',
     dependencies: ['m3-reveal'],
   },
 };
