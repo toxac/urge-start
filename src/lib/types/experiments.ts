@@ -1,3 +1,5 @@
+import type { Database } from '@/database.types';
+
 export type ExperimentCategory =
   | 'demand'
   | 'build'
@@ -281,4 +283,122 @@ export function recommendExperimentsForFounder(
     if (aPreferred !== bPreferred) return bPreferred - aPreferred;
     return a.sort_order - b.sort_order;
   });
+}
+
+
+export type CreateUserExperimentInput = {
+  experimentId?: string | null;
+  experimentKey: string;
+  projectId?: string | null;
+  opportunityId?: string | null;
+  missionKey?: string;
+  sourceNodeKey?: string | null;
+  passNumber?: number;
+  previousExperimentId?: string | null;
+  title: string;
+  setup?: UserExperimentSetup;
+  customMetrics?: ExperimentMetricDefinition[];
+  threshold?: UserExperimentThreshold;
+  status?: UserExperimentStatus;
+};
+
+export type UpdateUserExperimentInput = {
+  title?: string;
+  setup?: UserExperimentSetup;
+  customMetrics?: ExperimentMetricDefinition[];
+  threshold?: UserExperimentThreshold;
+  results?: UserExperimentResults;
+  reflection?: UserExperimentReflection;
+  sharedContentId?: string | null;
+  status?: UserExperimentStatus;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
+
+export type Mission3ContextSummary = {
+  project: {
+    id: string;
+    title: string;
+    description: string | null;
+    opportunity_id: string | null;
+    metadata: Record<string, unknown>;
+  } | null;
+  opportunity: {
+    id: string;
+    title: string;
+    problem: string | null;
+    description: string | null;
+    metadata: Record<string, unknown>;
+  } | null;
+  m2Quotes: string[];
+};
+
+type ExperimentRow = Database['public']['Tables']['experiments']['Row'];
+type UserExperimentRow =
+  Database['public']['Tables']['user_experiments']['Row'];
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+export function mapExperimentBlueprintRow(
+  row: ExperimentRow,
+): ExperimentBlueprint {
+  return {
+    id: row.id,
+    key: row.key,
+    mission_key: row.mission_key,
+    category: row.category as ExperimentCategory,
+    involves_people: row.involves_people,
+    name: row.name,
+    one_line: row.one_line,
+    tells_you: row.tells_you,
+    cost_estimate: row.cost_estimate,
+    strong_signal_guide: row.strong_signal_guide,
+    weak_signal_guide: row.weak_signal_guide,
+    best_when: row.best_when,
+    resource_slug: row.resource_slug,
+    metrics: asArray<ExperimentMetricDefinition>(row.metrics),
+    matching_rules: asRecord(row.matching_rules) as ExperimentMatchingRules,
+    prep_checklist: asArray<string>(row.prep_checklist),
+    heads_up: asRecord(row.heads_up) as ExperimentHeadsUp,
+    prompt_template: row.prompt_template,
+    is_active: row.is_active,
+    sort_order: row.sort_order,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export function mapUserExperimentRow(row: UserExperimentRow): UserExperiment {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    experiment_id: row.experiment_id,
+    experiment_key: row.experiment_key,
+    project_id: row.project_id,
+    opportunity_id: row.opportunity_id,
+    mission_key: row.mission_key,
+    source_node_key: row.source_node_key,
+    pass_number: row.pass_number,
+    previous_experiment_id: row.previous_experiment_id,
+    title: row.title,
+    setup: asRecord(row.setup) as UserExperimentSetup,
+    custom_metrics: asArray<ExperimentMetricDefinition>(row.custom_metrics),
+    threshold: asRecord(row.threshold) as UserExperimentThreshold,
+    results: asRecord(row.results) as UserExperimentResults,
+    reflection: asRecord(row.reflection) as UserExperimentReflection,
+    shared_content_id: row.shared_content_id,
+    status: row.status as UserExperimentStatus,
+    started_at: row.started_at,
+    completed_at: row.completed_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }
