@@ -2,23 +2,21 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Database, Json } from '@/database.types';
-import type {
-  ExperimentBlueprint,
-  ExperimentCategory,
-  ExperimentHeadsUp,
-  ExperimentMatchingRules,
-  ExperimentMetricDefinition,
-  UserExperiment,
-  UserExperimentReflection,
-  UserExperimentResults,
-  UserExperimentSetup,
-  UserExperimentStatus,
-  UserExperimentThreshold,
+import {
+  mapExperimentBlueprintRow,
+  mapUserExperimentRow,
+  type CreateUserExperimentInput,
+  type ExperimentBlueprint,
+  type ExperimentCategory,
+  type Mission3ContextSummary,
+  type UpdateUserExperimentInput,
+  type UserExperiment,
+  type UserExperimentReflection,
+  type UserExperimentResults,
+  type UserExperimentSetup,
+  type UserExperimentThreshold,
 } from '@/lib/types/experiments';
 
-type ExperimentRow = Database['public']['Tables']['experiments']['Row'];
-type UserExperimentRow =
-  Database['public']['Tables']['user_experiments']['Row'];
 type UserExperimentInsert =
   Database['public']['Tables']['user_experiments']['Insert'];
 type UserExperimentUpdate =
@@ -28,66 +26,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function asArray<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
-}
-
-export function mapExperimentBlueprintRow(
-  row: ExperimentRow,
-): ExperimentBlueprint {
-  return {
-    id: row.id,
-    key: row.key,
-    mission_key: row.mission_key,
-    category: row.category as ExperimentCategory,
-    involves_people: row.involves_people,
-    name: row.name,
-    one_line: row.one_line,
-    tells_you: row.tells_you,
-    cost_estimate: row.cost_estimate,
-    strong_signal_guide: row.strong_signal_guide,
-    weak_signal_guide: row.weak_signal_guide,
-    best_when: row.best_when,
-    resource_slug: row.resource_slug,
-    metrics: asArray<ExperimentMetricDefinition>(row.metrics),
-    matching_rules: asRecord(row.matching_rules) as ExperimentMatchingRules,
-    prep_checklist: asArray<string>(row.prep_checklist),
-    heads_up: asRecord(row.heads_up) as ExperimentHeadsUp,
-    prompt_template: row.prompt_template,
-    is_active: row.is_active,
-    sort_order: row.sort_order,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
-}
-
-export function mapUserExperimentRow(row: UserExperimentRow): UserExperiment {
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    experiment_id: row.experiment_id,
-    experiment_key: row.experiment_key,
-    project_id: row.project_id,
-    opportunity_id: row.opportunity_id,
-    mission_key: row.mission_key,
-    source_node_key: row.source_node_key,
-    pass_number: row.pass_number,
-    previous_experiment_id: row.previous_experiment_id,
-    title: row.title,
-    setup: asRecord(row.setup) as UserExperimentSetup,
-    custom_metrics: asArray<ExperimentMetricDefinition>(row.custom_metrics),
-    threshold: asRecord(row.threshold) as UserExperimentThreshold,
-    results: asRecord(row.results) as UserExperimentResults,
-    reflection: asRecord(row.reflection) as UserExperimentReflection,
-    shared_content_id: row.shared_content_id,
-    status: row.status as UserExperimentStatus,
-    started_at: row.started_at,
-    completed_at: row.completed_at,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
 }
 
 export async function fetchExperimentBlueprints(options?: {
@@ -152,22 +90,6 @@ export async function fetchUserExperiments(options?: {
   return (data ?? []).map(mapUserExperimentRow);
 }
 
-export type CreateUserExperimentInput = {
-  experimentId?: string | null;
-  experimentKey: string;
-  projectId?: string | null;
-  opportunityId?: string | null;
-  missionKey?: string;
-  sourceNodeKey?: string | null;
-  passNumber?: number;
-  previousExperimentId?: string | null;
-  title: string;
-  setup?: UserExperimentSetup;
-  customMetrics?: ExperimentMetricDefinition[];
-  threshold?: UserExperimentThreshold;
-  status?: UserExperimentStatus;
-};
-
 export async function createUserExperiments(
   inputs: CreateUserExperimentInput[],
 ): Promise<UserExperiment[]> {
@@ -211,19 +133,6 @@ export async function createUserExperiments(
 
   return (data ?? []).map(mapUserExperimentRow);
 }
-
-export type UpdateUserExperimentInput = {
-  title?: string;
-  setup?: UserExperimentSetup;
-  customMetrics?: ExperimentMetricDefinition[];
-  threshold?: UserExperimentThreshold;
-  results?: UserExperimentResults;
-  reflection?: UserExperimentReflection;
-  sharedContentId?: string | null;
-  status?: UserExperimentStatus;
-  startedAt?: string | null;
-  completedAt?: string | null;
-};
 
 export async function updateUserExperiment(
   id: string,
@@ -420,4 +329,98 @@ export async function deleteUserExperiment(id: string): Promise<void> {
   if (error) {
     throw new Error(`Failed to delete experiment: ${error.message}`);
   }
+}
+
+export async function fetchMission3ContextSummary(): Promise<Mission3ContextSummary> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const [projectsRes, opportunitiesRes, obsRes] = await Promise.all([
+    supabase
+      .from('user_projects')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('user_opportunities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('user_observations')
+      .select('content, type, domain')
+      .eq('user_id', user.id)
+      .eq('domain', 'problem')
+      .order('created_at', { ascending: false })
+      .limit(8),
+  ]);
+
+  const projects = (projectsRes.data ?? []) as Array<Record<string, unknown>>;
+  const activeProjectRow =
+    projects.find((p) => p.status === 'active') ?? projects[0] ?? null;
+
+  const opportunities = (opportunitiesRes.data ?? []) as Array<
+    Record<string, unknown>
+  >;
+  const linkedOppId =
+    typeof activeProjectRow?.opportunity_id === 'string'
+      ? activeProjectRow.opportunity_id
+      : null;
+
+  const matchedOppRow =
+    (linkedOppId
+      ? opportunities.find((o) => o.id === linkedOppId)
+      : undefined) ??
+    opportunities[0] ??
+    null;
+
+  const m2Quotes = (obsRes.data ?? [])
+    .map((row) => (typeof row.content === 'string' ? row.content.trim() : ''))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  return {
+    project: activeProjectRow
+      ? {
+          id: String(activeProjectRow.id),
+          title:
+            typeof activeProjectRow.title === 'string'
+              ? activeProjectRow.title
+              : 'Untitled Project',
+          description:
+            typeof activeProjectRow.description === 'string'
+              ? activeProjectRow.description
+              : null,
+          opportunity_id: linkedOppId,
+          metadata: asRecord(activeProjectRow.metadata),
+        }
+      : null,
+    opportunity: matchedOppRow
+      ? {
+          id: String(matchedOppRow.id),
+          title:
+            typeof matchedOppRow.title === 'string'
+              ? matchedOppRow.title
+              : 'Selected Opportunity',
+          problem:
+            typeof matchedOppRow.problem === 'string'
+              ? matchedOppRow.problem
+              : null,
+          description:
+            typeof matchedOppRow.description === 'string'
+              ? matchedOppRow.description
+              : null,
+          metadata: asRecord(matchedOppRow.metadata),
+        }
+      : null,
+    m2Quotes,
+  };
 }

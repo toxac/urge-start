@@ -7,7 +7,7 @@ import type { ProblemDetails } from '@/lib/types/observations';
 import {
   mapExperimentBlueprintRow,
   mapUserExperimentRow,
-} from '@/actions/experiments';
+} from '@/lib/types/experiments';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
