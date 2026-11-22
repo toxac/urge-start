@@ -45,6 +45,27 @@ import {
   Mission2Reveal,
   Mission2Action,
 } from '@/components/program/mission-2';
+
+import {
+  ProjectStartingPoint,
+  TestAccessProfile,
+  PitchFraming,
+  PitchAndTestReveal,
+  SelectTestsAction,
+  TestPrepSetup,
+  TestThresholds,
+  TestPreparation,
+  TestHeadsUpReveal,
+  TestLaunchAction,
+  SignalReadingSetup,
+  TestRunLog,
+  SignalReading,
+  SignalReadingReveal,
+  SignalRouteAction,
+  Mission3Synthesis,
+  Mission3Action,
+} from './mission-3';
+
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
 
@@ -116,4 +137,23 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   // Mission 2 Action
   'opportunity_synthesis': Mission2Reveal,
   'opportunity_action': Mission2Action,
+
+  // Mission 3
+  'project_starting_point': ProjectStartingPoint,
+  'test_access_profile': TestAccessProfile,
+  'pitch_framing': PitchFraming,
+  'pitch_and_test_reveal': PitchAndTestReveal,
+  'select_tests_action': SelectTestsAction,
+  'test_prep_setup': TestPrepSetup,
+  'test_thresholds': TestThresholds,
+  'test_preparation': TestPreparation,
+  'test_heads_up_reveal': TestHeadsUpReveal,
+  'test_launch_action': TestLaunchAction,
+  'signal_reading_setup': SignalReadingSetup,
+  'test_run_log': TestRunLog,
+  'signal_reading': SignalReading,
+  'signal_reading_reveal': SignalReadingReveal,
+  'signal_route_action': SignalRouteAction,
+  'mission3_synthesis': Mission3Synthesis,
+  'mission3_action': Mission3Action,
 };
