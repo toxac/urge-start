@@ -424,3 +424,32 @@ export async function fetchMission3ContextSummary(): Promise<Mission3ContextSumm
     m2Quotes,
   };
 }
+
+export async function saveExperimentQuoteObservation(params: {
+  title: string;
+  content: string;
+  sourceNodeKey: string;
+}): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { error } = await supabase.from('user_observations').insert({
+    user_id: user.id,
+    title: params.title.trim() || 'Experiment feedback',
+    content: params.content.trim(),
+    type: 'experiment',
+    domain: 'problem',
+    source_node_key: params.sourceNodeKey,
+  });
+
+  if (error) {
+    throw new Error(`Failed to save experiment note: ${error.message}`);
+  }
+}
