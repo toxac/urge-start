@@ -106,11 +106,6 @@ export type UserExperimentThreshold = {
 
 export type MetricRecordedValue = number | string | boolean | null;
 
-export type UserExperimentResults = {
-  values?: Record<string, MetricRecordedValue>;
-  notes?: string;
-  last_logged_at?: string;
-};
 
 export type SignalSituation =
   | 'wanted_and_acting'
@@ -413,4 +408,28 @@ export type SignalReadingResult = {
   shows: string;
   mightMean: string;
   unclear: string;
+};
+
+
+export type ExperimentWarmLead = {
+  id: string;
+  name: string;
+  contact: string;
+  action_taken: string;
+  logged_at: string;
+};
+
+export type ExperimentQuoteEntry = {
+  id: string;
+  quote: string;
+  person_name?: string;
+  logged_at: string;
+};
+
+export type UserExperimentResults = {
+  values?: Record<string, MetricRecordedValue>;
+  warm_leads?: ExperimentWarmLead[];
+  quotes?: ExperimentQuoteEntry[];
+  notes?: string;
+  last_logged_at?: string;
 };
