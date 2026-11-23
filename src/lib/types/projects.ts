@@ -31,12 +31,6 @@ export type ExtractedCustomerPersona = {
   triggerMoment: string;
 };
 
-export type MspFeatureItem = {
-  id: string;
-  label: string;
-  bucket: 'must_have' | 'cut_for_later';
-  reason?: string;
-};
 
 export type EconomicsLineItem = {
   category: string;
@@ -92,6 +86,7 @@ export type UserProjectMetadata = {
     outreachMessage: string;
   };
   mspRequirements?: MspBuildRequirement[];
+  offerAssessment?: OfferAssessmentResult;
   businessPlanGeneratedAt?: string;
   [key: string]: unknown;
 };
@@ -195,3 +190,25 @@ export function mapUserProjectOfferRow(
     updated_at: row.updated_at,
   };
 }
+
+export type MspFeatureItem = {
+  id: string;
+  label: string;
+  bucket: 'must_have' | 'cut_for_later';
+  servesPainOrGain?: string;
+  reason?: string;
+};
+
+export type OfferAssessmentResult = {
+  alignmentNotes: string[];
+  scopeWarnings: string[];
+  gapsToWatch: string[];
+  suggestedOffer: {
+    title: string;
+    promise: string;
+    includedSummary: string;
+    excludedSummary: string;
+    hook: string;
+    ask: string;
+  };
+};
