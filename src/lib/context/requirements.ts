@@ -21,7 +21,16 @@ export const missionContextRequirements: Record<string, ContextResource[]> = {
     'user_experiments',
     'resources',
   ],
-  'mission-4': ['projects', 'offers', 'observations', 'resources'],
+  'mission-4': [
+    'projects',
+    'offers',
+    'opportunities',
+    'observations',
+    'contacts',
+    'experiments',
+    'user_experiments',
+    'resources',
+  ],
   'mission-5': ['projects', 'observations', 'contacts', 'resources'],
   'mission-6': ['projects', 'observations', 'resources'],
 };
