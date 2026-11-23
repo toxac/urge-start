@@ -7,6 +7,8 @@ export type UserProjectsState = {
   hydrated: boolean;
 };
 
+export type { UserProject, UserProjectOffer } from '@/lib/types/projects';
+
 export const $userProjects = map<UserProjectsState>({
   byId: {},
   allIds: [],
