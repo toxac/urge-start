@@ -1,0 +1,5 @@
+Item,Amount,"Notes (Optional - flag if ""uncertain"")"
+Monthly price per user,29,
+Hosting & API cost per user,4,
+Marketing spend to get 1 user,15,uncertain
+"Total fixed monthly costs (software, etc)",100,

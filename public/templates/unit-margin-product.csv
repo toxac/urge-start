@@ -1,0 +1,6 @@
+Item,Amount,"Notes (Optional - flag if ""uncertain"")"
+Retail sale price,120,
+Cost to manufacture or buy,45,uncertain
+Packaging and shipping cost,12,
+Estimated ad spend per sale,25,
+"Total fixed monthly costs (Shopify, etc)",39,

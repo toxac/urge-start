@@ -1,0 +1,6 @@
+Item,Amount,"Notes (Optional - flag if ""uncertain"")"
+Flat fee charged to client,500,
+Direct expenses per client (materials),50,
+Hours spent delivering the service,4,uncertain
+Desired hourly wage,75,
+"Total fixed monthly costs (software, etc)",25,
