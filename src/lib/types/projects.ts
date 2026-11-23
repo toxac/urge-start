@@ -31,28 +31,80 @@ export type ExtractedCustomerPersona = {
   triggerMoment: string;
 };
 
+export type MspFeatureItem = {
+  id: string;
+  label: string;
+  bucket: 'must_have' | 'cut_for_later';
+  servesPainOrGain?: string;
+  reason?: string;
+};
+
+export type OfferAssessmentResult = {
+  alignmentNotes: string[];
+  scopeWarnings: string[];
+  gapsToWatch: string[];
+  suggestedOffer: {
+    title: string;
+    promise: string;
+    includedSummary: string;
+    excludedSummary: string;
+    hook: string;
+    ask: string;
+  };
+};
+
+export type CostBucket = 'setup' | 'fixed' | 'variable' | 'time';
+
+export type CostConfidence = 'confirmed' | 'estimate';
+
+export type PricingApproachKey =
+  | 'cost_plus'
+  | 'workaround_anchor'
+  | 'value_outcome'
+  | 'capacity_target'
+  | 'custom';
 
 export type EconomicsLineItem = {
-  category: string;
+  id: string;
+  bucket: CostBucket;
   item: string;
   amount: number;
+  confidence: CostConfidence;
   notes?: string;
+};
+
+export type EconomicsAssessmentResult = {
+  marginHealth: string;
+  volumeReality: string;
+  timeCeiling: string;
+  verdict: 'solid' | 'tight' | 'unviable';
 };
 
 export type ProjectEconomics = {
   businessType: BusinessType;
   currency: string;
-  pricePerUnit: number;
-  directCostPerUnit: number;
+  oneTimeSetupCosts: number;
   monthlyFixedCosts: number;
+  directCostPerUnit: number;
+  cacPerUnit: number;
   hoursPerUnit: number;
+  pricePerUnit: number;
+  pricingApproach?: PricingApproachKey;
+  pricingRationale?: string;
+  customerValueSavedMonthly?: number;
   targetMonthlyIncome: number;
+  availableWeeklyHours: number;
   marginPerUnit: number;
+  marginPercent: number;
   breakEvenUnitsPerMonth: number;
+  setupPaybackUnits: number;
   unitsForIncomeGoal: number;
+  weeklyHoursAtIncomeGoal: number;
+  projectedMonthlyUnits?: number;
   lineItems: EconomicsLineItem[];
   uncertainNotes?: string;
   paymentModel?: PaymentModel;
+  realityCheck?: EconomicsAssessmentResult;
   uploadedAt?: string;
 };
 
@@ -79,6 +131,7 @@ export type UserProjectMetadata = {
   features?: MspFeatureItem[];
   painsRemoved?: string[];
   gainsCreated?: string[];
+  offerAssessment?: OfferAssessmentResult;
   economics?: ProjectEconomics;
   acquisitionChannel?: {
     channel: string;
@@ -86,7 +139,6 @@ export type UserProjectMetadata = {
     outreachMessage: string;
   };
   mspRequirements?: MspBuildRequirement[];
-  offerAssessment?: OfferAssessmentResult;
   businessPlanGeneratedAt?: string;
   [key: string]: unknown;
 };
@@ -143,6 +195,7 @@ export type Mission4ContextSummary = {
     action_taken: string;
   }>;
   m3Quotes: string[];
+  m2WorkaroundSummary: string;
   m1Constraints: {
     weeklyHours?: string;
     budgetCap?: string;
@@ -190,25 +243,3 @@ export function mapUserProjectOfferRow(
     updated_at: row.updated_at,
   };
 }
-
-export type MspFeatureItem = {
-  id: string;
-  label: string;
-  bucket: 'must_have' | 'cut_for_later';
-  servesPainOrGain?: string;
-  reason?: string;
-};
-
-export type OfferAssessmentResult = {
-  alignmentNotes: string[];
-  scopeWarnings: string[];
-  gapsToWatch: string[];
-  suggestedOffer: {
-    title: string;
-    promise: string;
-    includedSummary: string;
-    excludedSummary: string;
-    hook: string;
-    ask: string;
-  };
-};

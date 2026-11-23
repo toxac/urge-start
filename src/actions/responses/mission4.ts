@@ -2,10 +2,12 @@
 
 import { invokeAIStandard } from '@/actions/ai';
 import type {
+  EconomicsAssessmentResult,
   ExtractedCustomerPersona,
   MspFeatureItem,
   ObservedUserProfileInput,
   OfferAssessmentResult,
+  ProjectEconomics,
 } from '@/lib/types/projects';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -236,6 +238,113 @@ RULES:
     console.error('[MISSION 4 OFFER ASSESSMENT]', err);
     throw new Error(
       'Could not interpret the offer assessment. Please try again.',
+    );
+  }
+}
+
+export async function assessUnitEconomics(params: {
+  projectTitle: string;
+  businessType: string;
+  economics: ProjectEconomics;
+  m1Constraints: {
+    weeklyHours?: string;
+    budgetCap?: string;
+    incomeGoal?: string;
+  };
+  nodeKey?: string;
+  regenerate?: boolean;
+}): Promise<EconomicsAssessmentResult> {
+  const sourceNodeKey = params.nodeKey?.trim() || 'm4-q2-reveal';
+
+  const systemPrompt = `
+You are Urge, acting as a candid, practical financial peer helping a first-time founder check their version 1 pricing and unit economics.
+
+Analyze their uploaded costs, chosen price, pricing rationale, and Mission 1 constraints (available weekly hours, budget cap, and monthly take-home income goal).
+
+Return ONLY valid JSON in this exact structure:
+{
+  "marginHealth": "1-2 direct sentences evaluating profit left per sale after direct and acquisition costs.",
+  "volumeReality": "1-2 direct sentences on how many monthly sales are needed to cover fixed bills, pay back setup costs, and hit their income goal—and whether that volume is realistic for v1.",
+  "timeCeiling": "1-2 direct sentences comparing the weekly hours required at goal volume against their available weekly hours.",
+  "verdict": "solid" | "tight" | "unviable"
+}
+
+RULES:
+- Use the exact numbers and currency symbol provided in the input.
+- If weeklyHoursAtIncomeGoal exceeds availableWeeklyHours, call that out clearly—they will burn out unless they raise price, cut delivery hours, or productize.
+- If oneTimeSetupCosts exceeds their Mission 1 budget cap, point it out plainly.
+- "solid" = healthy margin, realistic v1 sales volume, fits within weekly hours.
+- "tight" = works at small scale, but thin margin or tight hours will squeeze them as volume grows.
+- "unviable" = negative margin, setup cost way over budget, or mathematically impossible within available weekly hours.
+- Keep it plain-spoken, grounded, and free of MBA jargon.
+`;
+
+  const result = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: JSON.stringify({
+      projectTitle: params.projectTitle,
+      businessType: params.businessType,
+      currency: params.economics.currency,
+      pricePerUnit: params.economics.pricePerUnit,
+      pricingApproach: params.economics.pricingApproach,
+      pricingRationale: params.economics.pricingRationale,
+      oneTimeSetupCosts: params.economics.oneTimeSetupCosts,
+      monthlyFixedCosts: params.economics.monthlyFixedCosts,
+      directCostPerUnit: params.economics.directCostPerUnit,
+      cacPerUnit: params.economics.cacPerUnit,
+      hoursPerUnit: params.economics.hoursPerUnit,
+      marginPerUnit: params.economics.marginPerUnit,
+      marginPercent: params.economics.marginPercent,
+      breakEvenUnitsPerMonth: params.economics.breakEvenUnitsPerMonth,
+      setupPaybackUnits: params.economics.setupPaybackUnits,
+      targetMonthlyIncome: params.economics.targetMonthlyIncome,
+      unitsForIncomeGoal: params.economics.unitsForIncomeGoal,
+      availableWeeklyHours: params.economics.availableWeeklyHours,
+      weeklyHoursAtIncomeGoal: params.economics.weeklyHoursAtIncomeGoal,
+      uncertainNotes: params.economics.uncertainNotes,
+      m1BudgetCap: params.m1Constraints.budgetCap || 'Not specified',
+    }),
+    componentKey: 'pricing_in_action_reveal',
+    sourceNodeKey,
+    purpose: 'assess_unit_economics',
+    requireJson: true,
+    temperature: params.regenerate ? 0.4 : 0.15,
+  });
+
+  if (!result.success || !result.content) {
+    throw new Error(
+      result.error || 'Could not assess your unit economics right now.',
+    );
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(result.content);
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.marginHealth !== 'string' ||
+      typeof parsed.volumeReality !== 'string' ||
+      typeof parsed.timeCeiling !== 'string'
+    ) {
+      throw new Error('Invalid unit economics assessment structure.');
+    }
+
+    const verdict =
+      parsed.verdict === 'solid' ||
+      parsed.verdict === 'tight' ||
+      parsed.verdict === 'unviable'
+        ? parsed.verdict
+        : 'tight';
+
+    return {
+      marginHealth: parsed.marginHealth.trim(),
+      volumeReality: parsed.volumeReality.trim(),
+      timeCeiling: parsed.timeCeiling.trim(),
+      verdict,
+    };
+  } catch (err) {
+    console.error('[MISSION 4 UNIT ECONOMICS]', err);
+    throw new Error(
+      'Could not interpret the financial reality check. Please try again.',
     );
   }
 }

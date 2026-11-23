@@ -110,48 +110,72 @@ We are not writing a business plan. You will define a concrete first offer, do t
     },
 
     // -------------------------------------------------------------------------
-    // Quest 2 — Make the Math Work
+    // Quest 2 — Costs, Unit Economics & Pricing
     // -------------------------------------------------------------------------
     {
       key: 'q2',
       sequence: 2,
       title: 'Make the Math Work',
       description:
-        'Download your financial template, do the math to see if this makes money, and lock in your starting price.',
+        'List all your real costs, understand the anatomy of one sale, choose a pricing approach, and see how price, volume, and hours connect before locking in.',
       nodes: [
         {
-          key: 'm4-q2-sheet',
+          key: 'm4-q2-costs',
           sequence: 1,
           role: 'investigation',
-          title: 'Do the basic math.',
-          description: `Download the spreadsheet template that matches your business type. Fill in your estimated costs and starting price, then upload it back here so we can read the numbers.`,
-          prompt: 'Does one order actually make money?',
+          title: 'List all your real costs.',
+          description: `Get every expense out of your head and into one simple worksheet—one-time setup costs, monthly fixed bills, direct per-sale costs, and your own hours. Mark anything you are guessing as "Estimate."`,
+          prompt: 'What does it actually cost to set up, run, and deliver one sale?',
           intent:
-            'Provide a downloadable CSV template (Unit Economics, Fixed-Cost Breakeven, Time Pricing) based on M2 business type. User uploads filled CSV, parsed data saves to project economics metadata.',
-          component: 'economics_sheet',
+            'Download the universal costs CSV template (Setup, Fixed, Variable, Time + Confirmed/Estimate status), fill it in Google Sheets/Excel, and upload back to user_projects.metadata.economics.',
+          component: 'costs_ledger',
           dependencies: ['m4-q1-action'],
         },
         {
-          key: 'm4-q2-reveal',
+          key: 'm4-q2-unit-economics',
           sequence: 2,
-          role: 'reveal',
-          title: 'A reality check on your numbers.',
-          description: `Here is what your uploaded numbers actually mean for your time, your margins, and how many customers you need to break even.`,
+          role: 'investigation',
+          title: 'Understand one sale.',
+          description: `Before picking a price, look at what a single order or client actually costs you in cash and hours—and what it might cost to win one buyer.`,
+          prompt: 'What goes into delivering and winning a single customer?',
           intent:
-            'AI Moment 2. Parses the economics metadata and checks it against M1 time/money boundaries to give a plain-spoken reality check (e.g., "You need to sell 800 units just to replace your income").',
-          component: 'economics_reality_check',
-          dependencies: ['m4-q2-sheet'],
+            'Break down single-unit economics (direct variable cost, founder hours per sale, estimated customer acquisition cost) alongside monthly fixed overhead and one-time setup.',
+          component: 'unit_economics_breakdown',
+          dependencies: ['m4-q2-costs'],
+        },
+        {
+          key: 'm4-q2-pricing',
+          sequence: 3,
+          role: 'investigation',
+          title: 'Choose how to price your offer.',
+          description: `Pricing isn't just marking up your costs. Compare four practical ways to anchor a price and pick a starting point that makes sense for both the buyer and your time.`,
+          prompt: 'Which pricing approach and starting price fit best?',
+          intent:
+            'Compare Cost-Plus Floor, Workaround Anchor, Outcome/Value Saved, and Capacity & Income Target lenses, then select an initial candidate price and rationale.',
+          component: 'pricing_approaches',
+          dependencies: ['m4-q2-unit-economics'],
+        },
+        {
+          key: 'm4-q2-reveal',
+          sequence: 4,
+          role: 'reveal',
+          title: 'Your pricing in action.',
+          description: `Move the sliders to see how price, monthly sales volume, and acquisition cost affect your profit, break-even point, and weekly hours—alongside a candid reality check.`,
+          intent:
+            'AI Moment 2 + interactive sliders for Price, Monthly Sales Volume, and CAC showing live profit, break-even volume, setup payback, and weekly hours against M1 limits.',
+          component: 'pricing_in_action_reveal',
+          dependencies: ['m4-q2-pricing'],
         },
         {
           key: 'm4-q2-action',
-          sequence: 3,
+          sequence: 5,
           role: 'action',
-          title: 'Lock your price and revenue model.',
-          description: `Based on your math, confirm your starting price and exactly how cash will move (upfront, subscription, etc.). If you aren't sure about a delivery cost yet, you can flag it for a dry run.`,
-          prompt: 'How will you charge for this?',
+          title: 'Lock your price and payment model.',
+          description: `Confirm your starting price and how cash will move. If any cost or delivery time in your sheet was a guess, queue a quick dry run to verify it.`,
+          prompt: 'Are you ready to lock this price and payment model?',
           intent:
-            'Lock the starting price and payment model to the selected offer. If costs/hours are uncertain, optionally queue a delivery_cost_dry_run experiment.',
-          component: 'economics_lock_action',
+            'Lock final starting price and payment_model onto user_project_offers and user_projects.metadata.economics, and optionally queue delivery_cost_dry_run in user_experiments.',
+          component: 'price_lock_action',
           dependencies: ['m4-q2-reveal'],
         },
       ],
