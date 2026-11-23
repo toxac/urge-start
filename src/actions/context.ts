@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -8,6 +7,10 @@ import {
   mapExperimentBlueprintRow,
   mapUserExperimentRow,
 } from '@/lib/types/experiments';
+import {
+  mapUserProjectOfferRow,
+  mapUserProjectRow,
+} from '@/lib/types/projects';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
@@ -50,38 +53,19 @@ export async function fetchMissionContext(
     );
   }
 
-  if (requirements.includes('projects')) {
-      const { data: projects, error } = await supabase
-        .from('user_projects')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw new Error(`Failed to fetch projects: ${error.message}`);
-      }
-
-      contextData.projects = (projects ?? []).map(mapUserProjectRow);
-    }
-
-    if (requirements.includes('offers')) {
-      const { data: offers, error } = await supabase
-        .from('user_project_offers')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw new Error(`Failed to fetch offers: ${error.message}`);
-      }
-
-      contextData.offers = (offers ?? []).map(mapUserProjectOfferRow);
-    }
-
   const needsObservations = requirements.includes('observations');
   const needsOpportunities = requirements.includes('opportunities');
   const needsUserExperiments = requirements.includes('user_experiments');
+  const needsProjects = requirements.includes('projects');
+  const needsOffers = requirements.includes('offers');
 
-  if (needsObservations || needsOpportunities || needsUserExperiments) {
+  if (
+    needsObservations ||
+    needsOpportunities ||
+    needsUserExperiments ||
+    needsProjects ||
+    needsOffers
+  ) {
     const {
       data: { user },
       error: authError,
@@ -146,6 +130,33 @@ export async function fetchMissionContext(
       contextData.user_experiments = (userExperiments ?? []).map(
         mapUserExperimentRow,
       );
+    }
+
+    if (needsProjects) {
+      const { data: projects, error } = await supabase
+        .from('user_projects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch projects: ${error.message}`);
+      }
+
+      contextData.projects = (projects ?? []).map(mapUserProjectRow);
+    }
+
+    if (needsOffers) {
+      const { data: offers, error } = await supabase
+        .from('user_project_offers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch offers: ${error.message}`);
+      }
+
+      contextData.offers = (offers ?? []).map(mapUserProjectOfferRow);
     }
   }
 

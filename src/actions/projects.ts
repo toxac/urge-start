@@ -321,7 +321,7 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
       .eq('mission_key', 'mission-3')
       .order('created_at', { ascending: false }),
     supabase
-      .from('user_program_progress')
+      .from('user_progress')
       .select('node_key, payload')
       .eq('user_id', user.id)
       .in('node_key', ['m3-action', 'm3-reveal', 'm1-action']),

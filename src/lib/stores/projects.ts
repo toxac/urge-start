@@ -1,17 +1,19 @@
 import { computed, map } from 'nanostores';
 import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 
+export type { UserProject, UserProjectOffer } from '@/lib/types/projects';
+
 export type UserProjectsState = {
   byId: Record<string, UserProject>;
   allIds: string[];
+  activeId: string | null;
   hydrated: boolean;
 };
-
-export type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 
 export const $userProjects = map<UserProjectsState>({
   byId: {},
   allIds: [],
+  activeId: null,
   hydrated: false,
 });
 
@@ -35,7 +37,15 @@ export const projectsActions = {
       byId[item.id] = item;
       allIds.push(item.id);
     }
-    $userProjects.set({ byId, allIds, hydrated: true });
+    const active =
+      items.find((p) => p.metadata?.status === 'active') ?? items[0] ?? null;
+
+    $userProjects.set({
+      byId,
+      allIds,
+      activeId: active?.id ?? null,
+      hydrated: true,
+    });
   },
 
   upsertProject(item: UserProject) {
@@ -44,6 +54,18 @@ export const projectsActions = {
     $userProjects.set({
       byId: { ...current.byId, [item.id]: item },
       allIds: exists ? current.allIds : [item.id, ...current.allIds],
+      activeId: current.activeId ?? item.id,
+      hydrated: true,
+    });
+  },
+
+  setActive(item: UserProject) {
+    const current = $userProjects.get();
+    const exists = Boolean(current.byId[item.id]);
+    $userProjects.set({
+      byId: { ...current.byId, [item.id]: item },
+      allIds: exists ? current.allIds : [item.id, ...current.allIds],
+      activeId: item.id,
       hydrated: true,
     });
   },
@@ -69,27 +91,39 @@ export const projectsActions = {
   },
 };
 
-export const $activeProject = computed($userProjects, (state): UserProject | null => {
-  const projects = state.allIds
-    .map((id) => state.byId[id])
-    .filter((p): p is UserProject => Boolean(p));
-  return (
-    projects.find((p) => p.metadata?.status === 'active') ??
-    projects[0] ??
-    null
-  );
-});
+export const $activeProject = computed(
+  $userProjects,
+  (state): UserProject | null => {
+    if (state.activeId && state.byId[state.activeId]) {
+      return state.byId[state.activeId];
+    }
+    const projects = state.allIds
+      .map((id) => state.byId[id])
+      .filter((p): p is UserProject => Boolean(p));
+    return (
+      projects.find((p) => p.metadata?.status === 'active') ??
+      projects[0] ??
+      null
+    );
+  },
+);
 
 export const $selectedOffer = computed(
   [$activeProject, $userProjectOffers],
   (project, offerState): UserProjectOffer | null => {
     if (!project) return null;
-    if (project.selected_offer_id && offerState.byId[project.selected_offer_id]) {
+    if (
+      project.selected_offer_id &&
+      offerState.byId[project.selected_offer_id]
+    ) {
       return offerState.byId[project.selected_offer_id];
     }
     const projectOffers = offerState.allIds
       .map((id) => offerState.byId[id])
-      .filter((o): o is UserProjectOffer => Boolean(o) && o.project_id === project.id);
+      .filter(
+        (o): o is UserProjectOffer =>
+          Boolean(o) && o.project_id === project.id,
+      );
     return projectOffers[0] ?? null;
   },
 );

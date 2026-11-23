@@ -8,6 +8,7 @@ import type {
   ExperimentBlueprint,
   UserExperiment,
 } from '@/lib/types/experiments';
+import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 
 import { $nodeResources } from '@/lib/stores/resources';
 import { observationsActions } from '@/lib/stores/observations';
@@ -15,6 +16,7 @@ import {
   experimentBlueprintsActions,
   userExperimentsActions,
 } from '@/lib/stores/experiments';
+import { projectsActions } from '@/lib/stores/projects';
 
 interface MissionContextHydratorProps {
   contextData: Partial<Record<ContextResource, any>>;
