@@ -72,7 +72,14 @@ export type MspBuildRequirement = {
 export type UserProjectMetadata = {
   status?: string;
   businessType?: BusinessType;
+  forward_question?: string | null;
   forwardQuestion?: string;
+  opportunity_snapshot?: {
+    problem?: string;
+    problem_details?: unknown;
+    approach?: Record<string, unknown> | null;
+    feasibility?: Record<string, unknown> | null;
+  };
   observedProfiles?: ObservedUserProfileInput[];
   personas?: ExtractedCustomerPersona[];
   features?: MspFeatureItem[];

@@ -50,6 +50,33 @@ export async function fetchMissionContext(
     );
   }
 
+  if (requirements.includes('projects')) {
+      const { data: projects, error } = await supabase
+        .from('user_projects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch projects: ${error.message}`);
+      }
+
+      contextData.projects = (projects ?? []).map(mapUserProjectRow);
+    }
+
+    if (requirements.includes('offers')) {
+      const { data: offers, error } = await supabase
+        .from('user_project_offers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch offers: ${error.message}`);
+      }
+
+      contextData.offers = (offers ?? []).map(mapUserProjectOfferRow);
+    }
+
   const needsObservations = requirements.includes('observations');
   const needsOpportunities = requirements.includes('opportunities');
   const needsUserExperiments = requirements.includes('user_experiments');

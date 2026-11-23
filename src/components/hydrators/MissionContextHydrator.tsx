@@ -45,6 +45,16 @@ export function MissionContextHydrator({
         contextData.user_experiments as UserExperiment[],
       );
     }
+
+    if (contextData.projects !== undefined) {
+      projectsActions.hydrateProjects(contextData.projects as UserProject[]);
+    }
+
+    if (contextData.offers !== undefined) {
+      projectsActions.hydrateOffers(
+        contextData.offers as UserProjectOffer[],
+      );
+    }
   }, [contextData]);
 
   return null;
