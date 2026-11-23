@@ -1,23 +1,93 @@
-import { atom } from 'nanostores';
-import type { Tables } from '@/database.types';
+import { computed, map } from 'nanostores';
+import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 
-export type UserProject = Tables<'user_projects'>;
+export type UserProjectsState = {
+  byId: Record<string, UserProject>;
+  allIds: string[];
+  hydrated: boolean;
+};
 
-export interface ProjectsState {
-  isHydrated: boolean;
-  activeProject: UserProject | null;
-}
+export const $userProjects = map<UserProjectsState>({
+  byId: {},
+  allIds: [],
+  hydrated: false,
+});
 
-export const $projects = atom<ProjectsState>({
-  isHydrated: false,
-  activeProject: null,
+export type UserProjectOffersState = {
+  byId: Record<string, UserProjectOffer>;
+  allIds: string[];
+  hydrated: boolean;
+};
+
+export const $userProjectOffers = map<UserProjectOffersState>({
+  byId: {},
+  allIds: [],
+  hydrated: false,
 });
 
 export const projectsActions = {
-  hydrate: (activeProject: UserProject | null) => {
-    $projects.set({ isHydrated: true, activeProject });
+  hydrateProjects(items: UserProject[]) {
+    const byId: Record<string, UserProject> = {};
+    const allIds: string[] = [];
+    for (const item of items) {
+      byId[item.id] = item;
+      allIds.push(item.id);
+    }
+    $userProjects.set({ byId, allIds, hydrated: true });
   },
-  setActive: (project: UserProject) => {
-    $projects.set({ isHydrated: true, activeProject: project });
+
+  upsertProject(item: UserProject) {
+    const current = $userProjects.get();
+    const exists = Boolean(current.byId[item.id]);
+    $userProjects.set({
+      byId: { ...current.byId, [item.id]: item },
+      allIds: exists ? current.allIds : [item.id, ...current.allIds],
+      hydrated: true,
+    });
+  },
+
+  hydrateOffers(items: UserProjectOffer[]) {
+    const byId: Record<string, UserProjectOffer> = {};
+    const allIds: string[] = [];
+    for (const item of items) {
+      byId[item.id] = item;
+      allIds.push(item.id);
+    }
+    $userProjectOffers.set({ byId, allIds, hydrated: true });
+  },
+
+  upsertOffer(item: UserProjectOffer) {
+    const current = $userProjectOffers.get();
+    const exists = Boolean(current.byId[item.id]);
+    $userProjectOffers.set({
+      byId: { ...current.byId, [item.id]: item },
+      allIds: exists ? current.allIds : [item.id, ...current.allIds],
+      hydrated: true,
+    });
   },
 };
+
+export const $activeProject = computed($userProjects, (state): UserProject | null => {
+  const projects = state.allIds
+    .map((id) => state.byId[id])
+    .filter((p): p is UserProject => Boolean(p));
+  return (
+    projects.find((p) => p.metadata?.status === 'active') ??
+    projects[0] ??
+    null
+  );
+});
+
+export const $selectedOffer = computed(
+  [$activeProject, $userProjectOffers],
+  (project, offerState): UserProjectOffer | null => {
+    if (!project) return null;
+    if (project.selected_offer_id && offerState.byId[project.selected_offer_id]) {
+      return offerState.byId[project.selected_offer_id];
+    }
+    const projectOffers = offerState.allIds
+      .map((id) => offerState.byId[id])
+      .filter((o): o is UserProjectOffer => Boolean(o) && o.project_id === project.id);
+    return projectOffers[0] ?? null;
+  },
+);
