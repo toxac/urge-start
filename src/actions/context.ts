@@ -11,6 +11,7 @@ import {
   mapUserProjectOfferRow,
   mapUserProjectRow,
 } from '@/lib/types/projects';
+import { mapUserProjectBuildRow } from '@/lib/types/builds';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
@@ -58,13 +59,15 @@ export async function fetchMissionContext(
   const needsUserExperiments = requirements.includes('user_experiments');
   const needsProjects = requirements.includes('projects');
   const needsOffers = requirements.includes('offers');
+  const needsBuilds = requirements.includes('builds');
 
   if (
     needsObservations ||
     needsOpportunities ||
     needsUserExperiments ||
     needsProjects ||
-    needsOffers
+    needsOffers ||
+    needsBuilds
   ) {
     const {
       data: { user },
@@ -157,6 +160,20 @@ export async function fetchMissionContext(
       }
 
       contextData.offers = (offers ?? []).map(mapUserProjectOfferRow);
+    }
+
+    if (needsBuilds) {
+      const { data: builds, error } = await supabase
+        .from('user_project_builds')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('version_number', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch builds: ${error.message}`);
+      }
+
+      contextData.builds = (builds ?? []).map(mapUserProjectBuildRow);
     }
   }
 
