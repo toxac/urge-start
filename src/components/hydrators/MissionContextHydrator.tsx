@@ -9,6 +9,7 @@ import type {
   UserExperiment,
 } from '@/lib/types/experiments';
 import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
+import type { UserProjectBuild } from '@/lib/types/builds';
 
 import { $nodeResources } from '@/lib/stores/resources';
 import { observationsActions } from '@/lib/stores/observations';
@@ -55,6 +56,12 @@ export function MissionContextHydrator({
     if (contextData.offers !== undefined) {
       projectsActions.hydrateOffers(
         contextData.offers as UserProjectOffer[],
+      );
+    }
+
+    if (contextData.builds !== undefined) {
+      projectsActions.hydrateBuilds(
+        contextData.builds as UserProjectBuild[],
       );
     }
   }, [contextData]);

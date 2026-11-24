@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  $activeBuild,
   $activeProject,
   $selectedOffer,
   projectsActions,
@@ -20,12 +21,11 @@ import {
   fetchMission4ContextSummary,
   updateUserProjectMetadata,
 } from '@/actions/projects';
+import { upsertProjectBuild } from '@/actions/builds';
 import { saveUserTasks } from '@/actions/tasks';
 import { TRACTION_CHANNEL_OPTIONS } from './OfferCommunication';
-import type {
-  Mission4ContextSummary,
-  MspBuildRequirement,
-} from '@/lib/types/projects';
+import type { Mission4ContextSummary } from '@/lib/types/projects';
+import type { MspBuildRequirement } from '@/lib/types/builds';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 const TRACK_LABELS: Array<{
@@ -62,6 +62,7 @@ export function Mission4Action({
 }: NodeComponentProps) {
   const activeProject = useStore($activeProject);
   const selectedOffer = useStore($selectedOffer);
+  const activeBuild = useStore($activeBuild);
 
   const [context, setContext] = useState<Mission4ContextSummary | null>(null);
   const [items, setItems] = useState<MspBuildRequirement[]>([]);
@@ -81,22 +82,24 @@ export function Mission4Action({
         setContext(data);
         const proj = data.project ?? activeProject;
         const offer = data.selectedOffer ?? selectedOffer;
+        const build = data.activeBuild ?? activeBuild;
 
         if (proj) projectsActions.upsertProject(proj);
         if (offer) projectsActions.upsertOffer(offer);
+        if (build) projectsActions.upsertBuild(build);
 
-        if (
-          Array.isArray(proj?.metadata?.mspRequirements) &&
-          proj.metadata.mspRequirements.length > 0
-        ) {
-          setItems(proj.metadata.mspRequirements);
+        const existingReqs =
+          build?.requirements && build.requirements.length > 0
+            ? build.requirements
+            : proj?.metadata?.mspRequirements;
+
+        if (Array.isArray(existingReqs) && existingReqs.length > 0) {
+          setItems(existingReqs);
           setLoading(false);
           return;
         }
 
-        // Seed practical v1 build requirements from M4 decisions
         const seeded: MspBuildRequirement[] = [];
-
         const mustHaves = (proj?.metadata?.features ?? [])
           .filter((f) => f.bucket === 'must_have')
           .map((f) => f.label);
@@ -184,6 +187,8 @@ export function Mission4Action({
   }, []);
 
   const project = context?.project ?? activeProject;
+  const offer = context?.selectedOffer ?? selectedOffer;
+  const existingBuild = context?.activeBuild ?? activeBuild;
 
   function handleAddItem(e: React.FormEvent) {
     e.preventDefault();
@@ -208,7 +213,9 @@ export function Mission4Action({
   async function handleFinishMission4() {
     if (saving || !project) return;
     if (items.length === 0) {
-      setError('Keep at least one concrete requirement to carry into Mission 5.');
+      setError(
+        'Keep at least one concrete requirement to carry into Mission 5.',
+      );
       return;
     }
 
@@ -216,12 +223,29 @@ export function Mission4Action({
     setError(null);
 
     try {
-      const updatedProj = await updateUserProjectMetadata(project.id, {
-        mspRequirements: items,
-      });
-      projectsActions.upsertProject(updatedProj);
+      const { build: savedBuild, project: updatedWithBuild } =
+        await upsertProjectBuild({
+          buildId: existingBuild?.id ?? null,
+          projectId: project.id,
+          offerId: offer?.id ?? null,
+          versionNumber: existingBuild?.version_number ?? 1,
+          versionLabel: existingBuild?.version_label ?? 'v1.0',
+          title: offer?.title
+            ? `${offer.title} (${existingBuild?.version_label ?? 'v1.0'})`
+            : `${project.title} v1.0 Build`,
+          status: existingBuild?.status ?? 'building',
+          requirements: items,
+          setAsActive: true,
+        });
 
-      // Sync actionable build items to user_tasks for Mission 5 execution
+      const finalProj = await updateUserProjectMetadata(
+        (updatedWithBuild ?? project).id,
+        { mspRequirements: items },
+      );
+
+      projectsActions.upsertBuild(savedBuild);
+      projectsActions.upsertProject(finalProj);
+
       await saveUserTasks(
         items.slice(0, 8).map((item) => ({
           title: item.title,
@@ -233,7 +257,8 @@ export function Mission4Action({
 
       await onComplete({
         completed: true,
-        projectId: project.id,
+        projectId: finalProj.id,
+        buildId: savedBuild.id,
         mspRequirementsCount: items.length,
       });
     } catch (err) {
@@ -372,7 +397,7 @@ export function Mission4Action({
           {saving ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Locking build plan…
+              Creating v1.0 build…
             </>
           ) : (
             <>

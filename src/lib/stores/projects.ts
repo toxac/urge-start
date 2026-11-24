@@ -1,7 +1,9 @@
 import { computed, map } from 'nanostores';
 import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
+import type { UserProjectBuild } from '@/lib/types/builds';
 
 export type { UserProject, UserProjectOffer } from '@/lib/types/projects';
+export type { UserProjectBuild } from '@/lib/types/builds';
 
 export type UserProjectsState = {
   byId: Record<string, UserProject>;
@@ -29,6 +31,18 @@ export const $userProjectOffers = map<UserProjectOffersState>({
   hydrated: false,
 });
 
+export type UserProjectBuildsState = {
+  byId: Record<string, UserProjectBuild>;
+  allIds: string[];
+  hydrated: boolean;
+};
+
+export const $userProjectBuilds = map<UserProjectBuildsState>({
+  byId: {},
+  allIds: [],
+  hydrated: false,
+});
+
 export const projectsActions = {
   hydrateProjects(items: UserProject[]) {
     const byId: Record<string, UserProject> = {};
@@ -38,7 +52,10 @@ export const projectsActions = {
       allIds.push(item.id);
     }
     const active =
-      items.find((p) => p.metadata?.status === 'active') ?? items[0] ?? null;
+      items.find((p) => p.metadata?.status === 'active') ??
+      items.find((p) => p.metadata?.status === 'operating') ??
+      items[0] ??
+      null;
 
     $userProjects.set({
       byId,
@@ -89,6 +106,26 @@ export const projectsActions = {
       hydrated: true,
     });
   },
+
+  hydrateBuilds(items: UserProjectBuild[]) {
+    const byId: Record<string, UserProjectBuild> = {};
+    const allIds: string[] = [];
+    for (const item of items) {
+      byId[item.id] = item;
+      allIds.push(item.id);
+    }
+    $userProjectBuilds.set({ byId, allIds, hydrated: true });
+  },
+
+  upsertBuild(item: UserProjectBuild) {
+    const current = $userProjectBuilds.get();
+    const exists = Boolean(current.byId[item.id]);
+    $userProjectBuilds.set({
+      byId: { ...current.byId, [item.id]: item },
+      allIds: exists ? current.allIds : [item.id, ...current.allIds],
+      hydrated: true,
+    });
+  },
 };
 
 export const $activeProject = computed(
@@ -102,6 +139,7 @@ export const $activeProject = computed(
       .filter((p): p is UserProject => Boolean(p));
     return (
       projects.find((p) => p.metadata?.status === 'active') ??
+      projects.find((p) => p.metadata?.status === 'operating') ??
       projects[0] ??
       null
     );
@@ -125,5 +163,22 @@ export const $selectedOffer = computed(
           Boolean(o) && o.project_id === project.id,
       );
     return projectOffers[0] ?? null;
+  },
+);
+
+export const $activeBuild = computed(
+  [$activeProject, $userProjectBuilds],
+  (project, buildState): UserProjectBuild | null => {
+    if (!project) return null;
+    if (project.active_build_id && buildState.byId[project.active_build_id]) {
+      return buildState.byId[project.active_build_id];
+    }
+    const projectBuilds = buildState.allIds
+      .map((id) => buildState.byId[id])
+      .filter(
+        (b): b is UserProjectBuild =>
+          Boolean(b) && b.project_id === project.id,
+      );
+    return projectBuilds[0] ?? null;
   },
 );
