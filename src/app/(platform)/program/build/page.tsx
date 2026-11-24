@@ -8,6 +8,8 @@ export default async function BuildWorkspacePage() {
     <BuildDashboard
       initialProject={summary.project}
       initialOffer={summary.selectedOffer}
+      initialBuild={summary.activeBuild}
+      allBuilds={summary.builds}
       warmLeadsCount={summary.m3WarmLeads.length}
       m1Constraints={summary.m1Constraints}
     />

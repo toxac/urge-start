@@ -45,8 +45,12 @@ export const missionContextRequirements: Record<string, ContextResource[]> = {
   'mission-6': ['projects', 'offers', 'builds', 'resources'],
 };
 
+export function getMissionRequirements(missionKey: string): ContextResource[] {
+  return missionContextRequirements[missionKey] ?? ['resources'];
+}
+
 export function getMissionContextRequirements(
   missionKey: string,
 ): ContextResource[] {
-  return missionContextRequirements[missionKey] ?? ['resources'];
+  return getMissionRequirements(missionKey);
 }
