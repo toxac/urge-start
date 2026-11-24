@@ -95,7 +95,6 @@ export function BuildStartingPoint({ node, onComplete }: NodeComponentProps) {
         </p>
       </div>
 
-      {/* Build Guardrails Card */}
       <div className="max-w-3xl space-y-4 rounded-2xl border border-border bg-card p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>

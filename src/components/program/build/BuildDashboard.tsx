@@ -13,21 +13,25 @@ import {
   Megaphone,
   Package,
   Plus,
-  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { updateUserProjectMetadata } from '@/actions/projects';
+import {
+  updateProjectBuild,
+  upsertProjectBuild,
+} from '@/actions/builds';
 import { projectsActions } from '@/lib/stores/projects';
+import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 import type {
   MspBuildRequirement,
-  UserProject,
-  UserProjectOffer,
-} from '@/lib/types/projects';
+  UserProjectBuild,
+} from '@/lib/types/builds';
 
 type BuildDashboardProps = {
   initialProject: UserProject | null;
   initialOffer: UserProjectOffer | null;
+  initialBuild: UserProjectBuild | null;
+  allBuilds: UserProjectBuild[];
   warmLeadsCount: number;
   m1Constraints: {
     weeklyHours?: string;
@@ -61,14 +65,21 @@ const CATEGORY_META: Record<
 export function BuildDashboard({
   initialProject,
   initialOffer,
+  initialBuild,
+  allBuilds,
   warmLeadsCount,
   m1Constraints,
 }: BuildDashboardProps) {
   const router = useRouter();
 
-  const [project, setProject] = useState<UserProject | null>(initialProject);
+  const [builds, setBuilds] = useState<UserProjectBuild[]>(allBuilds);
+  const [activeBuild, setActiveBuild] = useState<UserProjectBuild | null>(
+    initialBuild,
+  );
   const [tasks, setTasks] = useState<MspBuildRequirement[]>(
-    initialProject?.metadata?.mspRequirements ?? [],
+    initialBuild?.requirements ??
+      initialProject?.metadata?.mspRequirements ??
+      [],
   );
   const [activeFilter, setActiveFilter] = useState<
     'all' | MspBuildRequirement['category']
@@ -81,7 +92,7 @@ export function BuildDashboard({
   const [completingBuild, setCompletingBuild] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const econ = project?.metadata?.economics;
+  const econ = initialProject?.metadata?.economics;
   const currency =
     initialOffer?.metadata?.currency ?? econ?.currency ?? '₹';
   const price =
@@ -93,16 +104,49 @@ export function BuildDashboard({
       ? tasks
       : tasks.filter((t) => t.category === activeFilter);
 
+  async function ensureBuildRow(
+    nextTasks: MspBuildRequirement[],
+  ): Promise<UserProjectBuild | null> {
+    if (!initialProject) return null;
+
+    if (activeBuild) {
+      const updated = await updateProjectBuild(activeBuild.id, {
+        requirements: nextTasks,
+      });
+      setActiveBuild(updated);
+      setBuilds((prev) =>
+        prev.map((b) => (b.id === updated.id ? updated : b)),
+      );
+      projectsActions.upsertBuild(updated);
+      return updated;
+    }
+
+    const { build: created, project: updatedProj } = await upsertProjectBuild({
+      projectId: initialProject.id,
+      offerId: initialOffer?.id ?? null,
+      versionNumber: 1,
+      versionLabel: 'v1.0',
+      title: initialOffer?.title
+        ? `${initialOffer.title} (v1.0)`
+        : `${initialProject.title} v1.0 Build`,
+      status: 'building',
+      requirements: nextTasks,
+      setAsActive: true,
+    });
+
+    setActiveBuild(created);
+    setBuilds([created, ...builds]);
+    projectsActions.upsertBuild(created);
+    if (updatedProj) projectsActions.upsertProject(updatedProj);
+    return created;
+  }
+
   async function persistTasks(nextTasks: MspBuildRequirement[]) {
-    if (!project) return;
+    if (!initialProject) return;
     setSavingTask(true);
     setError(null);
     try {
-      const updated = await updateUserProjectMetadata(project.id, {
-        mspRequirements: nextTasks,
-      });
-      setProject(updated);
-      projectsActions.upsertProject(updated);
+      await ensureBuildRow(nextTasks);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Could not save task update.',
@@ -145,16 +189,17 @@ export function BuildDashboard({
     setError(null);
 
     try {
-      if (project) {
-        const updated = await updateUserProjectMetadata(project.id, {
-          mspRequirements: tasks,
+      const ensured = await ensureBuildRow(tasks);
+      if (ensured) {
+        const finished = await updateProjectBuild(ensured.id, {
+          requirements: tasks,
+          status: 'alpha_testing',
           buildCompletedAt: new Date().toISOString(),
         });
-        setProject(updated);
-        projectsActions.upsertProject(updated);
+        setActiveBuild(finished);
+        projectsActions.upsertBuild(finished);
       }
 
-      // Return to Mission 5 program flow with buildComplete flag so m5-q1-build advances to Quest 2
       router.push('/program?mission=mission-5&node=m5-q1-build&buildComplete=1');
     } catch (err) {
       setError(
@@ -171,11 +216,18 @@ export function BuildDashboard({
       {/* Top Workspace Header & Milestone CTA */}
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-border bg-card p-6">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-            Active v1 Build
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+              {activeBuild?.version_label ?? 'v1.0'}
+            </span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {activeBuild?.status?.replace(/_/g, ' ') ?? 'Building'}
+            </span>
+          </div>
           <h1 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">
-            {project?.title ?? 'Your Minimum Sellable Product'}
+            {activeBuild?.title ??
+              initialProject?.title ??
+              'Your Minimum Sellable Product'}
           </h1>
           <p className="text-sm text-muted-foreground">
             {initialOffer
@@ -185,6 +237,26 @@ export function BuildDashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {builds.length > 1 && (
+            <select
+              value={activeBuild?.id ?? ''}
+              onChange={(e) => {
+                const chosen = builds.find((b) => b.id === e.target.value);
+                if (chosen) {
+                  setActiveBuild(chosen);
+                  setTasks(chosen.requirements ?? []);
+                }
+              }}
+              className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold"
+            >
+              {builds.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.version_label} · {b.status.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+          )}
+
           <div className="rounded-xl bg-muted/50 px-4 py-2 text-right">
             <p className="text-[11px] font-semibold uppercase text-muted-foreground">
               Build Checklist
@@ -233,7 +305,7 @@ export function BuildDashboard({
             <div className="flex items-center gap-2">
               <Layers className="h-4 w-4 text-primary" />
               <h2 className="text-base font-bold text-foreground">
-                Build Tasks
+                Build Tasks ({activeBuild?.version_label ?? 'v1.0'})
               </h2>
             </div>
             {savingTask && (

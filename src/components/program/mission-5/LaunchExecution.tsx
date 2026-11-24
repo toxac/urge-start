@@ -18,10 +18,8 @@ import {
   $selectedOffer,
   projectsActions,
 } from '@/lib/stores/projects';
-import {
-  fetchMission4ContextSummary,
-  updateProjectBuild,
-} from '@/actions/projects';
+import { fetchMission4ContextSummary } from '@/actions/projects';
+import { updateProjectBuild } from '@/actions/builds';
 import { TRACTION_CHANNEL_OPTIONS } from '@/components/program/mission-4/OfferCommunication';
 import type { Mission4ContextSummary } from '@/lib/types/projects';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';

@@ -18,19 +18,15 @@ import {
   $selectedOffer,
   projectsActions,
 } from '@/lib/stores/projects';
-import {
-  fetchMission4ContextSummary,
-  updateProjectBuild,
-} from '@/actions/projects';
+import { fetchMission4ContextSummary } from '@/actions/projects';
+import { updateProjectBuild } from '@/actions/builds';
 import {
   fetchUserExperiments,
   saveUserExperimentReflection,
 } from '@/actions/experiments';
 import { readAlphaTestSignals } from '@/actions/responses/mission5';
-import type {
-  AlphaAnalysisResult,
-  Mission4ContextSummary,
-} from '@/lib/types/projects';
+import type { Mission4ContextSummary } from '@/lib/types/projects';
+import type { AlphaAnalysisResult } from '@/lib/types/builds';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
 export function AlphaSignalRead({
@@ -70,8 +66,18 @@ export function AlphaSignalRead({
           return;
         }
 
-        if (build?.alpha_summary?.whatWorked) {
-          setAnalysis(build.alpha_summary as AlphaAnalysisResult);
+        if (
+          build?.alpha_summary?.whatWorked &&
+          build?.alpha_summary?.timeAndCostReality
+        ) {
+          setAnalysis({
+            deliveryVerdict:
+              build.alpha_summary.deliveryVerdict ?? 'fix_bottlenecks_first',
+            whatWorked: build.alpha_summary.whatWorked,
+            timeAndCostReality: build.alpha_summary.timeAndCostReality,
+            mustFixBeforeLaunch: build.alpha_summary.mustFixBeforeLaunch ?? [],
+            ignoreForNow: build.alpha_summary.ignoreForNow ?? [],
+          });
           setLoading(false);
           return;
         }

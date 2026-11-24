@@ -17,11 +17,11 @@ import {
   $selectedOffer,
   projectsActions,
 } from '@/lib/stores/projects';
+import { fetchMission4ContextSummary } from '@/actions/projects';
 import {
-  fetchMission4ContextSummary,
   updateProjectBuild,
   upsertProjectBuild,
-} from '@/actions/projects';
+} from '@/actions/builds';
 import type { Mission4ContextSummary } from '@/lib/types/projects';
 import type { NodeComponentProps } from '@/components/program/componentRegistry';
 
@@ -159,7 +159,7 @@ export function BuildWorkspaceEntry({ node, onComplete }: NodeComponentProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Button asChild className="h-12 rounded-full px-8 text-base">
+          <Button className="h-12 rounded-full px-8 text-base">
             <Link href="/program/build">
               Open Build Workspace
               <ExternalLink className="ml-2 h-4 w-4" />
