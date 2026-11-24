@@ -426,8 +426,18 @@ export type ExperimentQuoteEntry = {
   logged_at: string;
 };
 
+export type ChannelBreakdownEntry = {
+  channel: string;
+  channelLabel: string;
+  reached: number;
+  engaged: number;
+  inquiries: number;
+  committed: number;
+};
+
 export type UserExperimentResults = {
   values?: Record<string, MetricRecordedValue>;
+  channel_breakdown?: Record<string, ChannelBreakdownEntry>;
   warm_leads?: ExperimentWarmLead[];
   quotes?: ExperimentQuoteEntry[];
   notes?: string;

@@ -111,7 +111,11 @@ export type ProjectEconomics = {
 export type MspBuildRequirement = {
   id: string;
   title: string;
-  category: 'offer_delivery' | 'acquisition' | 'payment_ops';
+  category:
+    | 'product_req'
+    | 'marketing_pipeline'
+    | 'branding_trust'
+    | 'payment_ops';
   done?: boolean;
 };
 
@@ -133,6 +137,14 @@ export type UserProjectMetadata = {
   gainsCreated?: string[];
   offerAssessment?: OfferAssessmentResult;
   economics?: ProjectEconomics;
+  offerCommunication?: {
+    coreAngle: string;
+    selectedChannels: TractionChannelKey[];
+    channelDrafts?: ChannelCopyDraft[];
+    personaFeedback?: PersonaCopyFeedback[];
+  };
+  tractionAnalysis?: TractionAnalysisResult;
+  winningChannels?: TractionChannelKey[];
   acquisitionChannel?: {
     channel: string;
     whyItFits: string;
@@ -243,3 +255,33 @@ export function mapUserProjectOfferRow(
     updated_at: row.updated_at,
   };
 }
+
+
+export type TractionChannelKey =
+  | 'landing_page'
+  | 'direct_outreach'
+  | 'social_post'
+  | 'local_flyer'
+  | 'community_drop';
+
+export type ChannelCopyDraft = {
+  channel: TractionChannelKey;
+  channelLabel: string;
+  headlineOrHook: string;
+  messageBody: string;
+  ctaStep: string;
+};
+
+export type PersonaCopyFeedback = {
+  personaName: string;
+  reaction: string;
+  frictionPoint: string;
+  suggestedFix: string;
+};
+
+export type TractionAnalysisResult = {
+  shows: string;
+  channelWinner: string;
+  priceAndScopeFriction: string;
+  unclear: string;
+};
