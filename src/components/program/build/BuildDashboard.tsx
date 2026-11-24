@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useStore } from '@nanostores/react';
 import {
   AlertCircle,
   ArrowRight,
@@ -20,7 +21,13 @@ import {
   updateProjectBuild,
   upsertProjectBuild,
 } from '@/actions/builds';
-import { projectsActions } from '@/lib/stores/projects';
+import {
+  $activeBuild,
+  $activeProject,
+  $selectedOffer,
+  $userProjectBuilds,
+  projectsActions,
+} from '@/lib/stores/projects';
 import type { UserProject, UserProjectOffer } from '@/lib/types/projects';
 import type {
   MspBuildRequirement,
@@ -72,15 +79,41 @@ export function BuildDashboard({
 }: BuildDashboardProps) {
   const router = useRouter();
 
-  const [builds, setBuilds] = useState<UserProjectBuild[]>(allBuilds);
-  const [activeBuild, setActiveBuild] = useState<UserProjectBuild | null>(
-    initialBuild,
+  const storeProject = useStore($activeProject);
+  const storeOffer = useStore($selectedOffer);
+  const storeActiveBuild = useStore($activeBuild);
+  const buildsState = useStore($userProjectBuilds);
+
+  const project = storeProject ?? initialProject;
+  const offer = storeOffer ?? initialOffer;
+
+  const builds: UserProjectBuild[] = buildsState.hydrated
+    ? buildsState.allIds
+        .map((id) => buildsState.byId[id])
+        .filter((b): b is UserProjectBuild => Boolean(b))
+    : allBuilds;
+
+  const [selectedBuildId, setSelectedBuildId] = useState<string | null>(
+    initialBuild?.id ?? null,
   );
+
+  const activeBuild =
+    (selectedBuildId
+      ? builds.find((b) => b.id === selectedBuildId)
+      : undefined) ??
+    storeActiveBuild ??
+    initialBuild;
+
   const [tasks, setTasks] = useState<MspBuildRequirement[]>(
-    initialBuild?.requirements ??
-      initialProject?.metadata?.mspRequirements ??
-      [],
+    activeBuild?.requirements ?? project?.metadata?.mspRequirements ?? [],
   );
+
+  useEffect(() => {
+    if (activeBuild?.requirements) {
+      setTasks(activeBuild.requirements);
+    }
+  }, [activeBuild?.id]);
+
   const [activeFilter, setActiveFilter] = useState<
     'all' | MspBuildRequirement['category']
   >('all');
@@ -92,11 +125,9 @@ export function BuildDashboard({
   const [completingBuild, setCompletingBuild] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const econ = initialProject?.metadata?.economics;
-  const currency =
-    initialOffer?.metadata?.currency ?? econ?.currency ?? '₹';
-  const price =
-    initialOffer?.metadata?.price_point ?? econ?.pricePerUnit ?? 0;
+  const econ = project?.metadata?.economics;
+  const currency = offer?.metadata?.currency ?? econ?.currency ?? '₹';
+  const price = offer?.metadata?.price_point ?? econ?.pricePerUnit ?? 0;
 
   const completedCount = tasks.filter((t) => t.done).length;
   const visibleTasks =
@@ -107,42 +138,37 @@ export function BuildDashboard({
   async function ensureBuildRow(
     nextTasks: MspBuildRequirement[],
   ): Promise<UserProjectBuild | null> {
-    if (!initialProject) return null;
+    if (!project) return null;
 
     if (activeBuild) {
       const updated = await updateProjectBuild(activeBuild.id, {
         requirements: nextTasks,
       });
-      setActiveBuild(updated);
-      setBuilds((prev) =>
-        prev.map((b) => (b.id === updated.id ? updated : b)),
-      );
       projectsActions.upsertBuild(updated);
       return updated;
     }
 
     const { build: created, project: updatedProj } = await upsertProjectBuild({
-      projectId: initialProject.id,
-      offerId: initialOffer?.id ?? null,
+      projectId: project.id,
+      offerId: offer?.id ?? null,
       versionNumber: 1,
       versionLabel: 'v1.0',
-      title: initialOffer?.title
-        ? `${initialOffer.title} (v1.0)`
-        : `${initialProject.title} v1.0 Build`,
+      title: offer?.title
+        ? `${offer.title} (v1.0)`
+        : `${project.title} v1.0 Build`,
       status: 'building',
       requirements: nextTasks,
       setAsActive: true,
     });
 
-    setActiveBuild(created);
-    setBuilds([created, ...builds]);
+    setSelectedBuildId(created.id);
     projectsActions.upsertBuild(created);
     if (updatedProj) projectsActions.upsertProject(updatedProj);
     return created;
   }
 
   async function persistTasks(nextTasks: MspBuildRequirement[]) {
-    if (!initialProject) return;
+    if (!project) return;
     setSavingTask(true);
     setError(null);
     try {
@@ -196,7 +222,6 @@ export function BuildDashboard({
           status: 'alpha_testing',
           buildCompletedAt: new Date().toISOString(),
         });
-        setActiveBuild(finished);
         projectsActions.upsertBuild(finished);
       }
 
@@ -226,12 +251,12 @@ export function BuildDashboard({
           </div>
           <h1 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">
             {activeBuild?.title ??
-              initialProject?.title ??
+              project?.title ??
               'Your Minimum Sellable Product'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {initialOffer
-              ? `${initialOffer.title} · ${currency}${price.toLocaleString()}`
+            {offer
+              ? `${offer.title} · ${currency}${price.toLocaleString()}`
               : 'Work across product, marketing, payments, and tracking in any order.'}
           </p>
         </div>
@@ -243,7 +268,7 @@ export function BuildDashboard({
               onChange={(e) => {
                 const chosen = builds.find((b) => b.id === e.target.value);
                 if (chosen) {
-                  setActiveBuild(chosen);
+                  setSelectedBuildId(chosen.id);
                   setTasks(chosen.requirements ?? []);
                 }
               }}
@@ -453,8 +478,7 @@ export function BuildDashboard({
               </div>
               <p className="text-sm font-semibold text-foreground">
                 v1 Scope:{' '}
-                {initialOffer?.metadata?.included_summary ||
-                  'Defined in Mission 4'}
+                {offer?.metadata?.included_summary || 'Defined in Mission 4'}
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
                 Future module: v1 deliverable checklist, prototype/staging URL,
@@ -506,7 +530,7 @@ export function BuildDashboard({
                 Target Price: {currency}
                 {price.toLocaleString()} (
                 {(
-                  initialOffer?.metadata?.payment_model ??
+                  offer?.metadata?.payment_model ??
                   econ?.paymentModel ??
                   'upfront'
                 ).replace(/_/g, ' ')}
