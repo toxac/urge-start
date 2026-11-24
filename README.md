@@ -9,3 +9,21 @@
     ]
 
 ```
+
+# Mission 5 Experiment Id
+```json
+[
+    {"id":"7c45d84e-c117-4d56-ba00-dd759625291f","key":"alpha_delivery_test","mission_key":"mission-5","category":"build","involves_people":true,"name":"Founding Alpha Delivery Test"}]
+```
+
+## Mission 5 
+Compared to the previous mission this is not going to be sequential. This is how i am thinking we should implement it
+
+- quest 1 : 
+    1. setup
+    2. build dashboard 
+        - we will have a dedicated page for build with widgets for   marketing and sales, product, other admin such as paymemts, purchases
+        - tracking for costs, time etc. 
+        - when user are done here they can press the button build complete ready to test. this will handle progress and take users to next quest
+- quest 2: Alpha test (experiment) 
+- quest 3: launch
