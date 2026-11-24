@@ -415,6 +415,18 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
     8,
   );
 
+  const oppSnapshot = asRecord(activeProject?.metadata?.opportunity_snapshot);
+  const probDetails = asRecord(oppSnapshot.problem_details);
+  const workaroundParts = [
+    typeof probDetails.current_option === 'string' &&
+    probDetails.current_option.trim()
+      ? `Current option: ${probDetails.current_option.trim()}`
+      : '',
+    typeof probDetails.workaround === 'string' && probDetails.workaround.trim()
+      ? `Workaround: ${probDetails.workaround.trim()}`
+      : '',
+  ].filter(Boolean);
+
   return {
     project: activeProject,
     selectedOffer,
@@ -433,6 +445,7 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
         : 'thin',
     m3WarmLeads: warmLeads,
     m3Quotes: combinedQuotes,
+    m2WorkaroundSummary: workaroundParts.join(' · '),
     m1Constraints: {
       weeklyHours:
         typeof m1Action.weeklyHours === 'string'
