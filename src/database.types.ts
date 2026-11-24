@@ -1132,6 +1132,78 @@ export type Database = {
           },
         ]
       }
+      user_project_builds: {
+        Row: {
+          alpha_summary: Json
+          build_completed_at: string | null
+          created_at: string
+          id: string
+          launch_summary: Json
+          launched_at: string | null
+          offer_id: string | null
+          project_id: string
+          requirements: Json
+          status: string
+          title: string
+          tracking: Json
+          updated_at: string
+          user_id: string
+          version_label: string
+          version_number: number
+        }
+        Insert: {
+          alpha_summary?: Json
+          build_completed_at?: string | null
+          created_at?: string
+          id?: string
+          launch_summary?: Json
+          launched_at?: string | null
+          offer_id?: string | null
+          project_id: string
+          requirements?: Json
+          status?: string
+          title: string
+          tracking?: Json
+          updated_at?: string
+          user_id: string
+          version_label?: string
+          version_number?: number
+        }
+        Update: {
+          alpha_summary?: Json
+          build_completed_at?: string | null
+          created_at?: string
+          id?: string
+          launch_summary?: Json
+          launched_at?: string | null
+          offer_id?: string | null
+          project_id?: string
+          requirements?: Json
+          status?: string
+          title?: string
+          tracking?: Json
+          updated_at?: string
+          user_id?: string
+          version_label?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_project_builds_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "user_project_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_project_builds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_project_offers: {
         Row: {
           ask: string | null
@@ -1181,6 +1253,7 @@ export type Database = {
       }
       user_projects: {
         Row: {
+          active_build_id: string | null
           created_at: string
           description: string | null
           id: string
@@ -1192,6 +1265,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_build_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -1203,6 +1277,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_build_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -1214,6 +1289,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_projects_active_build_id_fkey"
+            columns: ["active_build_id"]
+            isOneToOne: false
+            referencedRelation: "user_project_builds"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_projects_opportunity_id_fkey"
             columns: ["opportunity_id"]
