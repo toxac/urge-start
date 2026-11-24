@@ -3,6 +3,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Json } from '@/database.types';
 import {
+  mapUserProjectBuildRow,
+  type UserProjectBuild,
+} from '@/lib/types/builds';
+import {
   mapUserProjectOfferRow,
   mapUserProjectRow,
   type Mission4ContextSummary,
@@ -156,6 +160,7 @@ export async function updateUserProjectMetadata(
     title?: string;
     description?: string | null;
     selectedOfferId?: string | null;
+    activeBuildId?: string | null;
   },
 ): Promise<UserProject> {
   const supabase = await createSupabaseServerClient();
@@ -194,6 +199,9 @@ export async function updateUserProjectMetadata(
         : {}),
       ...(options?.selectedOfferId !== undefined
         ? { selected_offer_id: options.selectedOfferId }
+        : {}),
+      ...(options?.activeBuildId !== undefined
+        ? { active_build_id: options.activeBuildId }
         : {}),
     })
     .eq('id', projectId)
@@ -337,17 +345,29 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
   const projects = (projectsRes.data ?? []).map(mapUserProjectRow);
   const activeProject =
     projects.find((p) => p.metadata?.status === 'active') ??
+    projects.find((p) => p.metadata?.status === 'operating') ??
     projects[0] ??
     null;
 
   let offers: UserProjectOffer[] = [];
+  let builds: UserProjectBuild[] = [];
+
   if (activeProject) {
-    const { data: offerRows } = await supabase
-      .from('user_project_offers')
-      .select('*')
-      .eq('project_id', activeProject.id)
-      .order('created_at', { ascending: false });
-    offers = (offerRows ?? []).map(mapUserProjectOfferRow);
+    const [offerRes, buildRes] = await Promise.all([
+      supabase
+        .from('user_project_offers')
+        .select('*')
+        .eq('project_id', activeProject.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('user_project_builds')
+        .select('*')
+        .eq('project_id', activeProject.id)
+        .eq('user_id', user.id)
+        .order('version_number', { ascending: false }),
+    ]);
+    offers = (offerRes.data ?? []).map(mapUserProjectOfferRow);
+    builds = (buildRes.data ?? []).map(mapUserProjectBuildRow);
   }
 
   const selectedOffer =
@@ -355,6 +375,13 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
       ? offers.find((o) => o.id === activeProject.selected_offer_id)
       : undefined) ??
     offers[0] ??
+    null;
+
+  const activeBuild =
+    (activeProject?.active_build_id
+      ? builds.find((b) => b.id === activeProject.active_build_id)
+      : undefined) ??
+    builds[0] ??
     null;
 
   const progressMap = new Map<string, Record<string, unknown>>();
@@ -431,6 +458,8 @@ export async function fetchMission4ContextSummary(): Promise<Mission4ContextSumm
     project: activeProject,
     selectedOffer,
     offers,
+    activeBuild,
+    builds,
     m3ProblemStatement:
       typeof m3Action.problemStatement === 'string'
         ? m3Action.problemStatement

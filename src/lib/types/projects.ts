@@ -1,4 +1,10 @@
 import type { Database } from '@/database.types';
+import type {
+  MspBuildRequirement,
+  UserProjectBuild,
+} from '@/lib/types/builds';
+
+export type { MspBuildRequirement } from '@/lib/types/builds';
 
 export type BusinessType =
   | 'saas_digital'
@@ -108,15 +114,33 @@ export type ProjectEconomics = {
   uploadedAt?: string;
 };
 
-export type MspBuildRequirement = {
-  id: string;
-  title: string;
-  category:
-    | 'product_req'
-    | 'marketing_pipeline'
-    | 'branding_trust'
-    | 'payment_ops';
-  done?: boolean;
+export type TractionChannelKey =
+  | 'landing_page'
+  | 'direct_outreach'
+  | 'social_post'
+  | 'local_flyer'
+  | 'community_drop';
+
+export type ChannelCopyDraft = {
+  channel: TractionChannelKey;
+  channelLabel: string;
+  headlineOrHook: string;
+  messageBody: string;
+  ctaStep: string;
+};
+
+export type PersonaCopyFeedback = {
+  personaName: string;
+  reaction: string;
+  frictionPoint: string;
+  suggestedFix: string;
+};
+
+export type TractionAnalysisResult = {
+  shows: string;
+  channelWinner: string;
+  priceAndScopeFriction: string;
+  unclear: string;
 };
 
 export type UserProjectMetadata = {
@@ -175,6 +199,7 @@ export type UserProject = {
   title: string;
   description: string | null;
   selected_offer_id: string | null;
+  active_build_id: string | null;
   metadata: UserProjectMetadata;
   created_at: string;
   updated_at: string;
@@ -197,6 +222,8 @@ export type Mission4ContextSummary = {
   project: UserProject | null;
   selectedOffer: UserProjectOffer | null;
   offers: UserProjectOffer[];
+  activeBuild: UserProjectBuild | null;
+  builds: UserProjectBuild[];
   m3ProblemStatement: string;
   m3PlanAroundNote: string;
   m3SignalStrength: string;
@@ -233,6 +260,7 @@ export function mapUserProjectRow(row: UserProjectRow): UserProject {
     title: row.title,
     description: row.description,
     selected_offer_id: row.selected_offer_id,
+    active_build_id: row.active_build_id,
     metadata: asRecord(row.metadata) as UserProjectMetadata,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -255,33 +283,3 @@ export function mapUserProjectOfferRow(
     updated_at: row.updated_at,
   };
 }
-
-
-export type TractionChannelKey =
-  | 'landing_page'
-  | 'direct_outreach'
-  | 'social_post'
-  | 'local_flyer'
-  | 'community_drop';
-
-export type ChannelCopyDraft = {
-  channel: TractionChannelKey;
-  channelLabel: string;
-  headlineOrHook: string;
-  messageBody: string;
-  ctaStep: string;
-};
-
-export type PersonaCopyFeedback = {
-  personaName: string;
-  reaction: string;
-  frictionPoint: string;
-  suggestedFix: string;
-};
-
-export type TractionAnalysisResult = {
-  shows: string;
-  channelWinner: string;
-  priceAndScopeFriction: string;
-  unclear: string;
-};
