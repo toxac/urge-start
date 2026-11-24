@@ -1,29 +1,30 @@
 export type ContextResource =
-  | 'contacts'
+  | 'resources'
   | 'observations'
   | 'opportunities'
-  | 'projects'
-  | 'offers'
+  | 'contacts'
   | 'experiments'
   | 'user_experiments'
-  | 'resources';
-
+  | 'projects'
+  | 'offers'
+  | 'builds';
 
 export const missionContextRequirements: Record<string, ContextResource[]> = {
-  'mission-1': ['contacts', 'resources'],
-  'mission-2': ['observations', 'opportunities', 'projects', 'resources'],
+  'mission-1': ['resources', 'observations'],
+  'mission-2': ['resources', 'observations', 'opportunities', 'projects'],
   'mission-3': [
-    'projects',
-    'opportunities',
+    'resources',
     'observations',
+    'opportunities',
     'contacts',
     'experiments',
     'user_experiments',
-    'resources',
+    'projects',
   ],
   'mission-4': [
     'projects',
     'offers',
+    'builds',
     'opportunities',
     'observations',
     'contacts',
@@ -31,10 +32,21 @@ export const missionContextRequirements: Record<string, ContextResource[]> = {
     'user_experiments',
     'resources',
   ],
-  'mission-5': ['projects', 'observations', 'contacts', 'resources'],
-  'mission-6': ['projects', 'observations', 'resources'],
+  'mission-5': [
+    'projects',
+    'offers',
+    'builds',
+    'opportunities',
+    'observations',
+    'experiments',
+    'user_experiments',
+    'resources',
+  ],
+  'mission-6': ['projects', 'offers', 'builds', 'resources'],
 };
 
-export function getMissionRequirements(missionKey: string): ContextResource[] {
-  return missionContextRequirements[missionKey] || [];
+export function getMissionContextRequirements(
+  missionKey: string,
+): ContextResource[] {
+  return missionContextRequirements[missionKey] ?? ['resources'];
 }
