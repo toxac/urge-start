@@ -66,6 +66,26 @@ import {
   Mission3Action,
 } from './mission-3';
 
+import {
+  BusinessStartingPoint,
+  CustomerPersonas,
+  RuthlessCut,
+  OfferAssessmentReveal,
+  OfferLockAction,
+  CostsLedger,
+  UnitEconomicsBreakdown,
+  PricingApproaches,
+  PricingInActionReveal,
+  PriceLockAction,
+  OfferCommunication,
+  PersonaCopyTest,
+  MultichannelTractionLog,
+  TractionAnalysisReveal,
+  OfferAndChannelAction,
+  Mission4Synthesis,
+  Mission4Action,
+} from './mission-4';
+
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
 
@@ -156,4 +176,23 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'signal_route_action': SignalRouteAction,
   'mission3_synthesis': Mission3Synthesis,
   'mission3_action': Mission3Action,
+
+  // Mission 4
+  'business_starting_point': BusinessStartingPoint,
+  'customer_personas': CustomerPersonas,
+  'ruthless_cut': RuthlessCut,
+  'offer_assessment_reveal': OfferAssessmentReveal,
+  'offer_lock_action': OfferLockAction,
+  'costs_ledger': CostsLedger,
+  'unit_economics_breakdown': UnitEconomicsBreakdown,
+  'pricing_approaches': PricingApproaches,
+  'pricing_in_action_reveal': PricingInActionReveal,
+  'price_lock_action': PriceLockAction,
+  'offer_communication': OfferCommunication,
+  'persona_copy_test': PersonaCopyTest,
+  'multichannel_traction_log': MultichannelTractionLog,
+  'traction_analysis_reveal': TractionAnalysisReveal,
+  'offer_and_channel_action': OfferAndChannelAction,
+  'mission4_synthesis': Mission4Synthesis,
+  'mission4_action': Mission4Action,
 };
