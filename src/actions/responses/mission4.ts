@@ -8,7 +8,11 @@ import type {
   ObservedUserProfileInput,
   OfferAssessmentResult,
   ProjectEconomics,
+  ChannelCopyDraft, PersonaCopyFeedback, TractionAnalysisResult, TractionChannelKey
 } from '@/lib/types/projects';
+
+import {ChannelBreakdownEntry} from '@/lib/types/experiments';
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -345,6 +349,212 @@ RULES:
     console.error('[MISSION 4 UNIT ECONOMICS]', err);
     throw new Error(
       'Could not interpret the financial reality check. Please try again.',
+    );
+  }
+}
+
+
+export async function generateAndStressTestChannelCopy(params: {
+  projectTitle: string;
+  offerTitle: string;
+  offerPromise: string;
+  includedSummary: string;
+  excludedSummary: string;
+  priceLabel: string;
+  paymentModel: string;
+  buyingStep: string;
+  coreAngle: string;
+  channels: Array<{ key: TractionChannelKey; label: string }>;
+  personas: ExtractedCustomerPersona[];
+  nodeKey?: string;
+  regenerate?: boolean;
+}): Promise<{
+  channelDrafts: ChannelCopyDraft[];
+  personaFeedback: PersonaCopyFeedback[];
+}> {
+  const sourceNodeKey = params.nodeKey?.trim() || 'm4-q3-persona-test';
+
+  const systemPrompt = `
+You are Urge, helping a first-time founder prepare clear, honest offer communication for multiple channels and stress-test that message against their target customer personas.
+
+Return ONLY valid JSON in this exact structure:
+{
+  "channelDrafts": [
+    {
+      "channel": "channel_key_from_input",
+      "channelLabel": "Channel Label",
+      "headlineOrHook": "Opening line, subject line, or flyer headline",
+      "messageBody": "Concise, concrete copy stating the problem solved, what v1 includes, the starting price, and payment model.",
+      "ctaStep": "Clear single next step to buy, book, or claim an early spot."
+    }
+  ],
+  "personaFeedback": [
+    {
+      "personaName": "Name of persona from input",
+      "reaction": "1-2 sentences in plain, realistic language showing how this buyer reads the offer and price.",
+      "frictionPoint": "The #1 question, doubt, or price hesitation that might stop them from acting.",
+      "suggestedFix": "One concrete tweak to the copy or proof to remove that hesitation."
+    }
+  ]
+}
+
+RULES:
+- Generate exactly one draft per channel supplied in the input, preserving the exact channel key and channelLabel.
+- Tailor format naturally:
+  - landing_page: crisp headline + 3 short bullets + price + button CTA
+  - direct_outreach: personal, under-110-word WhatsApp/email/DM note
+  - social_post: scroll-stopping hook + short story/problem + clear priced v1 invite
+  - local_flyer: bold 6-word headline + 3 bullets + price + QR/WhatsApp booking step
+  - community_drop: helpful, non-spammy peer post inviting founding pilot members at the transparent price
+- Every draft MUST state the real starting price plainly—no hiding price.
+- Simulate realistic feedback for each supplied persona (or 1 general target buyer if none supplied). Never flatter—surface real objections.
+`;
+
+  const result = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: JSON.stringify(params),
+    componentKey: 'persona_copy_test',
+    sourceNodeKey,
+    purpose: 'generate_and_stress_test_channel_copy',
+    requireJson: true,
+    temperature: params.regenerate ? 0.55 : 0.3,
+  });
+
+  if (!result.success || !result.content) {
+    throw new Error(
+      result.error || 'Could not generate channel drafts and persona check.',
+    );
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(result.content);
+    if (
+      !isRecord(parsed) ||
+      !Array.isArray(parsed.channelDrafts) ||
+      !Array.isArray(parsed.personaFeedback)
+    ) {
+      throw new Error('Invalid channel copy response shape.');
+    }
+
+    const channelDrafts: ChannelCopyDraft[] = parsed.channelDrafts
+      .filter(isRecord)
+      .map((item, idx) => {
+        const fallback = params.channels[idx] ?? {
+          key: 'direct_outreach' as TractionChannelKey,
+          label: 'Direct Outreach',
+        };
+        return {
+          channel: (typeof item.channel === 'string'
+            ? item.channel
+            : fallback.key) as TractionChannelKey,
+          channelLabel:
+            typeof item.channelLabel === 'string' && item.channelLabel.trim()
+              ? item.channelLabel.trim()
+              : fallback.label,
+          headlineOrHook:
+            typeof item.headlineOrHook === 'string'
+              ? item.headlineOrHook.trim()
+              : '',
+          messageBody:
+            typeof item.messageBody === 'string' ? item.messageBody.trim() : '',
+          ctaStep:
+            typeof item.ctaStep === 'string' ? item.ctaStep.trim() : '',
+        };
+      });
+
+    const personaFeedback: PersonaCopyFeedback[] = parsed.personaFeedback
+      .filter(isRecord)
+      .map((item, idx) => ({
+        personaName:
+          typeof item.personaName === 'string' && item.personaName.trim()
+            ? item.personaName.trim()
+            : `Target Buyer ${idx + 1}`,
+        reaction:
+          typeof item.reaction === 'string' ? item.reaction.trim() : '',
+        frictionPoint:
+          typeof item.frictionPoint === 'string'
+            ? item.frictionPoint.trim()
+            : '',
+        suggestedFix:
+          typeof item.suggestedFix === 'string' ? item.suggestedFix.trim() : '',
+      }));
+
+    return { channelDrafts, personaFeedback };
+  } catch (err) {
+    console.error('[MISSION 4 CHANNEL COPY TEST]', err);
+    throw new Error(
+      'Could not interpret the channel copy feedback. Please try again.',
+    );
+  }
+}
+
+export async function analyzeMultiChannelTraction(params: {
+  projectTitle: string;
+  offerTitle: string;
+  priceLabel: string;
+  channelBreakdown: ChannelBreakdownEntry[];
+  objectionsAndQuotes: string[];
+  notes: string;
+  dryRunSummary?: string;
+  nodeKey?: string;
+  regenerate?: boolean;
+}): Promise<TractionAnalysisResult> {
+  const sourceNodeKey = params.nodeKey?.trim() || 'm4-q3-reveal';
+
+  const systemPrompt = `
+You are Urge, helping a first-time founder read the results of a multi-channel priced offer test.
+
+Compare conversion and engagement across all tested channels, separate facts from guesses, and return ONLY valid JSON in this exact structure:
+{
+  "shows": "2-3 sentences stating the concrete numbers across channels (reach, inquiries, and paid/committed buyers).",
+  "channelWinner": "2 sentences naming which channel performed strongest (or noting if none converted yet) and why.",
+  "priceAndScopeFriction": "2 sentences summarizing what objections or hesitations surfaced around the price, payment terms, or v1 features.",
+  "unclear": "1-2 sentences pointing out what still needs to be proven in Mission 5 (e.g., stranger repeatability or fulfillment speed)."
+}
+
+RULES:
+- Stick strictly to the numbers and quotes provided. An honest zero is a clear fact.
+- Do not invent conversion benchmarks or flatter weak results.
+`;
+
+  const result = await invokeAIStandard({
+    systemPrompt,
+    userPrompt: JSON.stringify(params),
+    componentKey: 'traction_analysis_reveal',
+    sourceNodeKey,
+    purpose: 'analyze_multichannel_traction',
+    requireJson: true,
+    temperature: params.regenerate ? 0.45 : 0.2,
+  });
+
+  if (!result.success || !result.content) {
+    throw new Error(
+      result.error || 'Could not analyze your traction results.',
+    );
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(result.content);
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.shows !== 'string' ||
+      typeof parsed.channelWinner !== 'string' ||
+      typeof parsed.priceAndScopeFriction !== 'string' ||
+      typeof parsed.unclear !== 'string'
+    ) {
+      throw new Error('Invalid traction analysis shape.');
+    }
+
+    return {
+      shows: parsed.shows.trim(),
+      channelWinner: parsed.channelWinner.trim(),
+      priceAndScopeFriction: parsed.priceAndScopeFriction.trim(),
+      unclear: parsed.unclear.trim(),
+    };
+  } catch (err) {
+    console.error('[MISSION 4 TRACTION ANALYSIS]', err);
+    throw new Error(
+      'Could not interpret the traction analysis. Please try again.',
     );
   }
 }
