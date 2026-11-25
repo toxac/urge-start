@@ -87,6 +87,16 @@ import {
 } from './mission-4';
 
 import {
+  BuildStartingPoint,
+  BuildWorkspaceEntry,
+  AlphaTestExperiment,
+  AlphaSignalRead,
+  LaunchExecution,
+  Mission5Synthesis,
+  Mission5Action,
+} from './mission-5';
+
+import {
   OperateStartingPoint,
   OperateGoalsSetup,
   OperateDataIngest,
@@ -207,6 +217,13 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'mission4_action': Mission4Action,
 
   //Mission 5
+  'build_starting_point': BuildStartingPoint,
+  'build_workspace_entry': BuildWorkspaceEntry,
+  'alpha_test_experiment': AlphaTestExperiment,
+  'alpha_signal_read': AlphaSignalRead,
+  'launch_execution': LaunchExecution,
+  'mission5_synthesis': Mission5Synthesis,
+  'mission5_action': Mission5Action,
 
   // Mission 6
   'operate_starting_point': OperateStartingPoint,
