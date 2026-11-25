@@ -18,6 +18,8 @@ import {
   userExperimentsActions,
 } from '@/lib/stores/experiments';
 import { projectsActions } from '@/lib/stores/projects';
+import { opsActions } from '@/lib/stores/ops';
+import type { ProjectOpsBundle } from '@/lib/types/ops';
 
 interface MissionContextHydratorProps {
   contextData: Partial<Record<ContextResource, any>>;
@@ -63,6 +65,10 @@ export function MissionContextHydrator({
       projectsActions.hydrateBuilds(
         contextData.builds as UserProjectBuild[],
       );
+    }
+
+    if (contextData.ops !== undefined) {
+      opsActions.hydrate(contextData.ops as ProjectOpsBundle);
     }
   }, [contextData]);
 
