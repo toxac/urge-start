@@ -5,7 +5,8 @@ export type ExperimentCategory =
   | 'build'
   | 'cost'
   | 'pricing'
-  | 'traction';
+  | 'traction'
+  | 'ops';
 
 export type MetricFieldType =
   | 'number'
