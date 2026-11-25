@@ -933,6 +933,243 @@ export type Database = {
           },
         ]
       }
+      user_ops: {
+        Row: {
+          actions: Json
+          build_id: string | null
+          content: Json
+          created_at: string
+          domain: string
+          founder_diagnosis: string | null
+          horizon: string | null
+          id: string
+          project_id: string
+          record_type: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actions?: Json
+          build_id?: string | null
+          content?: Json
+          created_at?: string
+          domain?: string
+          founder_diagnosis?: string | null
+          horizon?: string | null
+          id?: string
+          project_id: string
+          record_type?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actions?: Json
+          build_id?: string | null
+          content?: Json
+          created_at?: string
+          domain?: string
+          founder_diagnosis?: string | null
+          horizon?: string | null
+          id?: string
+          project_id?: string
+          record_type?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ops_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "user_project_builds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ops_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ops_expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          expense_date: string
+          id: string
+          item: string
+          project_id: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category?: string
+          created_at?: string
+          expense_date?: string
+          id?: string
+          item: string
+          project_id: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          expense_date?: string
+          id?: string
+          item?: string
+          project_id?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ops_expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ops_sales: {
+        Row: {
+          acquisition_channel: string | null
+          created_at: string
+          customer_name: string | null
+          customer_segment: string | null
+          direct_cost: number
+          external_order_id: string | null
+          gross_amount: number
+          hours_spent: number
+          id: string
+          is_repeat: boolean
+          notes: string | null
+          order_date: string
+          outcome_delivered: boolean
+          project_id: string
+          refund_amount: number
+          source: string
+          user_id: string
+        }
+        Insert: {
+          acquisition_channel?: string | null
+          created_at?: string
+          customer_name?: string | null
+          customer_segment?: string | null
+          direct_cost?: number
+          external_order_id?: string | null
+          gross_amount?: number
+          hours_spent?: number
+          id?: string
+          is_repeat?: boolean
+          notes?: string | null
+          order_date?: string
+          outcome_delivered?: boolean
+          project_id: string
+          refund_amount?: number
+          source?: string
+          user_id: string
+        }
+        Update: {
+          acquisition_channel?: string | null
+          created_at?: string
+          customer_name?: string | null
+          customer_segment?: string | null
+          direct_cost?: number
+          external_order_id?: string | null
+          gross_amount?: number
+          hours_spent?: number
+          id?: string
+          is_repeat?: boolean
+          notes?: string | null
+          order_date?: string
+          outcome_delivered?: boolean
+          project_id?: string
+          refund_amount?: number
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ops_sales_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ops_traffic: {
+        Row: {
+          campaign_name: string | null
+          channel_name: string
+          channel_type: string
+          created_at: string
+          id: string
+          impressions_or_footfall: number
+          inquiries_or_leads: number
+          period_end: string | null
+          period_start: string
+          project_id: string
+          source: string
+          spend: number
+          user_id: string
+          visits_or_engagements: number
+        }
+        Insert: {
+          campaign_name?: string | null
+          channel_name: string
+          channel_type?: string
+          created_at?: string
+          id?: string
+          impressions_or_footfall?: number
+          inquiries_or_leads?: number
+          period_end?: string | null
+          period_start?: string
+          project_id: string
+          source?: string
+          spend?: number
+          user_id: string
+          visits_or_engagements?: number
+        }
+        Update: {
+          campaign_name?: string | null
+          channel_name?: string
+          channel_type?: string
+          created_at?: string
+          id?: string
+          impressions_or_footfall?: number
+          inquiries_or_leads?: number
+          period_end?: string | null
+          period_start?: string
+          project_id?: string
+          source?: string
+          spend?: number
+          user_id?: string
+          visits_or_engagements?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ops_traffic_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "user_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profile: {
         Row: {
           age_group: string | null
