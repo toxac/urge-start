@@ -1,280 +1,129 @@
-// src/program/mission6.ts
 import type { ProgramMission } from './types';
 
+/**
+ * Mission 6 — Operate, Diagnose & Grow (3–6 Month Copilot)
+ *
+ * Non-sequential post-launch operating phase:
+ *   - Setup: Orient to fundamentals-first operating mode
+ *   - Q1: Set 3/6-month horizon & quarterly targets + connect integrations / upload CSV data
+ *   - Q2: Run the business inside /program/operate (Baseline -> Gap Analysis -> Founder Diagnosis -> Preset Planners -> Tasks / Hypothesis Experiments)
+ *   - Q3: 3/6-month strategic crossroads (Keep Steady, Scale, Pivot, or Close Cleanly)
+ */
 export const mission6: ProgramMission = {
   key: 'mission-6',
   version: 2,
-  title: 'Run the Business',
+  title: 'Operate & Grow',
   sequence: 6,
 
-  question: 'Can I run this business, learn from what happens, and decide what to do next?',
+  question:
+    'Can I run this business sustainably, deliver real customer value, and hit my quarterly goals?',
 
   description:
-    'Run the business through a focused 90-day cycle, keep a small set of important signals visible, learn from what happens, run useful experiments, and decide what comes next.',
+    'Set your 3- or 6-month operating targets, connect your sales and traffic data, and use the Operate Copilot whenever you ask "what do I do next?" across Market, Money, and Customer.',
 
   transformation: {
-    from: 'I have built a business that can operate.',
-    to: 'I have run it in the real world, learned what works, and know what I want to do next.',
+    from: 'I just launched v1 and made my first initial sales.',
+    to: 'I run a disciplined, self-diagnosing operation with clear unit economics, repeatable acquisition, and proven customer value.',
   },
 
   setup: {
     key: 'm6-setup',
     sequence: 1,
     role: 'setup',
-    title: 'From building to running',
+    title: 'The training wheels come off—fundamentals take over.',
+    description: `You no longer have a rigid step-by-step checklist. Running a real business means watching three loops every week: Market (bringing in and converting the right buyers), Money (protecting margins and cash), and Customer (delivering the promised outcome so buyers stay and refer).
+
+Over the next 3 or 6 months, you will feed real numbers into your Operate Copilot, diagnose bottlenecks yourself first, and run focused tasks or 7–14 day hypothesis tests.`,
     intent:
-      'Orient the user to the shift from building the minimum business system to operating it in the real world. Bring forward the project history, M5 alpha evidence, current business context and the first operating cycle.',
-    component: 'operations_starting_point',
-    dependencies: ['m5-reveal'],
+      'Orient the founder to post-launch operating rhythm and the Market / Money / Customer framework.',
+    component: 'operate_starting_point',
+    dependencies: ['m5-action'],
   },
 
   quests: [
+    // -------------------------------------------------------------------------
+    // Quest 1 — Quarterly Goals & Data Ingest
+    // -------------------------------------------------------------------------
     {
       key: 'q1',
       sequence: 1,
-      title: 'Set Your Direction',
+      title: 'Set Quarterly Goals & Data Feeds',
       description:
-        'Decide what you want from the next 90 days and choose the small set of numbers that will help you see what is happening.',
+        'Lock your 3- or 6-month operating targets and set up weekly sales, traffic, and expense tracking.',
       nodes: [
         {
-          key: 'm6-q1-setup',
+          key: 'm6-q1-goals',
           sequence: 1,
-          role: 'setup',
-          title: 'What are you trying to achieve?',
+          role: 'investigation',
+          title: 'Choose your operating horizon & quarterly targets.',
+          description: `Decide whether you are running a 3-month or 6-month operating cycle, and set concrete monthly revenue, active customer, repeat-rate, and weekly hour limits anchored against your Mission 4 unit economics.`,
+          prompt: 'What are your concrete targets for this operating window?',
           intent:
-            'Move from simply having a live business to deciding what this particular 90-day period is for.',
-          component: 'operations_direction_setup',
+            'Saves horizon (3_months | 6_months) and quarterly goals into user_ops (record_type: goal).',
+          component: 'operate_goals_setup',
           dependencies: ['m6-setup'],
         },
         {
-          key: 'm6-q1-goals',
+          key: 'm6-q1-ingest',
           sequence: 2,
-          role: 'investigation',
-          title: 'Set your 90-day goals.',
-          intent:
-            'Help the user define a small number of meaningful goals across business, customers, financial outcomes, product or service, and founder constraints where relevant.',
-          component: 'operations_goals',
-          dependencies: ['m6-q1-setup'],
-        },
-        {
-          key: 'm6-q1-metrics',
-          sequence: 3,
-          role: 'investigation',
-          title: 'Choose the numbers that matter.',
-          intent:
-            'Choose approximately 5–8 core metrics appropriate to the business model and current goals, without creating a reporting burden.',
-          component: 'operations_metrics',
-          dependencies: ['m6-q1-goals'],
-        },
-        {
-          key: 'm6-q1-reveal',
-          sequence: 4,
-          role: 'reveal',
-          title: 'Your operating focus',
-          intent:
-            'Bring the goals, definition of success, core metrics and current focus together so the user can see what this 90-day cycle is actually about.',
-          component: 'operations_focus_reveal',
-          dependencies: ['m6-q1-metrics'],
-        },
-        {
-          key: 'm6-q1-action',
-          sequence: 5,
           role: 'action',
-          title: 'Start the 90-day cycle.',
+          title: 'Connect data feeds or upload your baseline CSVs.',
+          description: `Connect your payment/analytics tools—or download the clean CSV templates for Sales, Traffic & Campaigns, and Expenses—so your Operate Copilot always sees real numbers.`,
+          prompt: 'How will your weekly sales, traffic, and expense data flow in?',
           intent:
-            'Start the first operating cycle with the chosen goals, metrics, focus and review rhythm.',
-          component: 'operations_cycle_start',
-          dependencies: ['m6-q1-reveal'],
+            'Provides integration toggles + CSV template downloads/uploads for user_ops_sales, user_ops_traffic, and user_ops_expenses.',
+          component: 'operate_data_ingest',
+          dependencies: ['m6-q1-goals'],
         },
       ],
     },
 
+    // -------------------------------------------------------------------------
+    // Quest 2 — Run the Business in /program/operate
+    // -------------------------------------------------------------------------
     {
       key: 'q2',
       sequence: 2,
-      title: 'Set Up Your Operating System',
+      title: 'Run & Improve in the Operate Copilot',
       description:
-        'Decide what Urge should hold, what should stay in your existing tools, and create a simple view of the business that you can actually use.',
+        'Use /program/operate daily or weekly to spot gaps, diagnose causes, plan across Market, Money, and Customer, and run hypothesis tests.',
       nodes: [
         {
-          key: 'm6-q2-setup',
+          key: 'm6-q2-operate',
           sequence: 1,
-          role: 'setup',
-          title: 'Urge does not need to run your business.',
+          role: 'action',
+          title: 'Operate your business for your 3–6 month window.',
+          description: `Open the Operate Copilot whenever you wonder "what do I do next?" Upload weekly numbers, diagnose gaps before generating plans, and track your tasks and 7–14 day hypothesis experiments. When your operating window is complete, move to your strategic crossroads.`,
+          prompt: 'Ready to review your 3/6-month operating results?',
           intent:
-            'Make clear that Urge sits around the business tools rather than replacing accounting, CRM, payments, marketing automation, project management, support or other operational systems.',
-          component: 'operations_stack_setup',
-          dependencies: ['m6-q1-action'],
-        },
-        {
-          key: 'm6-q2-stack',
-          sequence: 2,
-          role: 'investigation',
-          title: 'Set up your business stack.',
-          intent:
-            'Record the external tools and systems the user uses to operate the business, while allowing them to keep existing tools or choose optional starter kits.',
-          component: 'operations_stack',
-          dependencies: ['m6-q2-setup'],
-        },
-        {
-          key: 'm6-q2-templates',
-          sequence: 3,
-          role: 'investigation',
-          title: 'Use the templates you need.',
-          intent:
-            'Let the user choose lightweight templates for financial management, marketing, sales, operations, customer management, planning and reviews without forcing those workflows into Urge.',
-          component: 'operations_templates',
-          dependencies: ['m6-q2-stack'],
-        },
-        {
-          key: 'm6-q2-dashboard',
-          sequence: 4,
-          role: 'investigation',
-          title: 'Set up your operations dashboard.',
-          intent:
-            'Create the focused operating view for the cycle: goals, core metrics, current focus, important signals, experiments, decisions and review history.',
-          component: 'operations_dashboard_setup',
-          dependencies: ['m6-q2-templates'],
-        },
-        {
-          key: 'm6-q2-reveal',
-          sequence: 5,
-          role: 'reveal',
-          title: 'Your business at a glance.',
-          intent:
-            'Show a focused operating picture that separates useful signals from operational noise and makes the current focus visible.',
-          component: 'operations_dashboard_reveal',
-          dependencies: ['m6-q2-dashboard'],
+            'Links to /program/operate non-sequential workspace and completes once the founder finishes their operating window.',
+          component: 'operate_workspace_entry',
+          dependencies: ['m6-q1-ingest'],
         },
       ],
     },
 
+    // -------------------------------------------------------------------------
+    // Quest 3 — 3/6-Month Strategic Crossroads
+    // -------------------------------------------------------------------------
     {
       key: 'q3',
       sequence: 3,
-      title: 'Operate, Measure, Learn',
+      title: 'Decide Your Next Move',
       description:
-        'Use a lightweight rhythm to focus, observe the business, learn from what happens and run focused experiments.',
+        'Review 3–6 months of real operating evidence and decide whether to keep running steady, scale up, pivot, or close cleanly.',
       nodes: [
         {
-          key: 'm6-q3-setup',
+          key: 'm6-q3-crossroads',
           sequence: 1,
-          role: 'setup',
-          title: 'Do not confuse activity with progress.',
-          intent:
-            'Establish the recurring operating loop: focus, operate, measure, observe, learn, experiment and decide.',
-          component: 'operations_loop_setup',
-          dependencies: ['m6-q2-reveal'],
-        },
-        {
-          key: 'm6-q3-focus',
-          sequence: 2,
-          role: 'investigation',
-          title: 'Choose your focus.',
-          intent:
-            'At each weekly check-in, help the user choose one to three priorities that matter most to the current goals and business situation.',
-          component: 'operations_weekly_focus',
-          dependencies: ['m6-q3-setup'],
-        },
-        {
-          key: 'm6-q3-review',
-          sequence: 3,
-          role: 'investigation',
-          title: 'Review what happened.',
-          intent:
-            'Capture the important operating signals for the period: metric changes, progress against goals, customer activity, revenue, costs, cash where available, blockers, observations, experiment progress and decisions.',
-          component: 'operations_periodic_review',
-          dependencies: ['m6-q3-focus'],
-        },
-        {
-          key: 'm6-q3-experiment',
-          sequence: 4,
-          role: 'investigation',
-          title: 'Run a focused experiment.',
-          intent:
-            'Use accumulated project context to identify useful experiments. Let the founder decide whether to run one and define what evidence would make the test meaningful.',
-          component: 'operations_experiment',
-          dependencies: ['m6-q3-review'],
-        },
-        {
-          key: 'm6-q3-reveal',
-          sequence: 5,
-          role: 'reveal',
-          title: 'What is the business telling you?',
-          intent:
-            'Synthesize the operating evidence without turning signals into automatic conclusions. Show what changed, what may deserve attention, what was learned and what remains uncertain.',
-          component: 'operations_learning_reveal',
-          dependencies: ['m6-q3-experiment'],
-        },
-        {
-          key: 'm6-q3-action',
-          sequence: 6,
           role: 'action',
-          title: 'What do you want to do with that?',
+          title: 'Choose the next chapter for your business.',
+          description: `Look honestly at your cumulative revenue, net profit, effective hourly pay, and customer retention. Commit to one clear path forward.`,
+          prompt: 'Based on your real operating numbers, what is your next move?',
           intent:
-            'Record the meaningful next decision, continue the current focus, create follow-up work or define the next experiment based on what was learned.',
-          component: 'operations_next_action',
-          dependencies: ['m6-q3-reveal'],
-        },
-      ],
-    },
-
-    {
-      key: 'q4',
-      sequence: 4,
-      title: '90-Day Review',
-      description:
-        'Step back from the day-to-day and look at the business you actually ran, what you learned and what you want from it next.',
-      nodes: [
-        {
-          key: 'm6-q4-setup',
-          sequence: 1,
-          role: 'setup',
-          title: 'Three months gives you something to work with.',
-          intent:
-            'Bring the first 90-day operating history together so the user can review the business as it actually behaved rather than relying on memory.',
-          component: 'operations_90_day_setup',
-          dependencies: ['m6-q3-action'],
-        },
-        {
-          key: 'm6-q4-review',
-          sequence: 2,
-          role: 'investigation',
-          title: 'Review your first 90 days.',
-          intent:
-            'Review original goals, actual results, metric trends, customers, revenue, costs, cash where available, experiments, business changes and important evidence.',
-          component: 'operations_90_day_review',
-          dependencies: ['m6-q4-setup'],
-        },
-        {
-          key: 'm6-q4-reflection',
-          sequence: 3,
-          role: 'investigation',
-          title: 'What did you learn?',
-          intent:
-            'Give the founder space to reflect on customers, market, what worked, what did not, what surprised them, what they would do differently, what remains uncertain and what they want from the business next.',
-          component: 'operations_90_day_reflection',
-          dependencies: ['m6-q4-review'],
-        },
-        {
-          key: 'm6-q4-reveal',
-          sequence: 4,
-          role: 'reveal',
-          title: 'See the business you have built.',
-          intent:
-            'Synthesize the 90-day operating history into a clear picture of results, evidence, experiments, learning, decisions and unresolved questions.',
-          component: 'operations_90_day_reveal',
-          dependencies: ['m6-q4-reflection'],
-        },
-        {
-          key: 'm6-q4-action',
-          sequence: 5,
-          role: 'action',
-          title: 'Choose what comes next.',
-          intent:
-            "Record the founder's next direction for the business and route the project into another operating cycle, targeted earlier-mission work, or closure.",
-          component: 'operations_90_day_action',
-          dependencies: ['m6-q4-reveal'],
+            'Captures the founder strategic crossroads decision (keep_steady | scale_up | pivot | close_cleanly) and rationale.',
+          component: 'operate_crossroads_decision',
+          dependencies: ['m6-q2-operate'],
         },
       ],
     },
@@ -284,10 +133,23 @@ export const mission6: ProgramMission = {
     key: 'm6-reveal',
     sequence: 1,
     role: 'reveal',
-    title: 'You ran a real business.',
+    title: 'Your Operating Scorecard & Proven Playbook.',
     intent:
-      'Show the complete journey from building the business to operating it, learning from reality, running experiments and making a deliberate next decision.',
-    component: 'mission_transformation_synthesis',
+      'Synthesizes cumulative revenue, profit, effective hourly pay, validated experiments, and repeatable growth levers.',
+    component: 'mission6_synthesis',
+    dependencies: ['m6-q3-crossroads'],
   },
 
+  action: {
+    key: 'm6-action',
+    sequence: 2,
+    role: 'action',
+    title: 'Lock your next 30-day roadmap.',
+    description: `Turn your strategic decision into concrete next actions—whether scaling your winning channel, spinning up a v2.0 build, or wrapping up cleanly.`,
+    prompt: 'Ready to lock in your next chapter?',
+    intent:
+      'Updates user_projects status and generates next-chapter tasks in user_tasks.',
+    component: 'mission6_action',
+    dependencies: ['m6-reveal'],
+  },
 };
