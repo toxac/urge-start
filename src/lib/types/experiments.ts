@@ -122,6 +122,9 @@ export type UserExperimentReflection = {
   situation?: SignalSituation;
   next_step?: 'proceed' | 'iterate' | 'switch_opportunity' | 'pause';
   decision_reason?: string;
+  worked?: 'yes' | 'partially' | 'no';
+  how_it_worked?: string;
+  next_move?: string;
 };
 
 export type UserExperiment = {
@@ -444,3 +447,4 @@ export type UserExperimentResults = {
   notes?: string;
   last_logged_at?: string;
 };
+
