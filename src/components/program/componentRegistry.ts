@@ -86,6 +86,16 @@ import {
   Mission4Action,
 } from './mission-4';
 
+import {
+  OperateStartingPoint,
+  OperateGoalsSetup,
+  OperateDataIngest,
+  OperateWorkspaceEntry,
+  OperateCrossroadsDecision,
+  Mission6Synthesis,
+  Mission6Action,
+} from './mission-6';
+
 import { StandardSetupFrame } from './common/StandardSetupFrame'; 
 import { RealWorldExperiment } from './common/RealWorldExperiment';
 
@@ -195,4 +205,16 @@ export const programComponentRegistry: Record<string, ComponentType<NodeComponen
   'offer_and_channel_action': OfferAndChannelAction,
   'mission4_synthesis': Mission4Synthesis,
   'mission4_action': Mission4Action,
+
+  //Mission 5
+
+  // Mission 6
+  'operate_starting_point': OperateStartingPoint,
+  'operate_goals_setup': OperateGoalsSetup,
+  'operate_data_ingest': OperateDataIngest,
+  'operate_workspace_entry': OperateWorkspaceEntry,
+  'operate_crossroads_decision': OperateCrossroadsDecision,
+  'mission6_synthesis': Mission6Synthesis,
+  'mission6_action': Mission6Action,
+
 };
