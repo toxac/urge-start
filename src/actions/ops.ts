@@ -22,6 +22,7 @@ import {
   type UserOpsExpense,
   type UserOpsSale,
   type UserOpsTraffic,
+  type OpsTaskSummary
 } from '@/lib/types/ops';
 import { mapUserExperimentRow, type UserExperiment } from '@/lib/types/experiments';
 
@@ -506,4 +507,58 @@ export async function ingestOpsExpenses(
   }
 
   return (data ?? []).map(mapUserOpsExpenseRow);
+}
+
+export async function fetchOpsTasks(): Promise<OpsTaskSummary[]> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { data, error } = await supabase
+    .from('user_tasks')
+    .select('id, title, description, status, source_node_key, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(40);
+
+  if (error) {
+    throw new Error(`Failed to fetch tasks: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+export async function updateOpsTaskStatus(
+  taskId: string,
+  status: 'pending' | 'completed',
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const { error } = await supabase
+    .from('user_tasks')
+    .update({
+      status,
+      completed_at: status === 'completed' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', taskId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    throw new Error(`Failed to update task: ${error.message}`);
+  }
 }

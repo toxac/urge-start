@@ -242,3 +242,12 @@ export function mapUserOpsExpenseRow(row: UserOpsExpenseRow): UserOpsExpense {
     created_at: row.created_at,
   };
 }
+
+export type OpsTaskSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  source_node_key: string | null;
+  created_at: string;
+};
