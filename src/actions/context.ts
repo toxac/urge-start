@@ -12,6 +12,12 @@ import {
   mapUserProjectRow,
 } from '@/lib/types/projects';
 import { mapUserProjectBuildRow } from '@/lib/types/builds';
+import {
+  mapUserOpRow,
+  mapUserOpsExpenseRow,
+  mapUserOpsSaleRow,
+  mapUserOpsTrafficRow,
+} from '@/lib/types/ops';
 
 export async function fetchMissionContext(
   requirements: ContextResource[],
@@ -60,6 +66,7 @@ export async function fetchMissionContext(
   const needsProjects = requirements.includes('projects');
   const needsOffers = requirements.includes('offers');
   const needsBuilds = requirements.includes('builds');
+  const needsOps = requirements.includes('ops');
 
   if (
     needsObservations ||
@@ -174,6 +181,60 @@ export async function fetchMissionContext(
       }
 
       contextData.builds = (builds ?? []).map(mapUserProjectBuildRow);
+    }
+
+    if (needsOps) {
+      const [opsRes, salesRes, trafficRes, expensesRes] = await Promise.all([
+        supabase
+          .from('user_ops')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('user_ops_sales')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('order_date', { ascending: false })
+          .limit(500),
+        supabase
+          .from('user_ops_traffic')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('period_start', { ascending: false })
+          .limit(500),
+        supabase
+          .from('user_ops_expenses')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('expense_date', { ascending: false })
+          .limit(500),
+      ]);
+
+      if (opsRes.error) {
+        throw new Error(`Failed to fetch user_ops: ${opsRes.error.message}`);
+      }
+      if (salesRes.error) {
+        throw new Error(
+          `Failed to fetch user_ops_sales: ${salesRes.error.message}`,
+        );
+      }
+      if (trafficRes.error) {
+        throw new Error(
+          `Failed to fetch user_ops_traffic: ${trafficRes.error.message}`,
+        );
+      }
+      if (expensesRes.error) {
+        throw new Error(
+          `Failed to fetch user_ops_expenses: ${expensesRes.error.message}`,
+        );
+      }
+
+      contextData.ops = {
+        ops: (opsRes.data ?? []).map(mapUserOpRow),
+        sales: (salesRes.data ?? []).map(mapUserOpsSaleRow),
+        traffic: (trafficRes.data ?? []).map(mapUserOpsTrafficRow),
+        expenses: (expensesRes.data ?? []).map(mapUserOpsExpenseRow),
+      };
     }
   }
 
